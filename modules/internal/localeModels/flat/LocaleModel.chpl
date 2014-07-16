@@ -177,7 +177,7 @@ module LocaleModel {
   //
   class RootLocale : AbstractRootLocale {
 
-    const myLocaleSpace: domain(1) = {0..numLocales-1};
+    const myLocaleSpace: domain(1) dmapped LocalesDist() = {0..numLocales-1};
     const myLocales: [myLocaleSpace] locale;
 
     proc RootLocale() {
@@ -190,7 +190,7 @@ module LocaleModel {
     // In addition, the initial 'here' must be set.
     proc init() {
       forall locIdx in initOnLocales() {
-        const node = new LocaleModel(this);
+        var node = new LocaleModel(this);
         myLocales[locIdx] = node;
         numCores += node.numCores;
       }

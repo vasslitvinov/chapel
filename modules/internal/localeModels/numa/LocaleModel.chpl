@@ -247,7 +247,8 @@ module LocaleModel {
   //
   class RootLocale : AbstractRootLocale {
 
-    const myLocaleSpace: domain(1) = {0..numLocales-1};
+    //TODO: Should be possible to just say 'dmapped LocalesDist' w/o () I think...
+    const myLocaleSpace: domain(1) dmapped LocalesDist() = {0..numLocales-1};
     const myLocales: [myLocaleSpace] locale;
 
     proc RootLocale() {

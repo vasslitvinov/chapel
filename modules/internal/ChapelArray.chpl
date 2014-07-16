@@ -108,6 +108,13 @@ module ChapelArray {
       return new _array(value, value);
   }
   
+  proc _getArray(value) {
+    if _isPrivatized(value) then
+      return new _array(value.pid, value);
+    else
+      return new _array(value, value);
+  }
+  
   proc _newDomain(value) {
     if _isPrivatized(value) then
       return new _domain(_newPrivatizedClass(value), value);
@@ -198,10 +205,6 @@ module ChapelArray {
   proc chpl__buildArrayRuntimeType(dom: domain, type eltType)
     return dom.buildArray(eltType);
 
-  proc _getLiteralType(type t) type {
-    if t != c_string then return t;
-    else return string;
-  }
   /*
    * Support for array literal expressions.
    *
@@ -221,15 +224,14 @@ module ChapelArray {
                       " If so, use {...} instead of [...]."); 
     }
 
-    // elements of string literals are assumed to be of type string
-    type elemType = _getLiteralType(elems(1).type);
+    type elemType = elems(1).type;
     var A : [1..k] elemType;  //This is unfortunate, can't use t here...
   
     for param i in 1..k {
-      type currType = _getLiteralType(elems(i).type);
+      type currType = elems(i).type;
 
       if currType != elemType {
-        compilerError( "Array literal element " + i:c_string +
+        compilerError( "Array literal element " + i:string +
                        " expected to be of type " + typeToString(elemType) +
                        " but is of type " + typeToString(currType) );
       }
@@ -241,8 +243,8 @@ module ChapelArray {
   }
 
   proc chpl__buildAssociativeArrayExpr( elems ...?k ) {
-    type keyType = _getLiteralType(elems(1).type);
-    type valType = _getLiteralType(elems(2).type);
+    type keyType = elems(1).type;
+    type valType = elems(2).type;
     var D : domain(keyType);
 
     //Size the domain appropriately for the number of keys
@@ -253,8 +255,8 @@ module ChapelArray {
     for param i in 1..k by 2 {
       var elemKey = elems(i);
       var elemVal = elems(i+1);
-      type elemKeyType = _getLiteralType(elemKey.type);
-      type elemValType = _getLiteralType(elemVal.type);
+      type elemKeyType = elemKey.type;
+      type elemValType = elemVal.type;
 
       if elemKeyType != keyType {
          compilerError("Associative array key element " + (i+2)/2 + 
@@ -370,25 +372,23 @@ module ChapelArray {
   }
   
   proc chpl__buildDomainExpr(keys: ?t ...?count) {
-    // keyType of string literals is assumed to be type string
-    type keyType = _getLiteralType(keys(1).type);
-    for param i in 2..count do
-      if keyType != _getLiteralType(keys(i).type) {
-        compilerError("Associative domain element " + i + 
-                      " expected to be of type " + typeToString(keyType) + 
-                      " but is of type " +
-                      typeToString(_getLiteralType(keys(i).type)));
-      }
-
-    //Initialize the domain with a size appropriate for the number of keys.
-    //This prevents resizing as keys are added.
-    var D : domain(keyType);
-    D.requestCapacity(count);
-
-    for param i in 1..count do
-      D += keys(i);
-
-    return D;
+  
+      for param i in 2..count do
+       if keys(1).type != keys(i).type {
+         compilerError("Associative domain element " + i + 
+                       " expected to be of type " + typeToString(keys(1).type) + 
+                       " but is of type " + typeToString(keys(i).type));
+       }
+      
+      //Initialize the domain with a size appropriate for the number of keys.
+      //This prevents resizing as keys are added.  
+      var D : domain(keys(1).type);
+      D.requestCapacity(count);    
+      
+      for param i in 1..count do
+        D += keys(i);
+  
+      return D; 
   }
 
   //
@@ -1388,7 +1388,26 @@ module ChapelArray {
       var x = _value;
       return _newArray(x);
     }
-  
+
+    proc reshape(D: domain) {
+      if !isRectangularDom(D) then
+        compilerError("A.reshape(D) is meaningful only when D is a rectangular domain; got D: ", typeToString(D.type));
+      if this.size != D.size then
+        halt("A.reshape(D) is invoked when A has ", this.size,
+            " elements, but D has ", D.size, " indices");
+
+      //TODO: this isn't exactly ideal, but it lets me provide a default
+      //      impelementation without adding a virtual method
+      if chpl__tryToken {
+        return _value.dsiReshape(D);
+      } else {
+        var B: [D] this.eltType;
+        for (i,a) in zip(D, this) do
+          B(i) = a;
+        return B;
+      }
+    }
+
     proc reindex(d: domain)
       where isRectangularDom(this.domain) && isRectangularDom(d)
     {
@@ -1811,7 +1830,28 @@ module ChapelArray {
 
     if boundsChecking then
       checkArrayShapesUponAssignment(a, b);
-  
+
+    if a._value.dsiIsPrivatizedLocales() {
+      // LocalesRepArr needs special logic to set the replicated data
+      // ideally we would override proc = for LocalesRepArr specifically
+      if (a.eltType == b.type ||
+          _isPrimitiveType(a.eltType) && _isPrimitiveType(b.type)) {
+        coforall locArray in a._value.localArrs {
+          on locArray.locale {
+            for aa in locArray.arrLocalRep do
+              aa = b;
+          }
+        }
+      } else {
+        coforall locArray in a._value.localArrs {
+          on locArray.locale {
+            for (aa, bb) in zip(locArray.arrLocalRep, b) do
+              aa = bb;
+          }
+        }
+      }
+    }
+
     // try bulk transfer
     if !chpl__serializeAssignment(a, b) then
       // Do bulk transfer.

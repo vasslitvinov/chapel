@@ -430,6 +430,41 @@ proc _undensCheck(param cond, type argtypes, param errlevel = 2) {
 
 
 //
+// calculateTargetLocDom
+//
+proc calculateTargetLocDom(param targetRank, initialLocArr) {
+  param rank = targetRank;
+  if rank != 1 && initialLocArr.rank == 1 {
+    const factors = _factor(rank, initialLocArr.numElements);
+    var ranges: rank*range;
+    for param i in 1..rank do
+      ranges(i) = 0..#factors(i);
+    return {(...ranges)};
+  } else {
+    if initialLocArr.rank != rank then
+      compilerError("specified target array of locales must equal 1 or distribution rank");
+    var ranges: rank*range;
+    for param i in 1..rank do
+      ranges(i) = 0..#initialLocArr.domain.dim(i).length;
+    return {(...ranges)};
+  }
+}
+
+//
+// calculateTargetLocArr
+//
+proc calculateTargetLocArr(targetDom, initialLocArr) {
+  param rank = targetDom.rank;
+  if rank != 1 && initialLocArr.rank == 1 {
+    return initialLocArr.reshape(targetDom);
+  } else {
+    if initialLocArr.rank != rank then
+      compilerError("specified target array of locales must equal 1 or distribution rank");
+    return initialLocArr;
+  }
+}
+
+//
 // setupTargetLocalesArray
 //
 proc setupTargetLocalesArray(targetLocDom, targetLocArr, specifiedLocArr) {

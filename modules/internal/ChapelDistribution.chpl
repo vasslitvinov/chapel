@@ -360,7 +360,10 @@ module ChapelDistribution {
   
     proc dsiSupportsPrivatization() param return false;
     proc dsiRequiresPrivatization() param return false;
-  
+
+    proc dsiPreserveDmap() param return false;
+    proc dsiIsPrivatizedLocales() param return false;
+
     proc dsiSupportsBulkTransfer() param return false;
     proc doiCanBulkTransfer() param return false;
     proc doiBulkTransfer(B){ 

@@ -2,6 +2,7 @@
 //
 pragma "no use ChapelStandard"
 module ChapelLocale {
+  use LocalesDist;
 
   //
   // An abstract class. Specifies the required locale interface.
@@ -298,8 +299,8 @@ module ChapelLocale {
       // so tell the compiler to not insert them.
       pragma "no copy" pragma "no auto destroy"
       const origLocales => (origRootLocale:RootLocale).getDefaultLocaleArray();
-      var origRL = origLocales._value.theData;
-      var newRL = newRootLocale.getDefaultLocaleArray()._value.theData;
+      var origRL = origLocales._value.myElements._value.theData;
+      var newRL = newRootLocale.getDefaultLocaleArray()._value.myElements._value.theData;
       // We must directly implement a bulk copy here, as the mechanisms
       // for doing so via a whole array assignment are not initialized
       // yet and copying element-by-element via a for loop is is costly.
