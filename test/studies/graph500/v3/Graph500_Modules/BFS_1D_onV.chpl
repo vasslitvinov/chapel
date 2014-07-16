@@ -25,7 +25,7 @@ proc BFS ( root : vertex_id, ParentTree, G )
 
   var Root_vertex : vertex_id = root;
 
-  coforall loc in Locales do on loc {
+  forall loc in Locales {
     rcLocal(Active_Level) = new Level_Set (Vertex_List);
     rcLocal(Active_Level).previous = nil;
     rcLocal(Next_Level) = new Level_Set (Vertex_List);
@@ -48,7 +48,7 @@ proc BFS ( root : vertex_id, ParentTree, G )
     var count: sync int = numLocales;
     var barrier: single bool;
 
-    coforall loc in Locales do on loc {
+    forall loc in Locales {
       forall u in rcLocal(Active_Level).Members do {
 
         forall v in G.Neighbors (u) do on v {

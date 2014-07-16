@@ -6,12 +6,10 @@ iter leadfollow() {
 }
 
 iter leadfollow(param tag: iterKind) where tag == iterKind.leader {
-  coforall loc in Locales {
-    on loc {
-      coforall taskid in 0..#numTasks {
-        const lo = loc.id*numTasks + taskid;
-        yield lo;
-      }
+  forall loc in Locales {
+    coforall taskid in 0..#numTasks {
+      const lo = loc.id*numTasks + taskid;
+      yield lo;
     }
   }
 }

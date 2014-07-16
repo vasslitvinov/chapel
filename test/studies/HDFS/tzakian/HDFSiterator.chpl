@@ -108,33 +108,31 @@ iter HDFSmap(param tag: iterKind, dataFile: string, namenode: string = "default"
     const length_PL:        [rcDomain] int(32);
     // ====================== END ==========================================
 
-    coforall loc in Locales { 
-      on loc {
+    forall loc in Locales { 
 
-        //======================== File connection =========================
-        var hdfsFS: c_void_ptr = HDFS.hdfsConnect(namenode, port);
-        assert(HDFS.IS_NULL(hdfsFS) == HDFS.IS_NULL_FALSE, "Failed to connect to HDFS");
+      //======================== File connection =========================
+      var hdfsFS: c_void_ptr = HDFS.hdfsConnect(namenode, port);
+      assert(HDFS.IS_NULL(hdfsFS) == HDFS.IS_NULL_FALSE, "Failed to connect to HDFS");
 
-        var fileInfo      = HDFS.chadoopGetFileInfo(hdfsFS, dataFile);
-        var dataFileLocal = HDFS.hdfsOpenFile(hdfsFS, dataFile, O_RDONLY, 0, 0, 0);
-        assert(HDFS.IS_NULL(dataFileLocal) == HDFS.IS_NULL_FALSE, "Failed to open dataFileLocal on loc ", here.id);
-        // =================================== END =========================
+      var fileInfo      = HDFS.chadoopGetFileInfo(hdfsFS, dataFile);
+      var dataFileLocal = HDFS.hdfsOpenFile(hdfsFS, dataFile, O_RDONLY, 0, 0, 0);
+      assert(HDFS.IS_NULL(dataFileLocal) == HDFS.IS_NULL_FALSE, "Failed to open dataFileLocal on loc ", here.id);
+      // =================================== END =========================
 
-        // ========== Native (Chapel) constants used throughout ============
-        // These should all be covered under the PGAS model -- right?? 
-        var length = (fileInfo.mBlockSize): int(32);
-        // Our length is going to be one less then block size since we want to 
-        // read up to the point that the next read takes over (i.e We always read 0-(n-1))
-        // =================================== END =========================
+      // ========== Native (Chapel) constants used throughout ============
+      // These should all be covered under the PGAS model -- right?? 
+      var length = (fileInfo.mBlockSize): int(32);
+      // Our length is going to be one less then block size since we want to 
+      // read up to the point that the next read takes over (i.e We always read 0-(n-1))
+      // =================================== END =========================
 
-        // ================ Replication to Locales =========================
-        // Copy over our stuff to all of our locales
-        rcLocal(hdfsFS_PL)        = hdfsFS;
-        rcLocal(fileInfo_PL)      = fileInfo;
-        rcLocal(dataFileLocal_PL) = dataFileLocal;
-        rcLocal(length_PL)        = length;
-        // =================================== END =========================
-      }
+      // ================ Replication to Locales =========================
+      // Copy over our stuff to all of our locales
+      rcLocal(hdfsFS_PL)        = hdfsFS;
+      rcLocal(fileInfo_PL)      = fileInfo;
+      rcLocal(dataFileLocal_PL) = dataFileLocal;
+      rcLocal(length_PL)        = length;
+      // =================================== END =========================
     }
 
     // ========================== File-blocks ========================== 

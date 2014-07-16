@@ -52,7 +52,7 @@ for l in lines:
         if l.strip().find('printResults') == 0:
             f.write('stopCommDiagnostics();\n')
             f.write('writeln(getCommDiagnostics());\n')
-        if l.strip().find('coforall loc in Locales') == 0:
+        if l.strip().find('forall loc in Locales') == 0:
             f.write('resetCommDiagnostics();\n')
             f.write('startCommDiagnostics();\n')
 

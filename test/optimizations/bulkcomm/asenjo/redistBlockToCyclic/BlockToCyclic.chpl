@@ -11,7 +11,7 @@ proc copyCtoB(A:[], B:[])
 
 proc BlockArr.copyBtoC(B)
 {
-  coforall loc in Locales do on loc
+  forall loc in Locales
   {
     const privarr=this.dsiPrivatize(dom.pid);
     const privdom=dom.dsiPrivatize((dom.dist.pid,dom.dsiDims()));
@@ -86,7 +86,7 @@ proc BlockArr.copyBtoC(B)
 proc  BlockArr.copyCtoB(B)
 {
  
-  coforall loc in Locales do on loc
+  forall loc in Locales
   {
     const privarr=this.dsiPrivatize(dom.pid);
     const privdom=dom.dsiPrivatize((dom.dist.pid,dom.dsiDims()));

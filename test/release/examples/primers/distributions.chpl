@@ -33,7 +33,7 @@ config const n = 8;
 // initialize the distributed domains.
 //
 const Space = {1..n, 1..n};
-
+writeln("Space: ", Space);
 //
 // The Block distribution distributes a bounding box from
 // n-dimensional space across the target locale array viewed as an
@@ -47,16 +47,18 @@ const Space = {1..n, 1..n};
 // domain BlockSpace and a Block-distributed array BA declared over
 // the domain.
 //
-const BlockSpace = Space dmapped Block(boundingBox=Space);
+const BlockSpace = Space dmapped Block(boundingBox=Space, initialLocales=LocalesRepGlobal);
+writeln("BlockSpace: ", BlockSpace);
 var BA: [BlockSpace] int;
-
+writeln("BA: ", BA);
 //
 // To illustrate how the index set is distributed across locales,
 // we'll use a forall loop to initialize each array element to the
 // locale ID that stores that index/element/iteration.
 //
-forall ba in BA do
+forall ba in BA {
   ba = here.id;
+}
 
 //
 // Output the Block-distributed array to visually see how the elements
@@ -82,7 +84,7 @@ writeln();
 //
 
 var MyLocaleView = {0..#numLocales, 1..1};
-var MyLocales: [MyLocaleView] locale = reshape(Locales, MyLocaleView);
+var MyLocales = Locales.reshape(MyLocaleView);
 
 //
 // Then we'll declare a distributed domain/array that targets
@@ -90,7 +92,7 @@ var MyLocales: [MyLocaleView] locale = reshape(Locales, MyLocaleView);
 // 
 
 const BlockSpace2 = Space dmapped Block(boundingBox=Space,
-                                        targetLocales=MyLocales);
+                                        initialLocales=MyLocales);
 var BA2: [BlockSpace2] int;
 
 //
@@ -105,7 +107,7 @@ writeln(BA2);
 writeln();
 
 
-
+/*
 //
 // Next, we'll perform a similar computation for the Cyclic distribution.
 // Cyclic distributions start at a designated n-dimensional index and
@@ -145,7 +147,6 @@ forall bca in BCA do
 writeln("Block-Cyclic Array Index Map");
 writeln(BCA);
 writeln();
-
 
 //
 // The ReplicatedDist distribution is different: each of the
@@ -267,7 +268,7 @@ writeln();
 
 var (nl1, nl2) = if numLocales == 1 then (1, 1) else (2, numLocales/2);
 MyLocaleView = {0..#nl1, 0..#nl2};
-MyLocales = reshape(Locales[0..#nl1*nl2], MyLocaleView);
+MyLocales = Locales[0..#nl1*nl2].reshape(MyLocaleView);
 
 const DimReplicatedBlockcyclicSpace = Space
   dmapped DimensionalDist2D(MyLocales,
@@ -302,3 +303,4 @@ for locId1 in 0..#nl1 do on MyLocales[locId1, 0] {
   writeln();
 
 }
+*/

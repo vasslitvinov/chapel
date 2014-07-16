@@ -114,13 +114,11 @@ module SSCA2_main
         BlockDist;
 
 //  Write out locale information
-    coforall loc in Locales do
-    {
-    on loc do
+    forall loc in Locales do {
       writeln("Locale ID: ", loc.id, " of ", numLocales);
       writeln("Locale ID: ", loc.id, " Number of cores " , loc.numCores);
     }
-    
+
     var graph_types : domain (graph_type);
 
     for this_graph_type in graph_types do {

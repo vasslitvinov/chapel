@@ -5,7 +5,7 @@ var si: single bool;
 resetCommDiagnostics();
 startCommDiagnostics();
 if doVerboseComm then startVerboseComm();
-coforall l in Locales do on l {
+forall l in Locales {
   if l.id == numLocales-1 then
     begin si.writeEF(true);
   si.readFF();
@@ -18,7 +18,7 @@ var sy: sync bool;
 resetCommDiagnostics();
 startCommDiagnostics();
 if doVerboseComm then startVerboseComm();
-coforall l in Locales do on l {
+forall l in Locales {
   if l.id == numLocales-1 then
     begin sy.writeEF(true);
   sy.readFF();

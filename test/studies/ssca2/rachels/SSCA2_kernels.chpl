@@ -517,7 +517,7 @@ module SSCA2_kernels
         coforall t in TPVSpace do on t {
           var tpv = TPV[t];
           var al = tpv.Active_Level;
-          coforall loc in Locales do on loc {
+          forall loc in Locales {
             var level = al[here.id];
             while level != nil {
                 var l2 = level.next;

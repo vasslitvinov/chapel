@@ -36,12 +36,10 @@ module Graph500_main
   writeln ( "        Edge factor: ", EDGEFACTOR );
 
  if ENABLE_PRINTOUTS then
-  coforall loc in Locales do
-    {
-    on loc do
-      writeln("Locale ID: ", loc.id, " of ", numLocales);
-      writeln("Locale ID: ", loc.id, " Number of cores " , loc.numCores);
-    }
+  forall loc in Locales {
+    writeln("Locale ID: ", loc.id, " of ", numLocales);
+    writeln("Locale ID: ", loc.id, " Number of cores " , loc.numCores);
+  }
 
 
   const edge_range =  1..N_RAWEDGES;

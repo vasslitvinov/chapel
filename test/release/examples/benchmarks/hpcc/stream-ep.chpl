@@ -86,7 +86,7 @@ proc main() {
   // *** Fragment control so that we have a single task running on
   // *** every locale.
   //
-  coforall loc in Locales do on loc {
+  forall loc in Locales {
 
     //
     // *** We declare these variables outside of the local block since

@@ -34,7 +34,7 @@ writeln("Number of tasks     = ", tasks, " (per locale)");
 // object), set parSafe to false to avoid locking overhead.
 //
 var counts: [LocaleSpace] [1..tasks] int;
-coforall loc in Locales do on loc {
+forall loc in Locales {
   var myN = (loc.id+1)*n/numLocales - (loc.id)*n/numLocales;
   coforall task in 1..tasks {
     var rs = new RandomStream(seed + loc.id*tasks*2 + task*2, parSafe=false);

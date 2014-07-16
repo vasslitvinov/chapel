@@ -8,7 +8,7 @@
 
 config const N = 7;
 
-assert(N >=3, "N must be in 3..");
+assert(N >= 3, "N must be in 3..");
 
 const D = {0..N};
 var s, t: [D] int;
@@ -73,6 +73,5 @@ proc flip() {
     }
     if t[t[0]] == 0 then return i;
   }
-  assert(true);
   return -1;
 }

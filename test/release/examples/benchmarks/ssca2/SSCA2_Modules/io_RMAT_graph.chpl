@@ -205,7 +205,7 @@ module io_RMAT_graph
       const repfileDom = repfileBase dmapped new dmap(repfileMap);
       var repfiles: [repfileDom] file;
 
-      coforall l in Locales do on l {
+      forall l in Locales {
  repfiles[repfileSV] = createGraphFile(snapshot_prefix, SV2_FILENAME, rea);
  repfiles[repfileEV] = createGraphFile(snapshot_prefix, EV2_FILENAME, rea);
  repfiles[repfileWW] = createGraphFile(snapshot_prefix, WEIGHT_FILENAME, rea);
@@ -234,7 +234,7 @@ module io_RMAT_graph
 
      } // if IOsingleTaskPerLocale
 
-      coforall l in Locales do on l {
+      forall l in Locales {
           repfiles[repfileSV].close();
           repfiles[repfileEV].close();
           repfiles[repfileWW].close();

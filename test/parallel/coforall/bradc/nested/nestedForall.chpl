@@ -8,12 +8,10 @@ iter leadfollow() {
 }
 
 iter leadfollow(param tag: iterKind) where tag == iterKind.leader {
-  coforall loc in Locales {
-    on loc {
-      coforall taskid in 0..#numTasks {
-        const (lo,hi) = _computeBlock(1, numTasks, taskid, loc.id, loc.id, loc.id);
-        yield {lo..hi};
-      }
+  forall loc in Locales {
+    coforall taskid in 0..#numTasks {
+      const (lo,hi) = _computeBlock(1, numTasks, taskid, loc.id, loc.id, loc.id);
+      yield {lo..hi};
     }
   }
 }

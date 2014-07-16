@@ -1,5 +1,5 @@
 var num: atomic int;
-coforall loc in Locales do on loc {
+forall loc in Locales {
   num.add(here.runningTasks());
 }
 

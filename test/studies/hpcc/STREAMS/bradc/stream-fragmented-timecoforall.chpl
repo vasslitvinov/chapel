@@ -32,19 +32,17 @@ proc main() {
   
   for trial in 1..numTrials {
     const startTime = getCurrentTime();
-    coforall loc in Locales {
-      on loc {
-        const MyProblemSpace: domain(1, indexType) 
-                            = BlockPartition(ProblemSpace, here.id, numLocales);
+    forall loc in Locales {
+      const MyProblemSpace: domain(1, indexType) 
+                          = BlockPartition(ProblemSpace, here.id, numLocales);
 
-        var A, B, C: [MyProblemSpace] elemType;
+      var A, B, C: [MyProblemSpace] elemType;
 
-        initVectors(B, C, ProblemSpace, (trial == 1));
+      initVectors(B, C, ProblemSpace, (trial == 1));
 
-        A = B + alpha * C;
+      A = B + alpha * C;
 
-        allValidAnswer(here.id) = verifyResults(A, B, C, (trial == numTrials));
-      }
+      allValidAnswer(here.id) = verifyResults(A, B, C, (trial == numTrials));
     }
     execTime(trial) = getCurrentTime() - startTime;
   }

@@ -139,13 +139,11 @@ proc main() {
   // The number of updates done here is small enough that they can be
   // ignored while still passing the benchmark.
 /*
-  coforall loc in Locales {
-    on loc {
-      var buffer: [0..#maxLookahead] uint(64);
-      while myBuckets.pendingUpdates > 0 {
-        var (remloc, nu) = myBuckets.getUpdates(buffer);
-        doUpdates(buffer, nu);
-      }
+  forall loc in Locales {
+    var buffer: [0..#maxLookahead] uint(64);
+    while myBuckets.pendingUpdates > 0 {
+      var (remloc, nu) = myBuckets.getUpdates(buffer);
+      doUpdates(buffer, nu);
     }
   }
 */

@@ -12,9 +12,13 @@ proc main() {
   var validAnswers: [LocaleSpace] bool;
 resetCommDiagnostics();
 startCommDiagnostics();
-  coforall loc in Locales do on loc {
-    validAnswers[here.id] = true;
+startVerboseComm();
+  forall loc in Locales {
+    //validAnswers[here.id] = true;
+    //writeln("LocaleSpace loc = ", Locales._value.dom.locale.id);
+    //writeln("x ", here.id, " ", loc.locale.id, " ", Locales._value.locale.id, " ", Locales._value.dom.backingDom.locale.id);
   }
+stopVerboseComm();
 stopCommDiagnostics();
 writeln(getCommDiagnostics());
 }

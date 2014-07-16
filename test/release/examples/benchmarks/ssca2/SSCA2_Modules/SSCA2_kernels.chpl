@@ -498,7 +498,7 @@ module SSCA2_kernels
           var tpv = TPV[t];
           delete tpv.barrier;
           var al = tpv.Active_Level;
-          coforall loc in Locales do on loc {
+          forall loc in Locales {
             var level = al[here.id];
             while level != nil {
                 var l2 = level.next;

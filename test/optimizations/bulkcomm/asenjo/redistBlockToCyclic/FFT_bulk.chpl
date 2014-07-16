@@ -10,7 +10,7 @@ proc copyCtoB(A:[], B:[])
 
 proc BlockArr.copyBtoC(B)
 {
-  coforall loc in Locales do on loc
+  forall loc in Locales
   {
     param stridelevels=1;
     var dststrides:[1..#stridelevels] int(32); 
@@ -80,7 +80,7 @@ proc BlockArr.copyBtoC(B)
 proc  BlockArr.copyCtoB(B)
 {
  
-  coforall loc in Locales do on loc
+  forall loc in Locales
   {
     param stridelevels=1;
     var dststrides:[1..#stridelevels] int(32);

@@ -178,13 +178,13 @@ class FTree {
         this.order = order;
         this.coeffDom = {0..order-1};
 
-        coforall loc in Locales do
-            on loc do tree[loc.id] = new LocTree(coeffDom);
+        forall loc in Locales do
+            tree[loc.id] = new LocTree(coeffDom);
     }
 
     proc ~FTree() {
-        coforall loc in Locales do
-            on loc do delete tree[loc.id];
+        forall loc in Locales do
+            delete tree[loc.id];
     }
 
     proc node2loc(node: Node) {

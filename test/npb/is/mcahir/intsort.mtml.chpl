@@ -462,22 +462,20 @@ proc gen_keys () {
   // are the same no matter how many locales or ranks are used
   // -- come back later and see if this can be simplified w/ a local range
  
-  coforall loc in Locales do {
-    on loc do {
-      var tmpreals: [1..4] real;
-      var seed: int(64) = 314159265;
- 
-      var mype:  int = here.id;
-      var first: int = mype*(nkeys/numLocales);
-      var last : int = first+(nkeys/numLocales) - 1;
- 
-      var rs = new RandomStream(seed);
-      rs.skipToNth(first*4+1);
-      for i in first..last {
-        rs.fillRandom(tmpreals);
-        key(i) = ( (range>>2)*(+ reduce tmpreals ) ): int;
-      }
-      delete rs;
+  forall loc in Locales {
+    var tmpreals: [1..4] real;
+    var seed: int(64) = 314159265;
+
+    var mype:  int = here.id;
+    var first: int = mype*(nkeys/numLocales);
+    var last : int = first+(nkeys/numLocales) - 1;
+
+    var rs = new RandomStream(seed);
+    rs.skipToNth(first*4+1);
+    for i in first..last {
+      rs.fillRandom(tmpreals);
+      key(i) = ( (range>>2)*(+ reduce tmpreals ) ): int;
     }
+    delete rs;
   }
 }
