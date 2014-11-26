@@ -237,9 +237,6 @@ class LocBlockArr {
   }
 }
 
-var LocalesRepGlobalDom = {0..#numLocales} dmapped LocalesRepDist();
-var LocalesRepGlobal: [LocalesRepGlobalDom] locale = Locales._value.myElements;
-
 //
 // Block constructor for clients of the Block distribution
 //
