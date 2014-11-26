@@ -33,7 +33,7 @@ config const n = 8;
 // initialize the distributed domains.
 //
 const Space = {1..n, 1..n};
-writeln("Space: ", Space);
+
 //
 // The Block distribution distributes a bounding box from
 // n-dimensional space across the target locale array viewed as an
@@ -47,18 +47,16 @@ writeln("Space: ", Space);
 // domain BlockSpace and a Block-distributed array BA declared over
 // the domain.
 //
-const BlockSpace = Space dmapped Block(boundingBox=Space, initialLocales=LocalesRepGlobal);
-writeln("BlockSpace: ", BlockSpace);
+const BlockSpace = Space dmapped Block(boundingBox=Space);
 var BA: [BlockSpace] int;
-writeln("BA: ", BA);
+
 //
 // To illustrate how the index set is distributed across locales,
 // we'll use a forall loop to initialize each array element to the
 // locale ID that stores that index/element/iteration.
 //
-forall ba in BA {
+forall ba in BA do
   ba = here.id;
-}
 
 //
 // The 'hasSingleLocalSubdomain' method on arrays will return true if the 
@@ -112,7 +110,7 @@ writeln();
 //
 
 var MyLocaleView = {0..#numLocales, 1..1};
-var MyLocales = Locales.reshape(MyLocaleView);
+var MyLocales: [MyLocaleView] locale = reshape(Locales, MyLocaleView);
 
 //
 // Then we'll declare a distributed domain/array that targets
@@ -120,7 +118,7 @@ var MyLocales = Locales.reshape(MyLocaleView);
 // 
 
 const BlockSpace2 = Space dmapped Block(boundingBox=Space,
-                                        initialLocales=MyLocales);
+                                        targetLocales=MyLocales);
 var BA2: [BlockSpace2] int;
 
 //
@@ -143,7 +141,7 @@ for (L, ML) in zip(BA2.targetLocales(), MyLocales) do
     halt("Error: BA2.targetLocales() should equal MyLocales");
 
 
-/*
+
 //
 // Next, we'll perform a similar computation for the Cyclic distribution.
 // Cyclic distributions start at a designated n-dimensional index and
@@ -392,4 +390,3 @@ for locId1 in 0..#nl1 do on MyLocales[locId1, 0] {
   writeln();
 
 }
-*/
