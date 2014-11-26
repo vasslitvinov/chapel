@@ -486,7 +486,7 @@ proc LocalesRepDom.dsiBuildArray(type eltType)
 }
 
 // Return the array element corresponding to the index - on the current locale
-proc LocalesRepArr.dsiAccess(indexx) var: eltType {
+proc LocalesRepArr.dsiAccess(indexx) ref: eltType {
   return localArrs[here.id].arrLocalRep[indexx];
 }
 
@@ -498,7 +498,7 @@ proc LocalesRepArr.dsiSerialWrite(f: Writer): void {
 // iterators
 
 // completely serial
-iter LocalesRepArr.these() var: eltType {
+iter LocalesRepArr.these() ref: eltType {
   for a in localArrs[here.id].arrLocalRep do
     yield a;
 }
@@ -522,7 +522,7 @@ iter LocalesRepArr.these(param tag: iterKind) where tag == iterKind.leader {
   }
 }
 
-iter LocalesRepArr.these(param tag: iterKind, followThis) var where tag == iterKind.follower {
+iter LocalesRepArr.these(param tag: iterKind, followThis) ref where tag == iterKind.follower {
   // redirect to DefaultRectangular
   for a in localArrs[here.id].arrLocalRep._value.these(tag, followThis) do
     yield a;

@@ -125,7 +125,7 @@ class LocalesArr : BaseArr {
 
   proc dsiGetBaseDom() return dom;
 
-  inline proc dsiAccess(indx) var: eltType {
+  inline proc dsiAccess(indx) ref: eltType {
     return myElements[indx];
   }
 
@@ -134,7 +134,7 @@ class LocalesArr : BaseArr {
   }
 
   // completely serial
-  iter these() var : eltType {
+  iter these() ref : eltType {
     for e in myElements do
       yield e;
   }
@@ -163,7 +163,7 @@ class LocalesArr : BaseArr {
   }
 
   //TODO: would like to remove var, but that seems to cause issues
-  iter these(param tag: iterKind, followThis) var where tag == iterKind.follower {
+  iter these(param tag: iterKind, followThis) ref where tag == iterKind.follower {
     // redirect to DefaultRectangular on the current locale - I dont like this
     // at all either. it will return incorrect values if Locales gets out of
     // sync on different locales. also prevents the dist from being used by any
