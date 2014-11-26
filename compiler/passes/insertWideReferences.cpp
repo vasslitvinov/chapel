@@ -1,3 +1,22 @@
+/*
+ * Copyright 2004-2014 Cray Inc.
+ * Other additional copyright holders may be indicated within.
+ * 
+ * The entirety of this work is licensed under the Apache License,
+ * Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License.
+ * 
+ * You may obtain a copy of the License at
+ * 
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 //
 // Insert wide references
 //
@@ -24,7 +43,6 @@ static void insertWideCastTemps();
 static void derefWideStringActuals();
 static void derefWideRefsToWideClasses();
 static void widenGetPrivClass();
-static void moveAddressSourcesToTemp(void);
 
 AggregateType* wideStringType = NULL;
 
@@ -217,8 +235,8 @@ static void handleLocalBlocks() {
 
   forv_Vec(BlockStmt, block, gBlockStmts) {
     if (block->parentSymbol)
-      if (block->blockInfo)
-        if (block->blockInfo->isPrimitive(PRIM_BLOCK_LOCAL))
+      if (block->blockInfoGet())
+        if (block->blockInfoGet()->isPrimitive(PRIM_BLOCK_LOCAL))
           queue.add(block);
   }
 
@@ -372,10 +390,6 @@ insertWideReferences(void) {
   widenGetPrivClass();
   heapAllocateGlobalsTail(heapAllocateGlobals, heapVars);
   handleLocalBlocks();
-  narrowWideReferences();
-
-  // TODO: Test if this step is really necessary.  If it is, document why.
-  moveAddressSourcesToTemp();
 }
 
 
@@ -824,7 +838,9 @@ static void derefWideRefsToWideClasses()
         call->isPrimitive(PRIM_WIDE_GET_ADDR) ||
         call->isPrimitive(PRIM_SET_MEMBER)) {
       if (call->get(1)->typeInfo()->symbol->hasFlag(FLAG_WIDE) &&
-          call->get(1)->getValType()->symbol->hasFlag(FLAG_WIDE_CLASS)) {
+          call->get(1)->getValType()->symbol->hasFlag(FLAG_WIDE_CLASS) &&
+          // This should be removed when string_rec is the default string type
+          call->get(1)->getValType() != wideStringType) {
         SET_LINENO(call);
         VarSymbol* tmp = newTemp(call->get(1)->getValType());
         call->getStmtExpr()->insertBefore(new DefExpr(tmp));
@@ -853,29 +869,3 @@ static void widenGetPrivClass()
 }
 
 
-// In every move:
-//   if the LHS type has the WIDE or REF flag
-//   and its value type is a wide class
-//   and the RHS type is the same as the contents of the wide pointer:
-//     Create a temp copy of the RHS, and
-//     replace the RHS of the move with the temp.
-static void moveAddressSourcesToTemp()
-{
-  forv_Vec(CallExpr, call, gCallExprs) {
-    if (call->isPrimitive(PRIM_MOVE) || call->isPrimitive(PRIM_ASSIGN)) {
-      if ((call->get(1)->typeInfo()->symbol->hasFlag(FLAG_WIDE) ||
-           call->get(1)->typeInfo()->symbol->hasFlag(FLAG_REF)) &&
-          call->get(1)->getValType()->symbol->hasFlag(FLAG_WIDE_CLASS) &&
-          call->get(2)->typeInfo() == call->get(1)->getValType()->getField("addr")->type) {
-        //
-        // widen rhs class
-        //
-        SET_LINENO(call);
-        VarSymbol* tmp = newTemp(call->get(1)->getValType());
-        call->insertBefore(new DefExpr(tmp));
-        call->insertBefore(new CallExpr(PRIM_MOVE, tmp, call->get(2)->remove()));
-        call->insertAtTail(tmp);
-      }
-    }
-  }
-}

@@ -1,8 +1,29 @@
+/*
+ * Copyright 2004-2014 Cray Inc.
+ * Other additional copyright holders may be indicated within.
+ * 
+ * The entirety of this work is licensed under the Apache License,
+ * Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License.
+ * 
+ * You may obtain a copy of the License at
+ * 
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+#include "optimizations.h"
+
 #include "astutil.h"
 #include "bb.h"
 #include "bitVec.h"
 #include "expr.h"
-#include "optimizations.h"
+#include "stlUtil.h"
 #include "stmt.h"
 
 //#define DEBUG_LIVE
@@ -27,10 +48,10 @@ liveVariableAnalysis(FnSymbol* fn,
                      Vec<SymExpr*>& useSet,
                      Vec<SymExpr*>& defSet,
                      std::vector<BitVec*>& OUT) {
-  buildLocalsVectorMap(fn, locals, localMap);
+  BasicBlock::buildLocalsVectorMap(fn, locals, localMap);
 
 #ifdef DEBUG_LIVE
-  printLocalsVector(locals, localMap);
+  BasicBlock::printLocalsVector(locals, localMap);
 #endif
 
   buildDefUseSets(locals, fn, defSet, useSet);
@@ -81,11 +102,11 @@ liveVariableAnalysis(FnSymbol* fn,
   }
 
 #ifdef DEBUG_LIVE
-  printf("DEF\n"); printLocalsVectorSets(DEF, locals);
-  printf("USE\n"); printLocalsVectorSets(USE, locals);
+  printf("DEF\n"); BasicBlock::printLocalsVectorSets(DEF, locals);
+  printf("USE\n"); BasicBlock::printLocalsVectorSets(USE, locals);
 #endif
 
-  backwardFlowAnalysis(fn, USE, DEF, IN, OUT);
+  BasicBlock::backwardFlowAnalysis(fn, USE, DEF, IN, OUT);
 
   for_vector(BitVec, use, USE)
     delete use, use = 0;

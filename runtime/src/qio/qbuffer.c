@@ -1,3 +1,22 @@
+/*
+ * Copyright 2004-2014 Cray Inc.
+ * Other additional copyright holders may be indicated within.
+ * 
+ * The entirety of this work is licensed under the Apache License,
+ * Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License.
+ * 
+ * You may obtain a copy of the License at
+ * 
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 
 
 #ifndef SIMPLE_TEST
@@ -218,7 +237,7 @@ int qbytes_append_realloc(qbytes_t* qb, size_t item_size, void* item)
       qb->data = a;
    }
    // now put the new value in.
-   memcpy(a + len, item, item_size);
+   qio_memcpy(a + len, item, item_size);
    qb->len += item_size; // increment the item size.
 
    return 0;
@@ -897,7 +916,7 @@ qioerr qbuffer_flatten(qbuffer_t* buf, qbuffer_iter_t start, qbuffer_iter_t end,
 
   j = 0;
   for( i = 0; i < iovcnt; i++ ) {
-    memcpy(PTR_ADDBYTES(ret->data, j), iov[i].iov_base, iov[i].iov_len);
+    qio_memcpy(PTR_ADDBYTES(ret->data, j), iov[i].iov_base, iov[i].iov_len);
     j += iov[i].iov_len;
   }
 
@@ -987,7 +1006,7 @@ qioerr qbuffer_copyout(qbuffer_t* buf, qbuffer_iter_t start, qbuffer_iter_t end,
   j = 0;
   for( i = 0; i < iovcnt; i++ ) {
     if( j + iov[i].iov_len > ret_len ) goto error_nospace;
-    memcpy(PTR_ADDBYTES(ptr, j), iov[i].iov_base, iov[i].iov_len);
+    qio_memcpy(PTR_ADDBYTES(ptr, j), iov[i].iov_base, iov[i].iov_len);
     j += iov[i].iov_len;
   }
 
@@ -1025,7 +1044,7 @@ qioerr qbuffer_copyin(qbuffer_t* buf, qbuffer_iter_t start, qbuffer_iter_t end, 
   j = 0;
   for( i = 0; i < iovcnt; i++ ) {
     if( j + iov[i].iov_len > ret_len ) goto error_nospace;
-    memcpy(iov[i].iov_base, PTR_ADDBYTES(ptr, j), iov[i].iov_len);
+    qio_memcpy(iov[i].iov_base, PTR_ADDBYTES(ptr, j), iov[i].iov_len);
     j += iov[i].iov_len;
   }
 

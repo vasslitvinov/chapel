@@ -1,3 +1,22 @@
+/*
+ * Copyright 2004-2014 Cray Inc.
+ * Other additional copyright holders may be indicated within.
+ * 
+ * The entirety of this work is licensed under the Apache License,
+ * Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License.
+ * 
+ * You may obtain a copy of the License at
+ * 
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 module GMP {
   use SysBasic;
   use Error;
@@ -273,7 +292,7 @@ module GMP {
   extern proc chpl_gmp_get_randstate(not_inited_state:gmp_randstate_t, src_locale:int, from:__gmp_randstate_struct);
   extern proc chpl_gmp_mpz_nlimbs(from:__mpz_struct):uint(64);
   extern proc chpl_gmp_mpz_print(x:mpz_t);
-  extern proc chpl_gmp_mpz_get_str(base: c_int, x:mpz_t):c_string;
+  extern proc chpl_gmp_mpz_get_str(base: c_int, x:mpz_t):c_string_copy;
 
 
   enum Round {
@@ -432,7 +451,8 @@ module GMP {
     {
       var ret:string;
       on this {
-        ret = toString(chpl_gmp_mpz_get_str(base, this.mpz));
+        var tmp = chpl_gmp_mpz_get_str(base, this.mpz);
+        ret = toString(tmp);
       }
       return ret;
     }
@@ -522,7 +542,7 @@ module GMP {
     {
       on this {
         var (acopy,a_) = a.maybeCopy();
-        mpz_addmul(this.mpz, a_.mpz, b);
+        mpz_addmul_ui(this.mpz, a_.mpz, b);
         if acopy then delete a_;
       }
     }

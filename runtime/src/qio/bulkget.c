@@ -1,3 +1,22 @@
+/*
+ * Copyright 2004-2014 Cray Inc.
+ * Other additional copyright holders may be indicated within.
+ * 
+ * The entirety of this work is licensed under the Apache License,
+ * Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License.
+ * 
+ * You may obtain a copy of the License at
+ * 
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 #include "chplrt.h"
 #include "chpl-comm.h"
 #include "chpl-comm-compiler-macros.h"
@@ -53,7 +72,7 @@ qioerr bulk_put_buffer(int64_t dst_locale, void* dst_addr, int64_t dst_len,
   j = 0;
   for( i = 0; i < iovcnt; i++ ) {
     if( j + iov[i].iov_len > dst_len ) goto error_nospace;
-    //memcpy(PTR_ADDBYTES(ptr, j), iov[i].iov_base, iov[i].iov_len);
+    //chpl_memcpy(PTR_ADDBYTES(ptr, j), iov[i].iov_base, iov[i].iov_len);
 
     // TODO -- note -- technically, this should be gasnet_put_bulk,
     // since we don't want to require src/dst to have a particular alignment.

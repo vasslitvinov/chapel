@@ -1,3 +1,22 @@
+/*
+ * Copyright 2004-2014 Cray Inc.
+ * Other additional copyright holders may be indicated within.
+ * 
+ * The entirety of this work is licensed under the Apache License,
+ * Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License.
+ * 
+ * You may obtain a copy of the License at
+ * 
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 #include <libgen.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -16,10 +35,12 @@
 
 #define CHPL_WALLTIME_FLAG "--walltime"
 #define CHPL_GENERATE_SBATCH_SCRIPT "--generate-sbatch-script"
+#define CHPL_NODELIST_FLAG "--nodelist"
 
 static char* debug = NULL;
 static char* walltime = NULL;
 static int generate_sbatch_script = 0;
+static char* nodelist = NULL;
 
 char slurmFilename[FILENAME_MAX];
 char expectFilename[FILENAME_MAX];
@@ -135,6 +156,11 @@ static char* chpl_launch_create_command(int argc, char* argv[],
     walltime = getenv("CHPL_LAUNCHER_WALLTIME");
   }
 
+  // command line nodelist takes precedence over env var
+  if (!nodelist) {
+    nodelist = getenv("CHPL_LAUNCHER_NODELIST");
+  }
+
   if (basenamePtr == NULL) {
       basenamePtr = argv[0];
   } else {
@@ -148,7 +174,7 @@ static char* chpl_launch_create_command(int argc, char* argv[],
     mypid = getpid();
   }
 
-  // set the filenames 
+  // set the filenames
   sprintf(expectFilename, "%s%d", baseExpectFilename, (int)mypid);
   sprintf(slurmFilename, "%s%d", baseSBATCHFilename, (int)mypid);
 
@@ -180,6 +206,11 @@ static char* chpl_launch_create_command(int argc, char* argv[],
       fprintf(slurmFile, "#SBATCH --time=%s\n", walltime);
     }
 
+    // Set the nodelist if it was specified
+    if (nodelist) {
+      fprintf(slurmFile, "#SBATCH --nodelist=%s\n", nodelist);
+    }
+
     // If needed a constraint can be specified with the env var CHPL_LAUNCHER_CONSTRAINT
     if (constraint) {
       fprintf(slurmFile, "#SBATCH --constraint=%s\n", constraint);
@@ -190,10 +221,10 @@ static char* chpl_launch_create_command(int argc, char* argv[],
       fprintf(slurmFile, "#SBATCH --account=%s\n", account);
     }
  
-    // set the output name to either the user specified.<jobID>.out 
+    // set the output name to either the user specified
     // or to the binaryName.<jobID>.out if none specified
     if (outputfn!=NULL) {
-      fprintf(slurmFile, "#SBATCH --output=%s.%%j.out\n", outputfn);
+      fprintf(slurmFile, "#SBATCH --output=%s\n", outputfn);
     }
     else {
       fprintf(slurmFile, "#SBATCH --output=%s.%%j.out\n", argv[0]);
@@ -250,9 +281,14 @@ static char* chpl_launch_create_command(int argc, char* argv[],
     
     // Set the walltime if i was specified 
     if (walltime) {
-      fprintf(expectFile, "--time=%s ",walltime); 
+      fprintf(expectFile, "--time=%s ", walltime); 
     }
-    
+
+    // Set the walltime if it was specified
+    if (nodelist) {
+      fprintf(expectFile, "--nodelist=%s ", nodelist);
+    }
+
     // set any constraints 
     if (constraint) {
       fprintf(expectFile, " --constraint=%s ", constraint);
@@ -350,7 +386,7 @@ int chpl_launch(int argc, char* argv[], int32_t numLocales) {
 }
 
 
-// handle launcher args 
+// handle launcher args
 int chpl_launch_handle_arg(int argc, char* argv[], int argNum,
                            int32_t lineno, c_string filename) {
   // handle --walltime <walltime> or --walltime=<walltime>
@@ -362,15 +398,24 @@ int chpl_launch_handle_arg(int argc, char* argv[], int argNum,
     return 1;
   }
 
-  // handle --generate-sbatch-script 
+  // handle --nodelist <nodelist> or --nodelist=<nodelist>
+  if (!strcmp(argv[argNum], CHPL_NODELIST_FLAG)) {
+    nodelist = argv[argNum+1];
+    return 2;
+  } else if (!strncmp(argv[argNum], CHPL_NODELIST_FLAG"=", strlen(CHPL_NODELIST_FLAG))) {
+    nodelist = &(argv[argNum][strlen(CHPL_NODELIST_FLAG)+1]);
+    return 1;
+  }
+
+  // handle --generate-sbatch-script
   if (!strcmp(argv[argNum], CHPL_GENERATE_SBATCH_SCRIPT)) {
     generate_sbatch_script = 1;
     return 1;
   }
 
   // TODO we should have a core binding option here similar to aprun's -cc to
-  // handle binding to cores / numa domains, etc 
-  // For now you can just set the SLURM_CPU_BIND env var 
+  // handle binding to cores / numa domains, etc
+  // For now you can just set the SLURM_CPU_BIND env var
 
   return 0;
 }
@@ -381,8 +426,10 @@ void chpl_launch_print_help(void) {
   fprintf(stdout, "LAUNCHER FLAGS:\n");
   fprintf(stdout, "===============\n");
   fprintf(stdout, "  %s : generate an sbatch script and exit\n", CHPL_GENERATE_SBATCH_SCRIPT);
-  fprintf(stdout, "  %s <HH:MM:SS>  : specify a wallclock time limit\n", CHPL_WALLTIME_FLAG);
+  fprintf(stdout, "  %s <HH:MM:SS> : specify a wallclock time limit\n", CHPL_WALLTIME_FLAG);
   fprintf(stdout, "                           (or use $CHPL_LAUNCHER_WALLTIME)\n");
+  fprintf(stdout, "  %s <nodelist> : specify a nodelist to use\n", CHPL_NODELIST_FLAG);
+  fprintf(stdout, "                           (or use $CHPL_LAUNCHER_NODELIST)\n");
 
 
 }

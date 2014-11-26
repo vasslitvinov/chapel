@@ -1,25 +1,59 @@
+/*
+ * Copyright 2004-2014 Cray Inc.
+ * Other additional copyright holders may be indicated within.
+ *
+ * The entirety of this work is licensed under the Apache License,
+ * Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License.
+ *
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+
+#include "optimizations.h"
 
 #include "astutil.h"
 #include "bb.h"
 #include "expr.h"
-#include "optimizations.h"
 #include "passes.h"
+#include "stlUtil.h"
 #include "stmt.h"
-#include "view.h"
 
-#include <set>
 #include <queue>
+#include <set>
 
+static bool         isInCForLoopHeader(Expr* expr);
+static void         deadBlockElimination(FnSymbol* fn);
+static void         cleanupLoopBlocks(FnSymbol* fn);
+
+static unsigned int deadBlockCount;
+static unsigned int deadModuleCount;
 
 //
-// Static function declarations.
 //
-static void deadBlockElimination(FnSymbol* fn);
-// static void deadGotoElimination(FnSymbol* fn);
-
-// Static variables.
-static unsigned deadBlockCount;
-static unsigned deadModuleCount;
+// 2014/10/17 TO DO Noakes/Elliot
+//
+// There are opportunities to do additional cleanup of the AST e.g.
+//
+// remove blockStmts with empty bodies
+// remove condStmts  with empty bodies
+// remove jumps to labels that immmediately follow
+//
+// This may require multiple passses to converge e.g.
+//
+// A block statement that contains an empty block statement
+//
+// An empty cond statement between a goto and the target of the goto
+//
+//
 
 //
 // Removes local variables that are only targets for moves, but are
@@ -60,7 +94,7 @@ void deadVariableElimination(FnSymbol* fn) {
     if (isDeadVariable(sym, defMap, useMap)) {
       for_defs(se, defMap, sym) {
         CallExpr* call = toCallExpr(se->parentExpr);
-        INT_ASSERT(call && 
+        INT_ASSERT(call &&
                    (call->isPrimitive(PRIM_MOVE) ||
                     call->isPrimitive(PRIM_ASSIGN)));
         Expr* rhs = call->get(2)->remove();
@@ -81,74 +115,122 @@ void deadVariableElimination(FnSymbol* fn) {
 //
 void deadExpressionElimination(FnSymbol* fn) {
   Vec<BaseAST*> asts;
+
   collect_asts(fn, asts);
+
   forv_Vec(BaseAST, ast, asts) {
-    Expr *expr = toExpr(ast);
-    if (expr && expr->parentExpr == NULL) // expression already removed
-      continue;
-    if (SymExpr* expr = toSymExpr(ast)) {
-      if (expr == expr->getStmtExpr())
+    Expr* exprAst = toExpr(ast);
+
+    if (exprAst == 0) {
+
+    } else if (isAlive(exprAst) == false) {
+
+    } else if (SymExpr* expr = toSymExpr(ast)) {
+      if (expr->isStmtExpr() == true && isInCForLoopHeader(expr) == false) {
         expr->remove();
+      }
+
     } else if (CallExpr* expr = toCallExpr(ast)) {
       if (expr->isPrimitive(PRIM_CAST) ||
           expr->isPrimitive(PRIM_GET_MEMBER_VALUE) ||
           expr->isPrimitive(PRIM_GET_MEMBER) ||
           expr->isPrimitive(PRIM_DEREF) ||
-          expr->isPrimitive(PRIM_ADDR_OF))
-        if (expr == expr->getStmtExpr())
+          expr->isPrimitive(PRIM_ADDR_OF)) {
+        if (expr->isStmtExpr())
           expr->remove();
+      }
+
       if (expr->isPrimitive(PRIM_MOVE) || expr->isPrimitive(PRIM_ASSIGN))
         if (SymExpr* lhs = toSymExpr(expr->get(1)))
           if (SymExpr* rhs = toSymExpr(expr->get(2)))
             if (lhs->var == rhs->var)
               expr->remove();
+
     } else if (CondStmt* cond = toCondStmt(ast)) {
-      cond->fold_cond_stmt();
+      // Compensate for deadBlockElimination
+      if (cond->condExpr == NULL) {
+        cond->remove();
+
+      } else if (cond->thenStmt == NULL && cond->elseStmt == NULL) {
+        cond->remove();
+
+      } else {
+
+        // Invert the condition and shuffle the alternative
+        if (cond->thenStmt == NULL) {
+          Expr* condExpr = new CallExpr(PRIM_UNARY_LNOT, cond->condExpr);
+
+          cond->replaceChild(cond->condExpr, condExpr);
+          cond->replaceChild(cond->thenStmt, cond->elseStmt);
+          cond->replaceChild(cond->elseStmt, NULL);
+
+        // NOAKES 2014/11/14 It's "odd" that folding is being done here
+        } else {
+          cond->foldConstantCondition();
+        }
+
+        // NOAKES 2014/11/14 Testing suggests this is always a NOP
+        removeDeadIterResumeGotos();
+      }
     }
   }
 }
 
-void deadCodeElimination(FnSymbol* fn)
-{
-// TODO: Factor this long function?
-  buildBasicBlocks(fn);
+static bool isInCForLoopHeader(Expr* expr) {
+  Expr* stmtExpr = expr->parentExpr;
+  bool  retval   = false;
 
-  std::map<SymExpr*,Vec<SymExpr*>*> DU;
-  std::map<SymExpr*,Vec<SymExpr*>*> UD;
+  if (BlockStmt* blockStmt = toBlockStmt(stmtExpr)) {
+    retval = (blockStmt->blockTag == BLOCK_C_FOR_LOOP) ? true : false;
+  }
+
+  return retval;
+}
+
+void deadCodeElimination(FnSymbol* fn) {
+  std::map<SymExpr*, Vec<SymExpr*>*> DU;
+  std::map<SymExpr*, Vec<SymExpr*>*> UD;
+
+  std::map<Expr*,    Expr*>          exprMap;
+
+  Vec<Expr*>                         liveCode;
+  Vec<Expr*>                         workSet;
+
+  BasicBlock::buildBasicBlocks(fn);
+
   buildDefUseChains(fn, DU, UD);
 
-  std::map<Expr*,Expr*> exprMap;
-  Vec<Expr*> liveCode;
-  Vec<Expr*> workSet;
   for_vector(BasicBlock, bb, *fn->basicBlocks) {
-    for_vector(Expr, expr, bb->exprs) {
-      bool essential = false;
+    for (size_t i = 0; i < bb->exprs.size(); i++) {
+      Expr*         expr        = bb->exprs[i];
+      bool          isEssential = bb->marks[i];
+
       Vec<BaseAST*> asts;
+
       collect_asts(expr, asts);
+
       forv_Vec(BaseAST, ast, asts) {
-        if (CallExpr* call = toCallExpr(ast)) {
-          // mark function calls and essential primitives as essential
-          if (call->isResolved() ||
-              (call->primitive && call->primitive->isEssential))
-            essential = true;
-          // mark assignments to global variables as essential
-          if (call->isPrimitive(PRIM_MOVE) || call->isPrimitive(PRIM_ASSIGN))
-            if (SymExpr* se = toSymExpr(call->get(1)))
-              if (DU.count(se) == 0 || // DU chain only contains locals
-                  !se->var->type->refType) // reference issue
-                essential = true;
-        }
         if (Expr* sub = toExpr(ast)) {
           exprMap[sub] = expr;
-          if (BlockStmt* block = toBlockStmt(sub->parentExpr))
-            if (block->blockInfo == sub)
-              essential = true;
-          if (CondStmt* cond = toCondStmt(sub->parentExpr))
-            if (cond->condExpr == sub)
-              essential = true;
         }
       }
-      if (essential) {
+
+      if (isEssential == false) {
+        forv_Vec(BaseAST, ast, asts) {
+          if (CallExpr* call = toCallExpr(ast)) {
+            // mark assignments to global variables as essential
+            if (call->isPrimitive(PRIM_MOVE) || call->isPrimitive(PRIM_ASSIGN)) {
+              if (SymExpr* se = toSymExpr(call->get(1))) {
+                if (DU.count(se) == 0) {
+                  isEssential = true;
+                }
+              }
+            }
+          }
+        }
+      }
+
+      if (isEssential) {
         liveCode.set_add(expr);
         workSet.add(expr);
       }
@@ -157,13 +239,18 @@ void deadCodeElimination(FnSymbol* fn)
 
   forv_Vec(Expr, expr, workSet) {
     Vec<SymExpr*> symExprs;
+
     collectSymExprs(expr, symExprs);
+
     forv_Vec(SymExpr, se, symExprs) {
       if (UD.count(se) != 0) {
         Vec<SymExpr*>* defs = UD[se];
+
         forv_Vec(SymExpr, def, *defs) {
           INT_ASSERT(exprMap.count(def) != 0);
+
           Expr* expr = exprMap[def];
+
           if (!liveCode.set_in(expr)) {
             liveCode.set_add(expr);
             workSet.add(expr);
@@ -189,7 +276,7 @@ void deadCodeElimination(FnSymbol* fn)
 // Determines if a module is dead. A module is dead if the module's init
 // function can only be called from module code, and the init function
 // is empty, and the init function is the only thing in the module, and the
-// module is not a nested module. 
+// module is not a nested module.
 static bool isDeadModule(ModuleSymbol* mod) {
   // The main module and any module whose init function is exported
   // should never be considered dead, as the init function can be
@@ -198,18 +285,18 @@ static bool isDeadModule(ModuleSymbol* mod) {
 
   // because of the way modules are initialized, we don't want to consider a
   // nested function as dead as its outer module and all of its uses should
-  // have their initializer called by the inner module. 
-  if (mod->defPoint->getModule() != theProgram && 
-      mod->defPoint->getModule() != rootModule) 
+  // have their initializer called by the inner module.
+  if (mod->defPoint->getModule() != theProgram &&
+      mod->defPoint->getModule() != rootModule)
     return false;
 
   // if there is only one thing in the module
   if (mod->block->body.length == 1) {
-    // and that thing is the init function 
+    // and that thing is the init function
     if (mod->block->body.only() == mod->initFn->defPoint) {
       // and the init function is empty (only has a return)
       if (mod->initFn->body->body.length == 1) {
-        // then the module is dead 
+        // then the module is dead
         return true;
       }
     }
@@ -241,22 +328,38 @@ static void deadModuleElimination() {
 
 void deadCodeElimination() {
   if (!fNoDeadCodeElimination) {
-    deadBlockCount = 0;
+
+    deadBlockCount  = 0;
     deadModuleCount = 0;
+
     forv_Vec(FnSymbol, fn, gFnSymbols) {
       deadBlockElimination(fn);
-//      deadGotoElimination(fn);
+
+      // 2014/10/17   Noakes and Elliot
+      // Dead Block Elimination may convert valid loops to "malformed" loops.
+      // Some of these will break BasicBlock construction. Clean them up.
+      cleanupLoopBlocks(fn);
+
       deadCodeElimination(fn);
+
       deadVariableElimination(fn);
+
+      // 2014/10/17   Noakes and Elliot
+      // Dead Variable Elimination may convert some "uninteresting" loops
+      // that were left behind by DeadBlockElimination and turn them in to
+      // "malformed" loops.  Cleanup again.
+      cleanupLoopBlocks(fn);
+
       deadExpressionElimination(fn);
     }
+
     deadModuleElimination();
-    
+
     if (fReportDeadBlocks)
       printf("\tRemoved %d dead blocks.\n", deadBlockCount);
+
     if (fReportDeadModules)
       printf("Removed %d dead modules.\n", deadModuleCount);
-
   }
 }
 
@@ -267,7 +370,7 @@ void deadCodeElimination() {
 static void deadBlockElimination(FnSymbol* fn)
 {
   // We need the basic block information to be correct, so recompute it.
-  buildBasicBlocks(fn);
+  BasicBlock::buildBasicBlocks(fn);
 
   // Find the reachable basic blocks within this function.
   std::set<BasicBlock*> reachable;
@@ -281,7 +384,7 @@ static void deadBlockElimination(FnSymbol* fn)
   while (!work_queue.empty())
   {
     // Fetch and remove the next block.
-    BasicBlock* bb = work_queue.front(); 
+    BasicBlock* bb = work_queue.front();
     work_queue.pop();
 
     // Ignore it if we've already seen it.
@@ -352,6 +455,46 @@ void verifyNcleanRemovedIterResumeGotos() {
       INT_FATAL("unexpected live goto for a dead removedIterResumeLabels label - missing a call to removeDeadIterResumeGotos?");
   }
   removedIterResumeLabels.clear();
+}
+
+// 2014/10/15
+//
+// Dead Block elimination can create at least two forms of mal-formed AST
+//
+// A valid ForLoop can be transformed in to
+//
+//              for ( ; ; ) {
+//              }
+//
+// and a valid WhileLoop can be transformed in to
+//
+//              while ( ) {
+//              }
+//
+// The C standard defines these as infinite loops.  In practice the
+// Chapel compiler will only leave these ASTs in unreachable code and
+// so these wouldn't lead to runtime failures but each of these forms
+// cause problems in the compiler down stream from here.
+//
+// 2014/10/17
+//
+// Additionally DBE can create loops that are similar to the above but
+// that include some number of DefExprs (there is currently code in DBE
+// to prevent it removing DefExprs for reasons that are partially but
+// not fully understood).  These loops will be converted to the former
+// case during DeadVariableElimination
+//
+
+static void cleanupLoopBlocks(FnSymbol* fn) {
+  std::vector<Expr*> stmts;
+
+  collect_stmts_STL(fn->body, stmts);
+
+  for_vector (Expr, expr, stmts) {
+    if (BlockStmt* stmt = toBlockStmt(expr)) {
+      stmt->deadBlockCleanup();
+    }
+  }
 }
 
 // Look for pointless gotos and remove them.

@@ -43,7 +43,7 @@ type stoSzT  = uint(32);
 
 param invalidLocID =
   // encode 'max(locIdT)' as a compile-time expression
-  (2 ** (numBits(locIdT) - 1 - _isSignedType(locIdT):int)):int(64);
+  (2 ** (numBits(locIdT) - 1 - isIntType(locIdT):int)):int(64);
 
 
 /// class declarations //////////////////////////////////////////////////////
@@ -173,7 +173,7 @@ proc DimensionalDist.DimensionalDist(
   dataParMinGranularity: int      = getDataParMinGranularity()
 ) {
   this.name = name;
-  this.dataParTasksPerLocale = if dataParTasksPerLocale==0 then here.numCores
+  this.dataParTasksPerLocale = if dataParTasksPerLocale==0 then here.maxTaskPar
                                else dataParTasksPerLocale;
   this.dataParIgnoreRunningTasks = dataParIgnoreRunningTasks;
   this.dataParMinGranularity = dataParMinGranularity;
@@ -325,7 +325,9 @@ proc _CurrentLocaleToLocIDs(targetLocales): (targetLocales.rank*locIdT, bool)
   var result: targetLocales.rank * locIdT;
   // guard updates to 'result' to ensure atomicity of updates
   var gotresult$: sync bool = false;
-  forall (lls, loc) in zip(targetLocales.domain, targetLocales) do
+  forall (lls, loc) in zip(targetLocales.domain, targetLocales)
+    with (ref result)
+  do
     if loc == here {
       // if we get multiple matches, we do not specify which is returned
       // could add a pre-test if it were cheap: if !gotresult$.readXX()
@@ -653,7 +655,7 @@ proc DimensionalDom.dsiBuildArray(type eltType)
 
 //== dsiAccess
 
-proc DimensionalArr.dsiAccess(indexx: dom.indexT) var: eltType {
+proc DimensionalArr.dsiAccess(indexx: dom.indexT) ref: eltType {
   const dom = this.dom;
   _traceddc(traceDimensionalDist || traceDimensionalDistDsiAccess,
             this, ".dsiAccess", indexx);
@@ -866,7 +868,7 @@ iter DimensionalDom.these(param tag: iterKind, followThis) where tag == iterKind
 //== serial iterator - array
 
 // note: no 'on' clauses - they not allowed by the compiler
-iter DimensionalArr.these() var {
+iter DimensionalArr.these() ref {
   const dom = this.dom;
   _traceddd(this, ".serial iterator");
   assert(dom.rank == 2);
@@ -888,7 +890,7 @@ iter DimensionalArr.these() var {
 
 //== follower iterator - array   (similar to the serial iterator)
 
-iter DimensionalArr.these(param tag: iterKind, followThis) var where tag == iterKind.follower {
+iter DimensionalArr.these(param tag: iterKind, followThis) ref where tag == iterKind.follower {
   const dom = this.dom;
   _traceddd(this, ".follower on ", here.id, "  got ", followThis);
   assert(dom.rank == 2);

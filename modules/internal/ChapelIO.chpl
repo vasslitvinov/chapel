@@ -1,3 +1,22 @@
+/*
+ * Copyright 2004-2014 Cray Inc.
+ * Other additional copyright holders may be indicated within.
+ * 
+ * The entirety of this work is licensed under the Apache License,
+ * Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License.
+ * 
+ * You may obtain a copy of the License at
+ * 
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 // ChapelIO.chpl
 //
 pragma "no use ChapelStandard"
@@ -504,9 +523,10 @@ module ChapelIO {
   }
   
   proc warning(args ...?numArgs) {
-    var tmpstring: c_string;
+    var tmpstring: c_string_copy;
     tmpstring.write((...args));
     warning(tmpstring);
+    chpl_free_c_string_copy(tmpstring);
   }
   
   proc _ddata.writeThis(f: Writer) {
@@ -525,13 +545,25 @@ module ChapelIO {
   }
   
   class StringWriter: Writer {
-    var s: c_string = "";
-    proc writePrimitive(x) { this.s += (x:c_string); }
+    var s: c_string_copy; // Should be initialized to NULL.
+    proc StringWriter(x:c_string) {
+      this.s = __primitive("string_copy", x);
+    }
+    proc writePrimitive(x) {
+      // TODO: Implement += so it consumes a c_string_copy LHS.
+      var aug = x:c_string_copy;
+      this.s += aug;      // The update frees this.s before overwriting it.
+      chpl_free_c_string_copy(aug);
+    }
+    proc ~StringWriter() {
+      chpl_free_c_string_copy(this.s);
+      __primitive("=", this.s, _nullString);
+    }
   }
   
   // Convert 'x' to a string just the way it would be written out.
   // Includes Writer.write, with modifications (for simplicity; to avoid 'on').
-  proc _cast(type t, x) where t == c_string {
+  proc _cast(type t, x) where t == c_string_copy {
     //proc isNilObject(o: object) return o == nil;
     //proc isNilObject(o) param return false;
     const w = new StringWriter();
@@ -539,6 +571,7 @@ module ChapelIO {
     //else                   x.writeThis(w);
     w.write(x);
     const result = w.s;
+    __primitive("=", w.s, _nullString);
     delete w;
     return result;
   }
@@ -547,7 +580,10 @@ module ChapelIO {
   proc ref c_string.write(args ...?n) {
     var sc = new StringWriter(this);
     sc.write((...args));
+    // We need to copy this string because the destructor call below frees it
     this = sc.s;
+    // This is required to prevent double-deletion.
+    __primitive("=", sc.s, _nullString);
     delete sc;
   }
   
@@ -556,17 +592,19 @@ module ChapelIO {
     var sc = new StringWriter(this.c_str());
     sc.write((...args));
     this = toString(sc.s);
+    // This is required to prevent double-deletion.
+    __primitive("=", sc.s, _nullString);
     delete sc;
   }
   
   // C can't handle overloaded declarations, so just don't prototype this one.
   pragma "no prototype"
-  extern proc chpl_format(fmt: c_string, x): c_string;
+  extern proc chpl_format(fmt: c_string, x): c_string_copy;
   
-  proc format(fmt: c_string, x:?t) where _isIntegralType(t) || _isFloatType(t) {
+  proc format(fmt: c_string, x:?t) where isIntegralType(t) || isFloatType(t) {
     if fmt.substring(1) == "#" {
       var fmt2 = _getoutputformat(fmt);
-      if _isImagType(t) then
+      if isImagType(t) then
         return (chpl_format(fmt2, _i2r(x))+"i");
       else
         return chpl_format(fmt2, x:real);
@@ -574,7 +612,7 @@ module ChapelIO {
         return chpl_format(fmt, x);
   }
   
-  proc format(fmt: c_string, x:?t) where _isComplexType(t) {
+  proc format(fmt: c_string, x:?t) where isComplexType(t) {
     if fmt.substring(1) == "#" {
       var fmt2 = _getoutputformat(fmt);
       return (chpl_format(fmt2, x.re)+" + "+ chpl_format(fmt2, x.im)+"i");
@@ -595,10 +633,12 @@ module ChapelIO {
     var afterdot = false;
     var dplaces = 0;
     for i in 1..sn {
-      if ((s.substring(i) == '#') & afterdot) then dplaces += 1;
-      if (s.substring(i) == '.') then afterdot=true;
+      var ss = s.substring(i);
+      if ((ss == '#') & afterdot) then dplaces += 1;
+      if (ss == '.') then afterdot=true;
+      chpl_free_c_string_copy(ss);
     }
-  
+    // FIX ME: leak c_string due to concatenation
     return("%" + sn + "." + dplaces + "f");
   }
   

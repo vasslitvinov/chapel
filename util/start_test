@@ -15,10 +15,9 @@
 #
 # $CHPL_HOME/test/
 #   Logs/    -- logs of testing runs go here by default
-#   Samples/ -- sample tests go here; these are for illustration only
-#               and won't be run by default.  To try running the
-#               test system against these samples, use:
-#                      start_test ./Samples
+#   Samples/ -- sample tests go here; these are for illustration
+#               purposes and are intended to complement the
+#               TestSystem.txt best practices documentation.
 #   Share/   -- a place to put codes to share with other developers.
 #               These will not be run by default.
 #   */       -- all other directories will contain tests
@@ -82,7 +81,7 @@
 #   -sysprediff <path>
 #   -suppress <suppression file>
 #   -nostdinredirect
-#   -launchertimeout pbs
+#   -launchertimeout <queueing system>
 #   -logfile   <log filename>         $testdir/Logs/<username>.<tgt-platform>.log
 #                                     (where $testdir is $CHPL_HOME/test if
 #                                     it exists, $CHPL_HOME/examples, if it
@@ -167,8 +166,8 @@
 # the value "x.yz" out of the output file (all non-whitespace 
 # characters after the key string until the next whitespace 
 # character).  These data values will then be written to a file
-# named $CHPL_TEST_PERF_DIR/<machine name>/foo.dat (where
-# $CHPL_TEST_PERF_DIR is "$CHPL_HOME/test/perfdat" by default) in a
+# named $CHPL_TEST_PERF_DIR/foo.dat (where by default
+# $CHPL_TEST_PERF_DIR is "$CHPL_HOME/test/perfdat/<machine name>") in a
 # TAB-separated manner for graphing or display using gnuplot or Excel.
 #
 # When running with the -performance flag, compiler and executable
@@ -481,7 +480,7 @@
 #      <blank>        : a blank line is skipped
 #      <var> == <val> : checks to see if envvar "var" is "val"
 #      <var> != <val> : checks to see if envvar "var" is not "val"
-#       <var> <= <val> : true if <var> contains the substring "val".
+#      <var> <= <val> : true if <var> contains the substring "val".
 #      CHPL_MEM_LEAK_TESTING == true : check if we are testing for memory leaks
 #    All of the lines of containing conditional expressions are logically
 #    or'd together, and if any of them are true, the test is
@@ -527,6 +526,12 @@
 #    will be assumed to be
 #         <testname>.<compopts line no>-<execopts line no>.good
 #    A '0' will be used if there is no appropriate line number.
+#    In addition to execution options, a file can be specified to
+#    be piped in via stdin. The format for this feature is:
+#      <execution options> < foo.txt
+#    Where 'foo.txt' is the desired file to be piped into stdin. An
+#    error occurs if a .stdin file exists for the test, or if the
+#    desired file does not exist.
 #
 #  - also added support for a LASTCOMPOPTS file that contains
 #    compiler options to be added after the source file.  Thus:
@@ -636,12 +641,21 @@ endif
 if ($?CHPL_TEST_UTIL_DIR) then
     set utildir = "$CHPL_TEST_UTIL_DIR"
 else
-    set utildir = "$CHPL_HOME/util/test"
+    set utildir = "$CHPL_HOME/util"
     setenv CHPL_TEST_UTIL_DIR $utildir
 endif
 if (! -d $utildir || ! -x $utildir) then
     echo "Error: Cannot find $utildir"
     exit 1
+endif
+
+# A temporary directory for use during a test. It is removed 
+# at the end of every test.
+if ($?CHPL_TEST_TMP_DIR) then
+  set chplTestTmpDir = "$CHPL_TEST_TMP_DIR"
+else
+  set chplTestTmpDir = `mktemp -d -t chplTestTmpDir.XXXXX`
+  setenv CHPL_TEST_TMP_DIR $chplTestTmpDir
 endif
 
 set testdir = "$CHPL_HOME/test"
@@ -667,8 +681,8 @@ endif
 
 set datestr = `date +"%y%m%d.%H%M%S"`
 
-set host_platform = `$CHPL_HOME/util/chplenv/chpl_platform.py --host`
-set tgt_platform = `$CHPL_HOME/util/chplenv/chpl_platform.py --target`
+set host_platform = `$utildir/chplenv/chpl_platform.py --host`
+set tgt_platform = `$utildir/chplenv/chpl_platform.py --target`
 
 #
 # some sets to get locale, environment reasonable
@@ -709,8 +723,9 @@ set testnotests = 0
 set recurse = 1
 set tee = "tee"
 set numlocales = 0
-set comm = `$CHPL_HOME/util/chplenv/chpl_comm.py`
-set locMod = `$CHPL_HOME/util/chplenv/chpl_locale_model.py`
+set comm = `$utildir/chplenv/chpl_comm.py`
+set launcher = `$utildir/chplenv/chpl_launcher.py`
+set locMod = `$utildir/chplenv/chpl_locale_model.py`
 set suppressions = ""
 set optionerr = 0
 set chplHomeWarn = 1
@@ -924,6 +939,12 @@ while ( $#argv > 0 )
         shift
         setenv CHPL_NO_STDIN_REDIRECT true
         breaksw
+    case -stdinredirect:
+    case --stdinredirect:
+        shift
+        unset CHPL_NO_STDIN_REDIRECT true
+        setenv CHPL_TEST_FORCE_STDIN_REDIRECT true
+        breaksw
     case -launchertimeout:
     case --launchertimeout:
         shift
@@ -970,8 +991,8 @@ while ( $#argv > 0 )
         echo "          -sysprediff <path>"
         echo "          -suppress <filename>"
         echo "          -numlocales <number>"
-        echo "          -nostdinredirect"
-        echo "          -launchertimeout pbs"
+        echo "          -[no]stdinredirect"
+        echo "          -launchertimeout <queueing system>"
 #       echo "          -interpret (or -i)"
         echo "          -logfile <file>      (currently: $logfile)"
         echo "          -memleaks <file>"
@@ -1147,10 +1168,37 @@ setenv LAUNCHCMD "$launchcmd"
 
 echo \[comm: \"$comm\"\] |& $tee -a $logfile
 setenv CHPL_COMM $comm
-setenv CHPL_GASNET_SEGMENT `$CHPL_HOME/util/chplenv/chpl_comm_segment.py`
+setenv CHPL_GASNET_SEGMENT `$utildir/chplenv/chpl_comm_segment.py`
 
 echo \[localeModel: \"$locMod\"\] |& $tee -a $logfile
 setenv CHPL_LOCALE_MODEL $locMod
+
+# we know that stdin redirection doesn't work for most launchers. only do
+# redirection when there's no launcher, or the launcher is amudprun, which we
+# know supports stdin redirection. Warn user about skipping tests unless they
+# threw -nostdinredirect or -stdinredirect or if env var is set to silence it
+if ($launcher != "none" && $launcher != "amudprun") then
+    if (! $?CHPL_NO_STDIN_REDIRECT && ! $?CHPL_TEST_FORCE_STDIN_REDIRECT ) then
+        if (! $?CHPL_TEST_NO_WARN_NO_STDIN_REDIRECT) then
+            echo "[Warning: assuming stdin redirection is not supported, skipping tests with stdin]" |& $tee -a $logfile
+        endif
+        setenv CHPL_NO_STDIN_REDIRECT true
+    endif
+endif
+
+# sub_test supports using slurm and pbs/qsub to handle timeouts instead of
+# managing timeouts itself. Use the launcher timeout by default if the
+# supported launcher is detected.
+if (! $?CHPL_LAUNCHER_TIMEOUT && ! $?CHPL_TEST_DONT_SET_LAUNCHER_TIMEOUT) then
+    if ($launcher =~ *slurm*) then
+        setenv CHPL_LAUNCHER_TIMEOUT slurm
+    endif
+
+    if ($launcher =~ *pbs* || $launcher =~ *qsub*) then
+        setenv CHPL_LAUNCHER_TIMEOUT pbs
+    endif
+endif
+
 
 if ($comm != "none" && $numlocales == 0) then
     set numlocales = "1"
@@ -1208,9 +1256,9 @@ if ($performance || $gengraphs) then
     else
         set startdate_t = ""
     endif
-    set createCoolerGraphs = ($utildir/genGraphs $genGraphOpts)
-    set createGraphs = $utildir/createGraphs
-    set viewGraphs = $utildir/viewGraphs
+    set createCoolerGraphs = ($utildir/test/genGraphs $genGraphOpts)
+    set createGraphs = $utildir/test/createGraphs
+    set viewGraphs = $utildir/test/viewGraphs
 endif
 
 
@@ -1249,8 +1297,8 @@ if ($compperformance) then
         set startdate_t = ""
     endif
      
-    set createCoolerGraphs = ($utildir/genGraphs $genGraphOpts)
-    set combineCompPerf = $utildir/combineCompPerfData
+    set createCoolerGraphs = ($utildir/test/genGraphs $genGraphOpts)
+    set combineCompPerf = $utildir/test/combineCompPerfData
 endif
 
 
@@ -1274,7 +1322,7 @@ if ("$dirlist" == "" && "$testlist" == "") then
                 mkdir -p $perfdir
             endif
             echo \[Computing stats for spec examples\] |& $tee -a $logfile
-            $utildir/computePerfStats spectests "$perfdir" "$chplhome/test/spectests.perfkeys" "$chplhome/test/spectests.exec.out.tmp" >& $chplhome/test/spectests.perfStats.out.tmp
+            $utildir/test/computePerfStats spectests "$perfdir" "$chplhome/test/spectests.perfkeys" "$chplhome/test/spectests.exec.out.tmp" >& $chplhome/test/spectests.perfStats.out.tmp
             set exitval = $status
             if ( $exitval != 0 ) then
                 echo "[Error: Failed to compute perf stats for Spec tests.  Log file: $chplhome/test/spectests.perfStats.out.tmp]" |& $tee -a $logfile
@@ -1322,8 +1370,8 @@ else
 endif
 
 # If we are running the performance tests, then check for unique .dat
-#  filenames.  Issue a error and exit if we have specified a common
-#  common directory via CHPL_TEST_PERF_DIR otherwise issue a warning.
+#  filenames.  Issue an error and exit if we have specified the data
+#  directory via CHPL_TEST_PERF_DIR, otherwise issue a warning.
 # NOTE: I am not proud of having written the following.
 if ($performance) then
     echo ""
@@ -1377,7 +1425,7 @@ endif
 if ($gengraphs) then
     echo ""
     echo "[Checking that all .graph files appear in $CHPL_HOME/test/GRAPHFILES and $CHPL_HOME/test/COMPGRAPHFILES]" |& $tee -a $logfile
-    $utildir/checkGraphfiles |& tee -a $logfile
+    $utildir/test/checkGraphfiles |& tee -a $logfile
 endif
 
 #
@@ -1385,13 +1433,13 @@ endif
 #
 echo "" | & $tee -a $logfile
 echo "### Chapel Environment ###" | & $tee -a $logfile
-$CHPL_HOME/util/printchplenv | & $tee -a $logfile
+$utildir/printchplenv | & $tee -a $logfile
 echo "##########################" | & $tee -a $logfile
 
 #
 # Utility functions
 #
-set gsub_test = $utildir/sub_test
+set gsub_test = $utildir/test/sub_test
 
 
 #####################################################
@@ -1412,7 +1460,7 @@ foreach test ($testlist)
     echo " " |& $tee -a $logfile
     echo "[Cleaning file $test]" |& $tee -a $logfile
 
-    set sub_clean = $utildir/sub_clean
+    set sub_clean = $utildir/test/sub_clean
     echo "[Starting $sub_clean $testname `date`]" |& $tee -a $logfile
 
     $sub_clean $testname |& $tee -a $logfile
@@ -1525,7 +1573,7 @@ foreach testType ($testTypes)
         # Recursively list all directories, ignoring some (should we really do
         # this?  Maybe add NOTEST files instead?)
         if ($recurse == 1) then
-            set dirs = `find . -name ".svn" -prune -o -name ".git" -prune -o -name Logs -prune -o -name Samples -prune -o -name Share -prune -o -name perfdat -prune -o -type d -print`
+            set dirs = `find . -name ".svn" -prune -o -name ".git" -prune -o -name Logs -prune -o -name Share -prune -o -name perfdat -prune -o -type d -print`
         else
             set dirs = (./)
         endif
@@ -1550,8 +1598,12 @@ foreach testType ($testTypes)
                 # Skip this directory if there is a SKIPIF file
                 # and the condition it contains evaluates to true.
                 if (-e ./SKIPIF) then
-                    set skiptest = `$utildir/testEnv ./SKIPIF`
-                    if ($skiptest == 1) then
+                    if (-x ./SKIPIF) then
+                        set skiptest = `./SKIPIF`
+                    else
+                        set skiptest = `$utildir/test/testEnv ./SKIPIF`
+                    endif
+                    if ( $skiptest == "1" || $skiptest == "True" ) then
                         echo "[Skipping directory based on SKIPIF environment settings]" |& $tee -a $logfile
                         continue
                     endif
@@ -1564,11 +1616,15 @@ foreach testType ($testTypes)
                 while (! $pruneif && $cwd != $basedir)
                     set skipfilen = $cwd.skipif
                     if (-e $skipfilen) then
-                        set pruneif = `$utildir/testEnv $skipfilen`
+                        if (-x $skipfilen) then
+                            set pruneif = `$skipfilen`
+                        else
+                            set pruneif = `$utildir/test/testEnv $skipfilen`
+                        endif
                     endif
                     cd ..
                 end
-                if ($pruneif) then
+                if ( $pruneif == "1" || $pruneif == "True" ) then
                     echo "[Skipping directory based on ancestor .skipif environment settings in $skipfilen]" |& $tee -a $logfile
                     continue
                 endif
@@ -1587,7 +1643,7 @@ foreach testType ($testTypes)
                     (($CHPL_TEST_INTERP == "off") || \
                     (! -e ./NOINTERP && ! -e ./NOEXEC && ! -e ./EXECOPTS)))) then
                     # clean up
-                    set sub_clean = $utildir/sub_clean
+                    set sub_clean = $utildir/test/sub_clean
                     $sub_clean |& $tee -a $logfile
 
                     if ($clean_only == 0)  then
@@ -1690,6 +1746,11 @@ if ($gengraphs && $?CHPL_TEST_PERF_DIR) then
     endif
 endif
 
+if ( -d $chplTestTmpDir ) then
+  echo "[Removing $chplTestTmpDir directory]"
+  rm -rf $chplTestTmpDir
+endif
+
 # exit here if there were errors before running the tests
 err_exit:
 
@@ -1717,10 +1778,11 @@ set skipstdinredirectmarker = "^\[Skipping test with .stdin input"
 
 echo \[Test Summary - $datestr\] |& $tee $logfile.summary
 if ($clean_only == 0) then
-    grep "$errormarker" $logfile |& $tee -a $logfile.summary
+    grep "$errormarker" $logfile |& $tee -a $logfile.summary >/dev/null
     if ($suppressions != "") then
-        $utildir/filterSuppressions $suppressions $logfile.summary
+        $utildir/test/filterSuppressions $suppressions $logfile.summary
     endif
+    grep "$errormarker" $logfile.summary
 
     grep "$futuremarker" $logfile |& $tee -a $logfile.summary
     grep "$warningmarker" $logfile |& $tee -a $logfile.summary

@@ -2,20 +2,22 @@ Initializing Modules:
    ChapelStandard
     ChapelBase
     String
+     CString
     MemConsistency
     Atomics
     NetworkAtomics
     AtomicsCommon
-    ChapelNumLocales
+    NewString
+     BaseStringType
     ChapelThreads
     ChapelTuple
     ChapelRange
-     ChapelRangeBase
-    ChapelLocale
-    DefaultRectangular
-     DSIUtil
-     ChapelArray
     LocaleModel
+     ChapelLocale
+     DefaultRectangular
+      DSIUtil
+      ChapelArray
+     ChapelNumLocales
      Sys
       SysBasic
        SysCTypes

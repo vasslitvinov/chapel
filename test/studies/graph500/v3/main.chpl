@@ -168,9 +168,11 @@ module Graph500_main
   writeln ( "        Edge factor: ", EDGEFACTOR );
 
   if (PRINT_LOCALE_INFORMATION) {
-  forall loc in Locales do
-    writeln("Locale ID: ", loc.id, " of ", numLocales);
-    writeln("Locale ID: ", loc.id, " Number of cores " , loc.numCores);
+    forall loc in Locales {
+      writeln("Locale ID: ", loc.id, " of ", numLocales);
+      writeln("Locale ID: ", loc.id, " Number of cores " , loc.numCores);
+      writeln("Locale ID: ", loc.id, " Max task parallelism " , loc.maxTaskPar);
+    }
   }
 
   const edge_range =  1..N_RAWEDGES;

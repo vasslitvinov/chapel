@@ -23,6 +23,21 @@ CHPL_GMP_CXXFLAGS=-mmic
 endif
 endif
 
+#
+# On Cray systems, building the shared libraries causes issues.
+# On Macs, not building the shared libraries causes warnings.
+#
+ifneq (, $(filter cray-x%,$(CHPL_MAKE_TARGET_PLATFORM)))
+CHPL_GMP_CFG_OPTIONS += --enable-static --disable-shared
+endif
+
+CHPL_GMP_ABI_ARG =
+ifeq (linux32, $(CHPL_MAKE_TARGET_PLATFORM))
+CHPL_GMP_ABI_ARG = ABI=32
+endif
+
+GMP_MAKEFILE = $(GMP_BUILD_SUBDIR)/Makefile
+
 default: all
 
 all: gmp
@@ -39,22 +54,27 @@ clobber: FORCE
 $(GMP_UNPACKED_DIR):
 	cd $(GMP_DIR) && tar --bzip2 -xf $(GMP_TARBALL)
 
-gmp-config: $(GMP_UNPACKED_DIR) FORCE
-	mkdir -p $(GMP_BUILD_DIR)
-	cd $(GMP_BUILD_DIR) && $(GMP_SUBDIR)/configure CC='$(CC)' CFLAGS='$(CFLAGS) $(CHPL_GMP_CFLAGS)' CXX='$(CXX)' CXXFLAGS='$(CXXFLAGS) $(CHPL_GMP_CXXFLAGS)' --prefix=$(GMP_INSTALL_DIR) $(CHPL_GMP_CFG_OPTIONS)
+$(GMP_BUILD_SUBDIR):
+	mkdir -p $@
 
-# Determine the number of available cpus on the system. Used as the -j argument
-# when calling make below. This can be overridden at the command line with
-# NPROCS=<int>.
-NPROCS := $(shell python -c 'import multiprocessing ; print multiprocessing.cpu_count()')
+gmp-config:
+	$(MAKE) $(GMP_MAKEFILE)
 
-gmp-build: FORCE
-	cd $(GMP_BUILD_DIR) && $(MAKE) -j$(NPROCS)
+$(GMP_MAKEFILE): $(GMP_BUILD_SUBDIR) $(GMP_UNPACKED_DIR)
+	cd $(GMP_BUILD_DIR) && $(GMP_SUBDIR)/configure CC='$(CC)' CFLAGS='$(CFLAGS) $(CHPL_GMP_CFLAGS)' CXX='$(CXX)' CXXFLAGS='$(CXXFLAGS) $(CHPL_GMP_CXXFLAGS)' $(CHPL_GMP_ABI_ARG) --prefix=$(GMP_INSTALL_DIR) $(CHPL_GMP_CFG_OPTIONS)
+
+gmp-build:
+	$(MAKE) $(GMP_H_FILE)
+
+$(GMP_H_FILE): $(GMP_MAKEFILE)
+	cd $(GMP_BUILD_DIR) && $(MAKE)
 ifneq ($(CHPL_MAKE_TARGET_ARCH),knc)
-	cd $(GMP_BUILD_DIR) && $(MAKE) -j$(NPROCS) check
+	cd $(GMP_BUILD_DIR) && $(MAKE) check
 endif
 	cd $(GMP_BUILD_DIR) && $(MAKE) install
 
-gmp: gmp-config gmp-build
+gmp: $(GMP_H_FILE)
 
 FORCE:
+
+.NOTPARALLEL:

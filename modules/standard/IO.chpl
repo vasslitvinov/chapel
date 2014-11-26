@@ -1,3 +1,22 @@
+/*
+ * Copyright 2004-2014 Cray Inc.
+ * Other additional copyright holders may be indicated within.
+ * 
+ * The entirety of this work is licensed under the Apache License,
+ * Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License.
+ * 
+ * You may obtain a copy of the License at
+ * 
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 /* "channel" I/O contributed by Michael Ferguson
 
    Future Work:
@@ -76,6 +95,7 @@ enum iostringstyle {
   len4b_data = -4,
   len8b_data = -8,
   lenVb_data = -10,
+  data_toeof = -0xff00,
   data_null = -0x0100,
 }
 proc stringStyleTerminated(terminator:uint(8)) {
@@ -157,6 +177,9 @@ const IOHINT_PARALLEL = QIO_HINT_PARALLEL;
 extern type qio_file_ptr_t;
 extern const QIO_FILE_PTR_NULL:qio_file_ptr_t;
 
+extern type qio_file_functions_ptr_t; // pointer to function ptr struct
+extern type qio_file_functions_t;     // function ptr struct
+
 extern type qio_channel_ptr_t;
 extern const QIO_CHANNEL_PTR_NULL:qio_channel_ptr_t;
 
@@ -171,6 +194,7 @@ extern const QIO_STRING_FORMAT_BASIC:uint(8);
 extern const QIO_STRING_FORMAT_CHPL:uint(8);
 extern const QIO_STRING_FORMAT_JSON:uint(8);
 extern const QIO_STRING_FORMAT_TOEND:uint(8);
+extern const QIO_STRING_FORMAT_TOEOF:uint(8);
 
 extern record iostyle { // aka qio_style_t
   var binary:uint(8) = 0;
@@ -240,6 +264,12 @@ extern proc qio_file_open_access(ref file_out:qio_file_ptr_t, path:c_string, acc
 extern proc qio_file_open_tmp(ref file_out:qio_file_ptr_t, iohints:c_int, const ref style:iostyle):syserr;
 extern proc qio_file_open_mem(ref file_out:qio_file_ptr_t, buf:qbuffer_ptr_t, const ref style:iostyle):syserr;
 
+// Same as qio_file_open_access in, except this time we pass though our
+// struct that will initilize the file with the appropriate functions for that FS
+extern proc qio_file_open_access_usr(out file_out:qio_file_ptr_t, path:string,
+                                     access:string, iohints:c_int, /*const*/ ref style:iostyle,
+                                     fs:c_void_ptr, s: qio_file_functions_ptr_t):syserr;
+
 extern proc qio_file_close(f:qio_file_ptr_t):syserr;
 
 extern proc qio_file_lock(f:qio_file_ptr_t):syserr;
@@ -248,10 +278,9 @@ extern proc qio_file_unlock(f:qio_file_ptr_t);
 /* The general way to make sure data is written without error */
 extern proc qio_file_sync(f:qio_file_ptr_t):syserr;
 
-//extern proc qio_file_style_ptr(f:qio_file_ptr_t):qio_style_ptr_t;
-extern proc qio_channel_get_filelength(chan:qio_channel_ptr_t, ref len:int(64)):syserr;
+extern proc qio_channel_end_offset_unlocked(ch:qio_channel_ptr_t):int(64);
 extern proc qio_file_get_style(f:qio_file_ptr_t, ref style:iostyle);
-extern proc qio_file_set_style(f:qio_file_ptr_t, const ref style:iostyle);
+extern proc qio_file_length(f:qio_file_ptr_t, ref len:int(64)):syserr;
 
 pragma "no prototype" // FIXME
 extern proc qio_channel_create(ref ch:qio_channel_ptr_t, file:qio_file_ptr_t, hints:c_int, readable:c_int, writeable:c_int, start:int(64), end:int(64), const ref style:iostyle):syserr;
@@ -298,14 +327,20 @@ extern proc qio_channel_write_bits(threadsafe:c_int, ch:qio_channel_ptr_t, v:uin
 extern proc qio_channel_flush_bits(threadsafe:c_int, ch:qio_channel_ptr_t):syserr;
 extern proc qio_channel_read_bits(threadsafe:c_int, ch:qio_channel_ptr_t, ref v:uint(64), nbits:int(8)):syserr;
 
+extern proc qio_locales_for_region(fl:qio_file_ptr_t, start:int(64), end:int(64), ref
+    loc_names:c_ptr(c_string), ref num_locs_out:c_int):syserr;
+extern proc qio_get_chunk(fl:qio_file_ptr_t, ref len:int(64)):syserr;
+extern proc qio_get_fs_type(fl:qio_file_ptr_t, ref tp:c_int):syserr;
+extern proc qio_free_string(arg:c_string);
+
 pragma "no prototype" // FIXME
-extern proc qio_file_path_for_fd(fd:fd_t, ref path:c_string):syserr;
+extern proc qio_file_path_for_fd(fd:fd_t, ref path:c_string_copy):syserr;
 pragma "no prototype" // FIXME
-extern proc qio_file_path_for_fp(fp:_file, ref path:c_string):syserr;
+extern proc qio_file_path_for_fp(fp:_file, ref path:c_string_copy):syserr;
 pragma "no prototype" // FIXME
-extern proc qio_file_path(f:qio_file_ptr_t, ref path:c_string):syserr;
+extern proc qio_file_path(f:qio_file_ptr_t, ref path:c_string_copy):syserr;
 pragma "no prototype" // FIXME
-extern proc qio_shortest_path(fl: qio_file_ptr_t, ref path_out:c_string, path_in:c_string):syserr;
+extern proc qio_shortest_path(fl: qio_file_ptr_t, ref path_out:c_string_copy, path_in:c_string):syserr;
 
 extern proc qio_channel_read_int(threadsafe:c_int, byteorder:c_int, ch:qio_channel_ptr_t, ref ptr, len:size_t, issigned:c_int):syserr;
 pragma "no prototype" // FIXME
@@ -318,7 +353,7 @@ extern proc qio_channel_write_float(threadsafe:c_int, byteorder:c_int, ch:qio_ch
 extern proc qio_channel_read_complex(threadsafe:c_int, byteorder:c_int, ch:qio_channel_ptr_t, ref re_ptr, ref im_ptr, len:size_t):syserr;
 extern proc qio_channel_write_complex(threadsafe:c_int, byteorder:c_int, ch:qio_channel_ptr_t, const ref re_ptr, const ref im_ptr, len:size_t):syserr;
 
-extern proc qio_channel_read_string(threadsafe:c_int, byteorder:c_int, str_style:int(64), ch:qio_channel_ptr_t, ref s:c_string, ref len:int(64), maxlen:ssize_t):syserr;
+extern proc qio_channel_read_string(threadsafe:c_int, byteorder:c_int, str_style:int(64), ch:qio_channel_ptr_t, ref s:c_string_copy, ref len:int(64), maxlen:ssize_t):syserr;
 extern proc qio_channel_write_string(threadsafe:c_int, byteorder:c_int, str_style:int(64), ch:qio_channel_ptr_t, const s:c_string, len:ssize_t):syserr;
 
 extern proc qio_channel_scan_int(threadsafe:c_int, ch:qio_channel_ptr_t, ref ptr, len:size_t, issigned:c_int):syserr;
@@ -342,20 +377,37 @@ extern proc qio_channel_print_complex(threadsafe:c_int, ch:qio_channel_ptr_t, co
 extern proc qio_channel_read_char(threadsafe:c_int, ch:qio_channel_ptr_t, ref char:int(32)):syserr;
 
 extern proc qio_nbytes_char(chr:int(32)):c_int;
-extern proc qio_encode_to_string(chr:int(32)):c_string;
+extern proc qio_encode_to_string(chr:int(32)):c_string_copy;
 extern proc qio_decode_char_buf(ref chr:int(32), ref nbytes:c_int, buf:c_string, buflen:ssize_t):syserr;
 
 extern proc qio_channel_write_char(threadsafe:c_int, ch:qio_channel_ptr_t, char:int(32)):syserr;
 extern proc qio_channel_skip_past_newline(threadsafe:c_int, ch:qio_channel_ptr_t, skipOnlyWs:c_int):syserr;
 extern proc qio_channel_write_newline(threadsafe:c_int, ch:qio_channel_ptr_t):syserr;
 
-extern proc qio_channel_scan_string(threadsafe:c_int, ch:qio_channel_ptr_t, ref ptr:c_string, ref len:int(64), maxlen:ssize_t):syserr;
+// Note, the returned ptr argument behaves like an allocated c_string
+// (i.e. c_string_copy).  It should be freed by the caller, or stored and freed
+// later.
+extern proc qio_channel_scan_string(threadsafe:c_int, ch:qio_channel_ptr_t, ref ptr:c_string_copy, ref len:int(64), maxlen:ssize_t):syserr;
 extern proc qio_channel_print_string(threadsafe:c_int, ch:qio_channel_ptr_t, const ptr:c_string, len:ssize_t):syserr;
 
 extern proc qio_channel_scan_literal(threadsafe:c_int, ch:qio_channel_ptr_t, const match:c_string, len:ssize_t, skipws:c_int):syserr;
 extern proc qio_channel_scan_literal_2(threadsafe:c_int, ch:qio_channel_ptr_t, match:c_void_ptr, len:ssize_t, skipws:c_int):syserr;
 extern proc qio_channel_print_literal(threadsafe:c_int, ch:qio_channel_ptr_t, const match:c_string, len:ssize_t):syserr;
 extern proc qio_channel_print_literal_2(threadsafe:c_int, ch:qio_channel_ptr_t, match:c_void_ptr, len:ssize_t):syserr;
+
+
+/*********************** Curl/HDFS support ******************/
+
+/***************** C U R L *******************/
+extern type curl_handle;
+extern const curl_function_struct:qio_file_functions_t;
+extern const curl_function_struct_ptr:qio_file_functions_ptr_t;
+
+/****************** H D F S ******************/
+extern const hdfs_function_struct_ptr:qio_file_functions_ptr_t;
+extern proc hdfs_connect(out fs: c_void_ptr, path: c_string, port: int): syserr; 
+extern proc hdfs_do_release(fs:c_void_ptr);
+// End
 
 extern record qio_conv_t {
   var preArg1:uint(8);
@@ -478,35 +530,6 @@ record file {
   var _file_internal:qio_file_ptr_t = QIO_FILE_PTR_NULL;
 }
 
-// used for giving old warnings anyways...
-enum FileAccessMode { read, write };
-
-param _oldioerr="This program is using old-style I/O which is no longer supported.\n" +
-                "See doc/README.io.\n" +
-                "You'll probably want something like:\n" +
-                "var f = open(filename, iomode.w).writer()\n" + 
-                "or\n" + 
-                "var f = open(filename, iomode.r).reader()\n";
-
-// This file constructor exists to throw an error for old I/O code.
-proc file.file(filename:string="",
-               mode:FileAccessMode=FileAccessMode.read,
-               path:string=".") {
-  compilerError(_oldioerr);
-}
-proc file.open() {
-  compilerError(_oldioerr);
-}
-proc file.filename : string {
-  compilerError(_oldioerr + "file.filename is no longer supported");
-}
-proc file.mode {
-  compilerError(_oldioerr + "file.mode is no longer supported");
-}
-proc file.isOpen: bool {
-  compilerError(_oldioerr + "file.isOpen is no longer supported");
-}
-
 // TODO -- shouldn't have to write this this way!
 pragma "init copy fn"
 proc chpl__initCopy(x: file) {
@@ -536,13 +559,6 @@ proc file.check() {
     halt("Operation attempted on an invalid file");
   }
 }
-
-/*
-proc file.file() {
-  this.home = here;
-  this._file_internal = QIO_FILE_PTR_NULL;
-}
-*/
 
 proc file.~file() {
   on this.home {
@@ -616,14 +632,16 @@ proc file.getPath(out error:syserr) : string {
   check();
   var ret:string;
   on this.home {
-    var tmp:c_string; // FIX ME: leak c_string
-    var tmp2:c_string;
+    var tmp:c_string_copy;
+    var tmp2:c_string_copy;
     error = qio_file_path(_file_internal, tmp);
     if !error {
       error = qio_shortest_path(_file_internal, tmp2, tmp);
     }
+    chpl_free_c_string_copy(tmp);
     if !error {
-    // FIX ME: leak c_string
+      // This uses the version of toString that steals its operand.
+      // No need to free.
       ret = toString(tmp2);
     } else {
       ret = "unknown";
@@ -645,6 +663,17 @@ proc file.path : string {
   var ret:string;
   ret = this.getPath(err);
   if err then ioerror(err, "in file.path");
+  return ret;
+}
+
+proc file.length():int(64) {
+  var err:syserr = ENOERR;
+  var len:int(64) = 0;
+  on this.home {
+    err = qio_file_length(this._file_internal, len);
+  }
+  if err then ioerror(err, "in file.length()");
+  return len;
 }
 
 // these strings are here (vs in _modestring)
@@ -665,20 +694,67 @@ proc _modestring(mode:iomode) {
   }
 }
 
-proc open(out error:syserr, path:string, mode:iomode, hints:iohints=IOHINT_NONE, style:iostyle = defaultIOStyle()):file {
+proc open(out error:syserr, path:string="", mode:iomode, hints:iohints=IOHINT_NONE,
+    style:iostyle = defaultIOStyle(), url:string=""):file {
+  // hdfs paths are expected to be of the form:
+  // hdfs://<host>:<port>/<path>
+  proc parse_hdfs_path(path:string): (string, int, string) {
+
+    var hostidx_start = path.indexOf("//");
+    var new_str = path.substring(hostidx_start+2..path.length);
+    var hostidx_end = new_str.indexOf(":");
+    var host = new_str.substring(0..hostidx_end-1);
+
+    new_str = new_str.substring(hostidx_end+1..new_str.length);
+
+    var portidx_end = new_str.indexOf("/");
+    var port = new_str.substring(0..portidx_end-1);
+
+    //the file path is whatever we have left
+    var file_path = new_str.substring(portidx_end+1..new_str.length);
+
+    return (host, port:int, file_path);
+  }
+
   var local_style = style;
   var ret:file;
   ret.home = here;
-  error = qio_file_open_access(ret._file_internal, path.c_str(), _modestring(mode).c_str(), hints, local_style);
-  // On return ret._file_internal.ref_cnt == 1.
+  if (url != "") {
+    if (url.startsWith("hdfs://")) { // HDFS
+      var (host, port, file_path) = parse_hdfs_path(url);
+      var fs:c_void_ptr;
+      error = hdfs_connect(fs, host.c_str(), port);
+      if error then ioerror(error, "Unable to connect to HDFS", host);
+      error = qio_file_open_access_usr(ret._file_internal, file_path.c_str(), _modestring(mode).c_str(), hints, local_style, fs, hdfs_function_struct_ptr);
+      // Since we don't have an auto-destructor for this, we actually need to make
+      // the reference count 1 on this FS after we open this file so that we will
+      // disconnect once we close this file.
+      hdfs_do_release(fs);
+      if error then ioerror(error, "Unable to open file in HDFS", url);
+    } else if (url.startsWith("http://", "https://", "ftp://", "ftps://", "smtp://", "smtps://", "imap://", "imaps://"))  { // Curl
+      error = qio_file_open_access_usr(ret._file_internal, url.c_str(), _modestring(mode).c_str(), hints, local_style, c_nil, curl_function_struct_ptr);
+      if error then ioerror(error, "Unable to open URL", url);
+    } else {
+      ioerror(ENOENT:syserr, "Invalid URL passed to open");
+    }
+  } else {
+    if (path == "") then
+      ioerror(ENOENT:syserr, "in open: Both path and url were path");
+
+    error = qio_file_open_access(ret._file_internal, path.c_str(), _modestring(mode).c_str(), hints, local_style);
+  }
+
   return ret;
 }
-proc open(path:string, mode:iomode, hints:iohints=IOHINT_NONE, style:iostyle = defaultIOStyle()):file {
+
+proc open(path:string="", mode:iomode, hints:iohints=IOHINT_NONE, style:iostyle =
+    defaultIOStyle(), url:string=""):file {
   var err:syserr = ENOERR;
-  var ret = open(err, path, mode, hints, style);
+  var ret = open(err, path, mode, hints, style, url);
   if err then ioerror(err, "in open", path);
   return ret;
 }
+
 proc openfd(fd: fd_t, out error:syserr, hints:iohints=IOHINT_NONE, style:iostyle = defaultIOStyle()):file {
   var local_style = style;
   var ret:file;
@@ -692,11 +768,11 @@ proc openfd(fd: fd_t, hints:iohints=IOHINT_NONE, style:iostyle = defaultIOStyle(
   var err:syserr = ENOERR;
   var ret = openfd(fd, err, hints, style);
   if err {
-    var path:c_string;
+    var path:c_string_copy;
     var e2:syserr = ENOERR;
     e2 = qio_file_path_for_fd(fd, path);
     if e2 then path = "unknown".c_str();
-    // FIX ME: leak c_string
+    // FIX ME: could use a toString() that doesn't allocate space
     ioerror(err, "in openfd", toString(path));
   }
   return ret;
@@ -714,12 +790,12 @@ proc openfp(fp: _file, hints:iohints=IOHINT_NONE, style:iostyle = defaultIOStyle
   var err:syserr = ENOERR;
   var ret = openfp(fp, err, hints, style);
   if err {
-    var path:c_string;
+    var path:c_string_copy;
     var e2:syserr = ENOERR;
     e2 = qio_file_path_for_fp(fp, path);
     if e2 then path = "unknown".c_str();
-    // FIX ME: leak c_string
     ioerror(err, "in openfp", toString(path));
+    // c_string path leaked, but ioerror will exit
   }
   return ret;
 }
@@ -753,8 +829,6 @@ proc openmem(style:iostyle = defaultIOStyle()):file {
   if err then ioerror(err, "in openmem");
   return ret;
 }
-
-
 
 /* in the future, this will be an interface.
    */
@@ -790,10 +864,9 @@ proc =(ref ret:channel, x:channel) {
   ret._channel_internal = x._channel_internal;
 }
 
-proc channel.channel(param writing:bool, param kind:iokind, param locking:bool, f:file, out error:syserr, hints:c_int, start:int(64), end:int(64), style:iostyle) {
+proc channel.channel(param writing:bool, param kind:iokind, param locking:bool, f:file, out error:syserr, hints:c_int, start:int(64), end:int(64), in local_style:iostyle) {
   on f.home {
     this.home = f.home;
-    var local_style = style;
     if kind != iokind.dynamic {
       local_style.binary = true;
       local_style.byteorder = kind:uint(8);
@@ -818,7 +891,10 @@ record ioChar {
     halt("ioChar.writeThis must be written in Writer subclasses");
   }
 }
-inline proc _cast(type t, x: ioChar) where t == c_string {
+
+// Note: This returns a c_string_copy.
+// The caller has responsibility for freeing the returned string.
+inline proc _cast(type t, x: ioChar) where t == c_string_copy {
   return qio_encode_to_string(x.ch);
 }
 
@@ -834,8 +910,13 @@ record ioNewline {
     f.write("\n");
   }
 }
+
 inline proc _cast(type t, x: ioNewline) where t == c_string {
   return "\n";
+}
+
+inline proc _cast(type t, x: ioNewline) where t == c_string_copy {
+  return __primitive("string_copy", "\n");
 }
 
 // Used to represent a constant string we want to read or write...
@@ -849,8 +930,11 @@ record ioLiteral {
 }
 
 inline proc _cast(type t, x: ioLiteral) where t == c_string {
-  // FIX ME: should this be copied?
   return x.val;
+}
+
+inline proc _cast(type t, x: ioLiteral) where t == c_string_copy {
+  return __primitive("string_copy", x.val);
 }
 
 // Used to represent some number of bits we want to read or write...
@@ -879,12 +963,12 @@ proc channel._ch_ioerror(error:syserr, msg:string) {
     var err:syserr = ENOERR;
     err = qio_channel_path_offset(locking, _channel_internal, tmp_path, tmp_offset);
     if !err {
-      // FIX ME: leak c_string
       path = toString(tmp_path);
       offset = tmp_offset;
     }
   }
   ioerror(error, msg, path, offset);
+  // c_string tmp_path leaked, but ioerror will exit
 }
 proc channel._ch_ioerror(errstr:string, msg:string) {
   var path:string = "unknown";
@@ -895,12 +979,12 @@ proc channel._ch_ioerror(errstr:string, msg:string) {
     var err:syserr = ENOERR;
     err = qio_channel_path_offset(locking, _channel_internal, tmp_path, tmp_offset);
     if !err {
-      // FIX ME: leak c_string
       path = toString(tmp_path);
       offset = tmp_offset;
     }
   }
   ioerror(errstr, msg, path, offset);
+  // c_string tmp_path leaked, but ioerror will exit
 }
 
 
@@ -989,6 +1073,53 @@ proc channel._set_style(style:iostyle) {
   }
 }
 
+// We can simply call channel.close() on these, since the underlying file will be
+// closed once we no longer have any references to it (which in this case, since we
+// only will have one reference, will be right after we close this channel
+// presumably).
+proc openreader(out err: syserr, path:string="", param kind=iokind.dynamic, param locking=true,
+    start:int(64) = 0, end:int(64) = max(int(64)), hints:iohints = IOHINT_NONE,
+    url:string=""): channel(false, kind, locking) {
+  var fl:file = open(err, path, iomode.r, url=url);
+  var reader = fl.reader(kind, locking, start, end, hints, fl._style);
+  // If we decrement the ref count after we open this channel, ref_cnt fl == 1.
+  // Then, when we leave this function, Chapel will view this file as leaving scope,
+  // and not having any handles attached to it, it will close the underlying file for the channel.
+  /*qio_file_release(fl._file_internal);*/
+  return reader;
+}
+
+proc openreader(path:string="", param kind=iokind.dynamic, param locking=true,
+    start:int(64) = 0, end:int(64) = max(int(64)), hints:iohints = IOHINT_NONE,
+    url:string=""):channel(false, kind, locking) {
+  var err:syserr = ENOERR;
+  var reader = openreader(err=err, path=path, kind=kind, locking=locking, start=start, end=end, hints=hints, url=url);
+  if err then ioerror(err, "in openreader()");
+  return reader;
+}
+
+proc openwriter(out err: syserr, path:string="", param kind=iokind.dynamic, param locking=true,
+    start:int(64) = 0, end:int(64) = max(int(64)), hints:iohints = IOHINT_NONE,
+    url:string=""): channel(true, kind, locking) {
+  var fl:file = open(err, path, iomode.cw, url=url);
+  var writer = fl.writer(kind, locking, start, end, hints, fl._style);
+  // Need to look at this some more and verify it:
+  // If we decrement the ref count after we open this channel, ref_cnt fl == 1.
+  // Then, when we leave this function, Chapel will view this file as leaving scope,
+  // and not having any handles attached to it, it will close the underlying file for the channel.
+  /*qio_file_release(fl._file_internal);*/
+  return writer;
+}
+
+proc openwriter(path:string="", param kind=iokind.dynamic, param locking=true,
+    start:int(64) = 0, end:int(64) = max(int(64)), hints:iohints = IOHINT_NONE,
+    url:string=""): channel(true, kind, locking) {
+  var err: syserr = ENOERR;
+  var writer = openwriter(err=err, path=path, kind=kind, locking=locking, start=start, end=end, hints=hints, url=url);
+  if err then ioerror(err, "in openwriter()");
+  return writer;
+}
+
 // It is the responsibility of the caller to release the returned channel
 // if the error code is nonzero.
 // The return error code should be checked to avoid double-deletion errors.
@@ -1010,16 +1141,16 @@ proc file.reader(param kind=iokind.dynamic, param locking=true, start:int(64) = 
 }
 
 // for convenience..
-proc file.lines(out error:syserr, param locking:bool = true, start:int(64) = 0, end:int(64) = max(int(64)), hints:iohints = IOHINT_NONE, style:iostyle = this._style) {
+proc file.lines(out error:syserr, param locking:bool = true, start:int(64) = 0, end:int(64) = max(int(64)), hints:iohints = IOHINT_NONE, in local_style:iostyle = this._style) {
   check();
 
-  style.string_format = QIO_STRING_FORMAT_TOEND;
-  style.string_end = 0x0a; // '\n'
+  local_style.string_format = QIO_STRING_FORMAT_TOEND;
+  local_style.string_end = 0x0a; // '\n'
 
   param kind = iokind.dynamic;
   var ret:ItemReader(string, kind, locking);
   on this.home {
-    var ch = new channel(false, kind, locking, this, error, hints, start, end, style);
+    var ch = new channel(false, kind, locking, this, error, hints, start, end, local_style);
     ret = new ItemReader(string, kind, locking, ch);
   }
   return ret;
@@ -1055,7 +1186,7 @@ proc file.writer(param kind=iokind.dynamic, param locking=true, start:int(64) = 
 }
 
 proc _isSimpleIoType(type t) param return
-  _isSimpleScalarType(t) || _isComplexType(t) || _isEnumeratedType(t);
+  isBoolType(t) || isNumericType(t) || isEnumType(t);
 
 proc _isIoPrimitiveType(type t) param return
   _isSimpleIoType(t) || (t == c_string) || (t == string);
@@ -1069,7 +1200,7 @@ const _i = "i";
 
 // Read routines for all primitive types.
 proc _read_text_internal(_channel_internal:qio_channel_ptr_t, out x:?t):syserr where _isIoPrimitiveType(t) {
-  if _isBooleanType(t) {
+  if isBoolType(t) {
     var num = _trues.size;
     var err:syserr = ENOERR;
     var got:bool;
@@ -1095,13 +1226,13 @@ proc _read_text_internal(_channel_internal:qio_channel_ptr_t, out x:?t):syserr w
 
     if !err then x = got;
     return err;
-  } else if _isIntegralType(t) {
+  } else if isIntegralType(t) {
     // handles int types
-    return qio_channel_scan_int(false, _channel_internal, x, numBytes(t), _isSignedType(t));
-  } else if _isRealType(t) {
+    return qio_channel_scan_int(false, _channel_internal, x, numBytes(t), isIntType(t));
+  } else if isRealType(t) {
     // handles real
     return qio_channel_scan_float(false, _channel_internal, x, numBytes(t));
-  } else if _isImagType(t) {
+  } else if isImagType(t) {
     return qio_channel_scan_imag(false, _channel_internal, x, numBytes(t));
     /*
     var err = qio_channel_mark(false, _channel_internal);
@@ -1118,7 +1249,7 @@ proc _read_text_internal(_channel_internal:qio_channel_ptr_t, out x:?t):syserr w
     }
     return err;
     */
-  } else if _isComplexType(t)  {
+  } else if isComplexType(t)  {
     // handle complex types
     var re:x.re.type;
     var im:x.im.type;
@@ -1129,18 +1260,19 @@ proc _read_text_internal(_channel_internal:qio_channel_ptr_t, out x:?t):syserr w
   } else if (t == c_string) || (t == string) {
     // handle c_string and string
     var len:int(64);
-    var tx: c_string;
+    var tx: c_string_copy;
     var ret = qio_channel_scan_string(false, _channel_internal, tx, len, -1);
-    if t == c_string then x = tx;
-    // FIX ME: leak c_string
-    else x = toString(tx);
+    // FIX ME: Should deprecate the t == c_string path, because we always
+    // return an "owned" char* buffer (or NULL).
+    x = toString(tx);
     return ret;
-  } else if _isEnumeratedType(t) {
+  } else if isEnumType(t) {
     var err:syserr = ENOERR;
     for i in chpl_enumerate(t) {
-      var str = i:c_string; // FIX ME: leak c_string
+      var str = i:c_string;
       var slen:ssize_t = str.length:ssize_t;
       err = qio_channel_scan_literal(false, _channel_internal, str, slen, 1);
+      // Do not free str, because enum literals are C string literals
       if !err {
         x = i;
         break;
@@ -1154,20 +1286,20 @@ proc _read_text_internal(_channel_internal:qio_channel_ptr_t, out x:?t):syserr w
 }
 
 proc _write_text_internal(_channel_internal:qio_channel_ptr_t, x:?t):syserr where _isIoPrimitiveType(t) {
-  if _isBooleanType(t) {
+  if isBoolType(t) {
     if x {
       return qio_channel_print_literal(false, _channel_internal, _trues(1), _trues(1).length:ssize_t);
     } else {
       return qio_channel_print_literal(false, _channel_internal, _falses(1), _falses(1).length:ssize_t);
     }
-  } else if _isIntegralType(t) {
+  } else if isIntegralType(t) {
     // handles int types
-    return qio_channel_print_int(false, _channel_internal, x, numBytes(t), _isSignedType(t));
+    return qio_channel_print_int(false, _channel_internal, x, numBytes(t), isIntType(t));
 
-  } else if _isRealType(t) {
+  } else if isRealType(t) {
     // handles real
     return qio_channel_print_float(false, _channel_internal, x, numBytes(t));
-  } else if _isImagType(t) {
+  } else if isImagType(t) {
     return qio_channel_print_imag(false, _channel_internal, x, numBytes(t));
     /*var err = qio_channel_mark(false, _channel_internal);
     if err then return err;
@@ -1182,7 +1314,7 @@ proc _write_text_internal(_channel_internal:qio_channel_ptr_t, x:?t):syserr wher
       qio_channel_revert_unlocked(_channel_internal);
     }
     return err;*/
-  } else if _isComplexType(t)  {
+  } else if isComplexType(t)  {
     // handle complex types
     var re = x.re;
     var im = x.im;
@@ -1193,7 +1325,7 @@ proc _write_text_internal(_channel_internal:qio_channel_ptr_t, x:?t):syserr wher
   } else if t == string {
     // handle string
     return qio_channel_print_string(false, _channel_internal, x.c_str(), x.length:ssize_t);
-  } else if _isEnumeratedType(t) {
+  } else if isEnumType(t) {
     var s = x:c_string;
     return qio_channel_print_literal(false, _channel_internal, s, s.length:ssize_t);
   } else {
@@ -1203,7 +1335,7 @@ proc _write_text_internal(_channel_internal:qio_channel_ptr_t, x:?t):syserr wher
 }
 
 inline proc _read_binary_internal(_channel_internal:qio_channel_ptr_t, param byteorder:iokind, out x:?t):syserr where _isIoPrimitiveType(t) {
-  if _isBooleanType(t) {
+  if isBoolType(t) {
     var got:int(32);
     got = qio_channel_read_byte(false, _channel_internal);
     if got >= 0 {
@@ -1212,7 +1344,7 @@ inline proc _read_binary_internal(_channel_internal:qio_channel_ptr_t, param byt
     } else {
       return (-got):syserr;
     }
-  } else if _isIntegralType(t) {
+  } else if isIntegralType(t) {
     if numBytes(t) == 1 {
       var got:int(32);
       got = qio_channel_read_byte(false, _channel_internal);
@@ -1224,12 +1356,12 @@ inline proc _read_binary_internal(_channel_internal:qio_channel_ptr_t, param byt
       }
     } else {
       // handles int types
-      return qio_channel_read_int(false, byteorder, _channel_internal, x, numBytes(t), _isSignedType(t));
+      return qio_channel_read_int(false, byteorder, _channel_internal, x, numBytes(t), isIntType(t));
     }
-  } else if _isFloatType(t) {
+  } else if isFloatType(t) {
     // handles real, imag
     return qio_channel_read_float(false, byteorder, _channel_internal, x, numBytes(t));
-  } else if _isComplexType(t)  {
+  } else if isComplexType(t)  {
     // handle complex types
     var re:x.re.type;
     var im:x.im.type;
@@ -1240,16 +1372,17 @@ inline proc _read_binary_internal(_channel_internal:qio_channel_ptr_t, param byt
   } else if (t == c_string) || (t == string) {
     // handle c_string and string
     var len:int(64);
-    var tx: c_string;
+    var tx: c_string_copy;
     var ret = qio_channel_read_string(false, byteorder, qio_channel_str_style(_channel_internal), _channel_internal, tx, len, -1);
-    if t == c_string then x = tx;
-    // FIX ME: leak c_string
-    else x = toString(tx);
+    // TODO: Deprecate the c_string return type, since this routine always
+    // returns an "owned" string thingy.  Using the c_string return type will
+    // cause leaks.
+    x = toString(tx);
     return ret;
-  } else if _isEnumeratedType(t) {
+  } else if isEnumType(t) {
     var i:enum_mintype(t);
     var err:syserr = ENOERR;
-    err = qio_channel_read_int(false, byteorder, _channel_internal, i, numBytes(i.type), _isSignedType(i.type));
+    err = qio_channel_read_int(false, byteorder, _channel_internal, i, numBytes(i.type), isIntType(i.type));
     x = i:t;
     return err;
   } else {
@@ -1259,20 +1392,20 @@ inline proc _read_binary_internal(_channel_internal:qio_channel_ptr_t, param byt
 }
 
 inline proc _write_binary_internal(_channel_internal:qio_channel_ptr_t, param byteorder:iokind, x:?t):syserr where _isIoPrimitiveType(t) {
-  if _isBooleanType(t) {
+  if isBoolType(t) {
     var zero_one:uint(8) = if x then 1:uint(8) else 0:uint(8);
     return qio_channel_write_byte(false, _channel_internal, zero_one);
-  } else if _isIntegralType(t) {
+  } else if isIntegralType(t) {
     if numBytes(t) == 1 {
       return qio_channel_write_byte(false, _channel_internal, x:uint(8));
     } else {
       // handles int types
-      return qio_channel_write_int(false, byteorder, _channel_internal, x, numBytes(t), _isSignedType(t));
+      return qio_channel_write_int(false, byteorder, _channel_internal, x, numBytes(t), isIntType(t));
     }
-  } else if _isFloatType(t) {
+  } else if isFloatType(t) {
     // handles real, imag
     return qio_channel_write_float(false, byteorder, _channel_internal, x, numBytes(t));
-  } else if _isComplexType(t)  {
+  } else if isComplexType(t)  {
     // handle complex types
     var re = x.re;
     var im = x.im;
@@ -1281,9 +1414,9 @@ inline proc _write_binary_internal(_channel_internal:qio_channel_ptr_t, param by
     return qio_channel_write_string(false, byteorder, qio_channel_str_style(_channel_internal), _channel_internal, x, x.length: ssize_t);
   } else if t == string {
     return qio_channel_write_string(false, byteorder, qio_channel_str_style(_channel_internal), _channel_internal, x.c_str(), x.length: ssize_t);
-  } else if _isEnumeratedType(t) {
+  } else if isEnumType(t) {
     var i:enum_mintype(t) = x:enum_mintype(t);
-    return qio_channel_write_int(false, byteorder, _channel_internal, i, numBytes(i.type), _isSignedType(i.type));
+    return qio_channel_write_int(false, byteorder, _channel_internal, i, numBytes(i.type), isIntType(i.type));
   } else {
     compilerError("Unknown primitive type in write_binary_internal ", typeToString(t));
   }
@@ -1393,16 +1526,18 @@ proc _args_to_proto(args ...?k,
                     preArg:string) {
   // FIX ME: lot of potential leaking going on here with string concat
   // But this is used for error handlling so maybe we don't care.
-  var err_args:c_string = "";
+  var err_args:c_string;
   for param i in 1..k {
     var name:c_string;
     if i <= _arg_to_proto_names.size then name = _arg_to_proto_names[i];
-    else name = "x" + i:c_string;
+    else name = "x" + i:c_string_copy;
+    // FIX ME: leak c_string due to concatenation
+    // Actually, don't fix me.  Fix concatenation to consume its c_string_copy args.
     err_args += preArg + name + ":" + typeToString(args(i).type);
     if i != k then err_args += ", ";
   }
-  // FIX ME: leak c_string
-  return toString(err_args);
+  const ret = toString(err_args);
+  return ret;
 }
 
 inline proc channel.read(ref args ...?k):bool {
@@ -1450,6 +1585,56 @@ proc channel.read(ref args ...?k,
   }
 }
 
+proc channel.readline(arg: [] uint(8), out numRead : int, start = arg.domain.low, amount = arg.domain.high - start) : bool
+where arg.rank == 1 && isRectangularArr(arg)
+{
+  var e:syserr = ENOERR;
+  var got = this.readline(arg, numRead, start, amount, error=e);
+  if !e && got then return true;
+  else if e == EEOF || !got then return false;
+  else {
+    this._ch_ioerror(e, "in channel.readline(arg : [] uint(8))");
+    return false;
+  }
+}
+
+/*
+  Read a line of bytes into a Chapel array.
+
+  arg:       A 1D DefaultRectangular array which must have at least 1 element.
+  numRead:   The number of bytes read.
+  start:     Index to begin reading into.
+  amount:    The maximum amount of bytes to read.
+
+  Returns true if bytes were read without error.
+*/
+proc channel.readline(arg: [] uint(8), out numRead : int, start = arg.domain.low, amount = arg.domain.high - start, out error:syserr) : bool
+where arg.rank == 1 && isRectangularArr(arg)
+{
+  error = ENOERR;
+
+  // Make sure the arguments are valid
+  if arg.size == 0 || !arg.domain.member(start) || amount <= 0 || (start + amount > arg.domain.high)  then return false;
+
+  on this.home {
+    this.lock();
+    param newLineChar = 0x0A;
+    var got : int;
+    var i = start;
+    const maxIdx = start + amount;
+    while i <= maxIdx {
+      got = qio_channel_read_byte(false, this._channel_internal);
+      arg[i] = got:uint(8);
+      i += 1;
+      if got < 0 || got == newLineChar then break;
+    }
+    numRead = i - start;
+    if got < 0 then error = (-got):syserr;
+    this.unlock();
+  }
+  return !error;
+}
+
 proc channel.readline(ref arg:string, out error:syserr):bool {
   if writing then compilerError("read on write-only channel");
   error = ENOERR;
@@ -1479,56 +1664,68 @@ proc channel.readline(ref arg:string):bool {
 
 // channel.readstring: read a given amount of bytes from a channel
 // arg: str_out  -> The string to be read into
-// arg: len      -> The number of bytes to read from this channel. If nothing is
-//                  given, we read the entire channel starting at the current offset
-//                  in the channel. 
+// arg: len      -> Read up to len bytes from the channel, up until EOF
+//                  (or some kind of I/O error). If the default value of -1
+//                  is provided, read until EOF starting from the channel's
+//                  current offset.
+// arg: out error-> On completion, the error code (possibly EOF)
 // return: true  -> We have not encountered EOF
-//         false -> We have encountered EOF
-proc channel.readstring(ref str_out:string, len:int(64) = -1):bool {
-  var err:syserr = ENOERR;
-
+//         false -> We have encountered EOF or another error
+proc channel.readstring(ref str_out:string, len:int(64) = -1, out error:syserr):bool {
+  error = ENOERR;
   on this.home {
-    var ret:string;
+    var ret:c_string;
     var lenread:int(64);
-    var tx:c_string;
+    var tx:c_string_copy;
     var lentmp:int(64);
     var actlen:int(64);
+    var uselen:ssize_t;
 
-    err = qio_channel_get_filelength(this._channel_internal, actlen);
-    if err then ioerror(err, "unable to get length in channel.readstring(ref str_out:string, len:int(64))"); 
-
-    // read the entire file
-    if (len == -1) then 
-      lentmp = actlen;
-    else // else, make a smart choice about how much we have to read
-      lentmp = min(actlen, len);
-
-    while (lentmp > max(int(32))) {
-      err = qio_channel_read_string(false, this._style().byteorder, max(int(32)),
-          this._channel_internal, tx, lenread, -1);
-
-      ret = toString(tx);
-      str_out += ret;
-
-      if (err == EEOF) then break; // done reading 
-
-      if err then ioerror(err, "in channel.readstring(ref str_out:string, len:int(64)"); // else, we actually do have an error.
-      lentmp = lentmp - max(int(32));
+    if len == -1 then uselen = max(ssize_t);
+    else {
+      uselen = len:ssize_t;
+      if ssize_t != int(64) then assert( len == uselen );
     }
 
-    // len <= max(int(32))
-    if (!err) {
-      err = qio_channel_read_string(false, this._style().byteorder, lentmp,
-          this._channel_internal, tx, lenread, -1);
+    this.lock();
 
-      ret = toString(tx);
-      str_out += ret;
+    var binary:uint(8) = qio_channel_binary(_channel_internal);
+    var byteorder:uint(8) = qio_channel_byteorder(_channel_internal);
+
+    if binary { 
+      error = qio_channel_read_string(false, byteorder,
+                                      iostringstyle.data_toeof,
+                                      this._channel_internal, tx,
+                                      lenread, uselen);
+    } else {
+      var save_style = this._style();
+      var style = this._style();
+      style.string_format = QIO_STRING_FORMAT_TOEOF;
+      this._set_style(style);
+
+      error = qio_channel_scan_string(false,
+                                      this._channel_internal, tx,
+                                      lenread, uselen);
+      this._set_style(save_style);
     }
+
+    this.unlock();
+
+    str_out = toString(tx);
   }
 
-  if (err == EEOF) then return false; // done reading
-  if err then ioerror(err, "in channel.readstring(ref str_out:string, len:int(64)"); // else, we actually do have an error.
-  return true;
+  return !error;
+}
+
+proc channel.readstring(ref str_out:string, len:int(64) = -1):bool {
+  var e:syserr = ENOERR;
+  this.readstring(str_out, len, error=e);
+  if !e then return true;
+  else if e == EEOF then return false;
+  else {
+    this._ch_ioerror(e, "in channel.readstring(ref str_out:string, len:int(64))");
+    return false;
+  }
 }
 
 inline proc channel.readbits(out v:uint(64), nbits:int(8), out error:syserr):bool {
@@ -1972,12 +2169,12 @@ proc unicodeSupported():bool {
 }
 
 inline
-proc _toIntegral(x:?t) where _isIntegralType(t)
+proc _toIntegral(x:?t) where isIntegralType(t)
 {
   return (x, true);
 }
 inline
-proc _toIntegral(x:?t) where _isIoPrimitiveType(t) && !_isIntegralType(t)
+proc _toIntegral(x:?t) where _isIoPrimitiveType(t) && !isIntegralType(t)
 {
   return (x:int, true);
 }
@@ -1988,7 +2185,7 @@ proc _toIntegral(x:?t) where !_isIoPrimitiveType(t)
 }
 
 inline
-proc _toSigned(x:?t) where _isSignedType(t)
+proc _toSigned(x:?t) where isIntType(t)
 {
   return (x, true);
 }
@@ -2014,7 +2211,7 @@ proc _toSigned(x:uint(64))
 }
 
 inline
-proc _toSigned(x:?t) where _isIoPrimitiveType(t) && !_isIntegralType(t)
+proc _toSigned(x:?t) where _isIoPrimitiveType(t) && !isIntegralType(t)
 {
   return (x:int, true);
 }
@@ -2025,7 +2222,7 @@ proc _toSigned(x:?t) where !_isIoPrimitiveType(t)
 }
 
 inline
-proc _toUnsigned(x:?t) where _isUnsignedType(t)
+proc _toUnsigned(x:?t) where isUintType(t)
 {
   return (x, true);
 }
@@ -2052,7 +2249,7 @@ proc _toUnsigned(x:int(64))
 
 
 inline
-proc _toUnsigned(x:?t) where _isIoPrimitiveType(t) && !_isIntegralType(t)
+proc _toUnsigned(x:?t) where _isIoPrimitiveType(t) && !isIntegralType(t)
 {
   return (x:uint, true);
 }
@@ -2064,12 +2261,12 @@ proc _toUnsigned(x:?t) where !_isIoPrimitiveType(t)
 
 
 inline
-proc _toReal(x:?t) where _isRealType(t)
+proc _toReal(x:?t) where isRealType(t)
 {
   return (x, true);
 }
 inline
-proc _toReal(x:?t) where _isIoPrimitiveType(t) && !_isRealType(t)
+proc _toReal(x:?t) where _isIoPrimitiveType(t) && !isRealType(t)
 {
   return (x:real, true);
 }
@@ -2080,12 +2277,12 @@ proc _toReal(x:?t) where !_isIoPrimitiveType(t)
 }
 
 inline
-proc _toImag(x:?t) where _isImagType(t)
+proc _toImag(x:?t) where isImagType(t)
 {
   return (x, true);
 }
 inline
-proc _toImag(x:?t) where _isIoPrimitiveType(t) && !_isImagType(t)
+proc _toImag(x:?t) where _isIoPrimitiveType(t) && !isImagType(t)
 {
   return (x:imag, true);
 }
@@ -2097,12 +2294,12 @@ proc _toImag(x:?t) where !_isIoPrimitiveType(t)
 
 
 inline
-proc _toComplex(x:?t) where _isComplexType(t)
+proc _toComplex(x:?t) where isComplexType(t)
 {
   return (x, true);
 }
 inline
-proc _toComplex(x:?t) where _isIoPrimitiveType(t) && !_isComplexType(t)
+proc _toComplex(x:?t) where _isIoPrimitiveType(t) && !isComplexType(t)
 {
   return (x:complex, true);
 }
@@ -2113,17 +2310,17 @@ proc _toComplex(x:?t) where !_isIoPrimitiveType(t)
 }
 
 inline
-proc _toRealOrComplex(x:?t) where _isComplexType(t)
+proc _toRealOrComplex(x:?t) where isComplexType(t)
 {
   return (x, true);
 }
 inline
-proc _toRealOrComplex(x:?t) where _isFloatType(t)
+proc _toRealOrComplex(x:?t) where isFloatType(t)
 {
   return (x, true);
 }
 inline
-proc _toRealOrComplex(x:?t) where _isIoPrimitiveType(t) && !_isComplexType(t) && !_isFloatType(t)
+proc _toRealOrComplex(x:?t) where _isIoPrimitiveType(t) && !isComplexType(t) && !isFloatType(t)
 {
   return (x:real, true);
 }
@@ -2133,16 +2330,13 @@ proc _toRealOrComplex(x:?t) where !_isIoPrimitiveType(t)
   return (0.0, false);
 }
 
-proc _isNumericType(type t) param return
-_isIntegralType(t) || _isRealType(t) || _isImagType(t) || _isComplexType(t);
-
 inline
-proc _toNumeric(x:?t) where _isNumericType(t)
+proc _toNumeric(x:?t) where isNumericType(t)
 {
   return (x, true);
 }
 inline
-proc _toNumeric(x:?t) where _isIoPrimitiveType(t) && !_isNumericType(t)
+proc _toNumeric(x:?t) where _isIoPrimitiveType(t) && !isNumericType(t)
 {
   // enums, bools get cast to int.
   return (x:int, true);
@@ -2167,7 +2361,7 @@ proc _toString(x:?t) where !_isIoPrimitiveType(t)
 }
 
 inline
-proc _toChar(x:?t) where _isIntegralType(t)
+proc _toChar(x:?t) where isIntegralType(t)
 {
   return (x:int(32), true);
 }
@@ -2180,7 +2374,7 @@ proc _toChar(x:?t) where t == string
   return (chr, true);
 }
 inline
-proc _toChar(x:?t) where !(t==string || _isIntegralType(t))
+proc _toChar(x:?t) where !(t==string || isIntegralType(t))
 {
   return (0:int(32), false);
 }
@@ -2219,12 +2413,12 @@ proc _setIfChar(ref lhs:?t, rhs:int(32)) where t == string
   lhs = new ioChar(rhs):string;
 }
 inline
-proc _setIfChar(ref lhs:?t, rhs:int(32)) where _isIntegralType(t)
+proc _setIfChar(ref lhs:?t, rhs:int(32)) where isIntegralType(t)
 {
   lhs = rhs:t;
 }
 inline
-proc _setIfChar(ref lhs:?t, rhs:int(32)) where !(t==string||_isIntegralType(t))
+proc _setIfChar(ref lhs:?t, rhs:int(32)) where !(t==string||isIntegralType(t))
 {
   // do nothing
 }
@@ -2601,16 +2795,16 @@ proc channel._write_signed(width:uint(32), t:int, i:int)
   select width {
     when 1 {
       var x = t:int(8);
-      error = qio_channel_write_int(false, byteorder, _channel_internal, x, numBytes(x.type), _isSignedType(x.type));
+      error = qio_channel_write_int(false, byteorder, _channel_internal, x, numBytes(x.type), isIntType(x.type));
     } when 2 {
       var x = t:int(16);
-      error = qio_channel_write_int(false, byteorder, _channel_internal, x, numBytes(x.type), _isSignedType(x.type));
+      error = qio_channel_write_int(false, byteorder, _channel_internal, x, numBytes(x.type), isIntType(x.type));
     } when 4 {
       var x = t:int(32);
-      error = qio_channel_write_int(false, byteorder, _channel_internal, x, numBytes(x.type), _isSignedType(x.type));
+      error = qio_channel_write_int(false, byteorder, _channel_internal, x, numBytes(x.type), isIntType(x.type));
     } when 8 {
       var x = t:int(64);
-      error = qio_channel_write_int(false, byteorder, _channel_internal, x, numBytes(x.type), _isSignedType(x.type));
+      error = qio_channel_write_int(false, byteorder, _channel_internal, x, numBytes(x.type), isIntType(x.type));
     } otherwise error = qio_format_error_arg_mismatch(i);
   }
   return error;
@@ -2623,19 +2817,19 @@ proc channel._read_signed(width:uint(32), out t:int, i:int)
   select width {
     when 1 {
       var x:int(8);
-      error = qio_channel_read_int(false, byteorder, _channel_internal, x, numBytes(x.type), _isSignedType(x.type));
+      error = qio_channel_read_int(false, byteorder, _channel_internal, x, numBytes(x.type), isIntType(x.type));
       t = x;
     } when 2 {
       var x:int(16);
-      error = qio_channel_read_int(false, byteorder, _channel_internal, x, numBytes(x.type), _isSignedType(x.type));
+      error = qio_channel_read_int(false, byteorder, _channel_internal, x, numBytes(x.type), isIntType(x.type));
       t = x;
     } when 4 {
       var x:int(32);
-      error = qio_channel_read_int(false, byteorder, _channel_internal, x, numBytes(x.type), _isSignedType(x.type));
+      error = qio_channel_read_int(false, byteorder, _channel_internal, x, numBytes(x.type), isIntType(x.type));
       t = x;
     } when 8 {
       var x:int(64);
-      error = qio_channel_read_int(false, byteorder, _channel_internal, x, numBytes(x.type), _isSignedType(x.type));
+      error = qio_channel_read_int(false, byteorder, _channel_internal, x, numBytes(x.type), isIntType(x.type));
       t = x;
     } otherwise error = qio_format_error_arg_mismatch(i);
   }
@@ -2649,16 +2843,16 @@ proc channel._write_unsigned(width:uint(32), t:uint, i:int)
   select width {
     when 1 {
       var x = t:uint(8);
-      error = qio_channel_write_int(false, byteorder, _channel_internal, x, numBytes(x.type), _isSignedType(x.type));
+      error = qio_channel_write_int(false, byteorder, _channel_internal, x, numBytes(x.type), isIntType(x.type));
     } when 2 {
       var x = t:uint(16);
-      error = qio_channel_write_int(false, byteorder, _channel_internal, x, numBytes(x.type), _isSignedType(x.type));
+      error = qio_channel_write_int(false, byteorder, _channel_internal, x, numBytes(x.type), isIntType(x.type));
     } when 4 {
       var x = t:uint(32);
-      error = qio_channel_write_int(false, byteorder, _channel_internal, x, numBytes(x.type), _isSignedType(x.type));
+      error = qio_channel_write_int(false, byteorder, _channel_internal, x, numBytes(x.type), isIntType(x.type));
     } when 8 {
       var x = t:uint(64);
-      error = qio_channel_write_int(false, byteorder, _channel_internal, x, numBytes(x.type), _isSignedType(x.type));
+      error = qio_channel_write_int(false, byteorder, _channel_internal, x, numBytes(x.type), isIntType(x.type));
     } otherwise error = qio_format_error_arg_mismatch(i);
   }
   return error;
@@ -2670,19 +2864,19 @@ proc channel._read_unsigned(width:uint(32), out t:uint, i:int)
   select width {
     when 1 {
       var x:uint(8);
-      error = qio_channel_read_int(false, byteorder, _channel_internal, x, numBytes(x.type), _isSignedType(x.type));
+      error = qio_channel_read_int(false, byteorder, _channel_internal, x, numBytes(x.type), isIntType(x.type));
       t = x;
     } when 2 {
       var x:uint(16);
-      error = qio_channel_read_int(false, byteorder, _channel_internal, x, numBytes(x.type), _isSignedType(x.type));
+      error = qio_channel_read_int(false, byteorder, _channel_internal, x, numBytes(x.type), isIntType(x.type));
       t = x;
     } when 4 {
       var x:uint(32);
-      error = qio_channel_read_int(false, byteorder, _channel_internal, x, numBytes(x.type), _isSignedType(x.type));
+      error = qio_channel_read_int(false, byteorder, _channel_internal, x, numBytes(x.type), isIntType(x.type));
       t = x;
     } when 8 {
       var x:uint(64);
-      error = qio_channel_read_int(false, byteorder, _channel_internal, x, numBytes(x.type), _isSignedType(x.type));
+      error = qio_channel_read_int(false, byteorder, _channel_internal, x, numBytes(x.type), isIntType(x.type));
       t = x;
     } otherwise error = qio_format_error_arg_mismatch(i);
   }
@@ -3329,19 +3523,32 @@ proc channel.readf(fmt:c_string) {
 proc writef(fmt:c_string, args ...?k):bool {
   return stdout.writef(fmt, (...args));
 }
+proc writef(fmt:string, args ...?k):bool {
+  return stdout.writef(fmt, (...args));
+}
 proc writef(fmt:c_string):bool {
+  return stdout.writef(fmt);
+}
+proc writef(fmt:string):bool {
   return stdout.writef(fmt);
 }
 proc readf(fmt:c_string, ref args ...?k):bool {
   return stdin.readf(fmt, (...args));
 }
+proc readf(fmt:string, ref args ...?k):bool {
+  return stdin.readf(fmt, (...args));
+}
 proc readf(fmt:c_string):bool {
+  return stdin.readf(fmt);
+}
+proc readf(fmt:string):bool {
   return stdin.readf(fmt);
 }
 
 
+
 use Regexp;
-extern proc qio_regexp_channel_match(ref re:qio_regexp_t, threadsafe:c_int, ch:qio_channel_ptr_t, maxlen:int(64), anchor:c_int, can_discard:bool, keep_unmatched:bool, keep_whole_pattern:bool, submatch:_ddata(qio_regexp_string_piece_t), nsubmatch:int(64)):syserr;
+extern proc qio_regexp_channel_match(const ref re:qio_regexp_t, threadsafe:c_int, ch:qio_channel_ptr_t, maxlen:int(64), anchor:c_int, can_discard:bool, keep_unmatched:bool, keep_whole_pattern:bool, submatch:_ddata(qio_regexp_string_piece_t), nsubmatch:int(64)):syserr;
 
 proc channel._extractMatch(m:reMatch, ref arg:reMatch, ref error:syserr) {
   // If the argument is a match record, just return it.
@@ -3374,9 +3581,8 @@ proc channel._extractMatch(m:reMatch, ref arg:string, ref error:syserr) {
   var s:string;
   if ! error {
     var gotlen:int(64);
-    var ts: c_string;
+    var ts: c_string_copy;
     error = qio_channel_read_string(false, iokind.native, stringStyleExactLen(len), _channel_internal, ts, gotlen, len:ssize_t);
-    // FIX ME: leak c_string
     s = toString(ts);
   }
  
@@ -3725,4 +3931,105 @@ iter channel.matches(re:regexp, param captures=0, maxmatches:int = max(int))
   if error then this._ch_ioerror(error, "in channel.matches");
 }
 
+/************** Distributed File Systems ***************/
 
+extern const FTYPE_NONE   : c_int;
+extern const FTYPE_HDFS   : c_int;
+extern const FTYPE_LUSTRE : c_int;
+extern const FTYPE_CURL   : c_int;
+
+proc file.fstype():int {
+  var t:c_int;
+  var err:syserr = ENOERR;
+  on this.home {
+    err = qio_get_fs_type(this._file_internal, t);
+  }
+  if err then ioerror(err, "in file.fstype()");
+  return t:int;
+}
+
+// Returns (chunk start, chunk end) for the first chunk in the file
+// containing data in the range [start, end].
+// Returns (0,0) if no such value exists.
+proc file.getchunk(start:int(64) = 0, end:int(64) = max(int(64))):(int(64),int(64)) {
+  var err:syserr = ENOERR;
+  var s = 0;
+  var e = 0;
+
+  on this.home {
+    var real_end = min(end, this.length());
+    var len:int(64);
+
+    err = qio_get_chunk(this._file_internal, len);
+    if err then ioerror(err, "in file.getchunk(start:int(64), end:int(64))");
+
+    if (len != 0 && (real_end > start)) {
+      // TAKZ - Note that we are only wanting to return an inclusive range -- i.e., we
+      // will only return a non-zero start and end [n,m], iff n and m are in [start, end].
+      for i in start..real_end by len {
+        // Our stripes are too large, so we can't give back a range within the given
+        // bounds
+        if i > end then
+          break;
+
+        if i >= start {
+          var new_start = i;
+          var new_end:int(64);
+          if (i / len + 1) * len >= real_end then
+            new_end = real_end;
+          // rounding
+          else new_end = (i / len + 1) * len;
+          if new_start == new_end {
+            break;
+          } else {
+            s = new_start;
+            e = new_end;
+            break;
+          }
+        }
+      }
+    }
+  }
+  return (s, e);
+}
+
+// Returns the 'best' locales to run something working with this
+// region of the file. This *must* return the same result when
+// called from different locales. Returns a domain of locales that are "best" for the
+// given region. If no locales are "best" we return a domain containing all locales.
+proc file.localesForRegion(start:int(64), end:int(64)) {
+
+  proc findloc(loc:string, locs:c_ptr(c_string), end:int) {
+    for i in 0..end-1 {
+      if (loc == locs[i]) then 
+        return true;
+    }
+    return false;
+  }
+
+  var ret: domain(locale);
+  on this.home {
+    var err:syserr;
+    var locs: c_ptr(c_string);
+    var num_hosts:c_int;
+    err = qio_locales_for_region(this._file_internal, start, end, locs, num_hosts);
+    // looping over Locales enforces the ordering constraint on the locales.
+    for loc in Locales {
+      if (findloc(loc.name, locs, num_hosts:int)) then
+        ret += loc;
+    }
+
+    // We allocated memory in the runtime for this, so free it now
+    if num_hosts != 0 {
+      for i in 0..num_hosts-1 do
+        qio_free_string(locs[i]);
+      c_free(locs);
+    }
+
+    // We found no "good" locales. So any locale is just as good as the next
+    if ret.numIndices == 0 then 
+      for loc in Locales do 
+        ret += loc;
+  }
+  return ret;
+}

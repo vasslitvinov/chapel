@@ -8,7 +8,7 @@ source $CWD/functions.bash
 
 # For our internal testing, this is necessary to get the latest version of gcc
 # on the system.
-if [ -z "${CHPL_SOURCED_BASHRC}" ] ; then
+if [ -z "${CHPL_SOURCED_BASHRC}" -a -f ~/.bashrc ] ; then
     source ~/.bashrc
     export CHPL_SOURCED_BASHRC=true
 fi
@@ -74,23 +74,8 @@ log_info "CHPL_HOME is: ${CHPL_HOME}"
 export CHPL_HOST_PLATFORM=$($CHPL_HOME/util/chplenv/chpl_platform.py --host)
 log_info "CHPL_HOST_PLATFORM is: ${CHPL_HOST_PLATFORM}"
 
-# Enable warnings and errors.
-export CHPL_DEVELOPER=true
-
 # Disable processor specialization (overridden in some configurations)
 export CHPL_TARGET_ARCH=none
-
-# Enable GMP testing
-case "${CHPL_HOST_PLATFORM}" in
- (darwin)         log_info "Not setting CHPL_GMP for ${CHPL_HOST_PLATFORM}, to avoid build issues.";;
- (*)              export CHPL_GMP=gmp;;
-esac
-
-# Enable RE2 testing
-case "${CHPL_HOST_PLATFORM}" in
- # enable here on all platforms
- (*)              export CHPL_REGEXP=re2;;
-esac
 
 # Setup some logdirs.
 
@@ -112,7 +97,6 @@ fi
 export logdir_prefix
 
 export CHPL_NIGHTLY_LOGDIR=${CHPL_NIGHTLY_LOGDIR:-$logdir_prefix/Nightly}
-export CHPL_NIGHTLY_STATDIR=$CHPL_NIGHTLY_LOGDIR/Stats
 export CHPL_NIGHTLY_CRON_LOGDIR=$CHPL_NIGHTLY_LOGDIR
 
 # It is tempting to use hostname --short, but macs only support the short form

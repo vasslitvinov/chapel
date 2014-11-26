@@ -1,3 +1,20 @@
+# Copyright 2004-2014 Cray Inc.
+# Other additional copyright holders may be indicated within.
+# 
+# The entirety of this work is licensed under the Apache License,
+# Version 2.0 (the "License"); you may not use this file except
+# in compliance with the License.
+# 
+# You may obtain a copy of the License at
+# 
+#     http://www.apache.org/licenses/LICENSE-2.0
+# 
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 #
 # Makefile: builds Chapel compiler
 #
@@ -82,28 +99,14 @@ include $(COMPILER_ROOT)/make/Makefile.compiler.rules
 # target-based rules
 #
 
-ifdef CHPL_DEVELOPER
-CheckForStandardCHeaders:
-	@if [ `$(CHPL_MAKE_HOME)/util/devel/grepstdchdrs | wc -l` -gt 0 ]; then \
-	  echo; \
-	  echo Standard C headers found in the following file\(s\):; \
-	  echo `$(CHPL_MAKE_HOME)/util/devel/grepstdchdrs`; \
-	  echo; \
-	  echo The above list was generated with the util/devel/grepstdchdrs script.; \
-	  exit 1; \
-	fi
-else
-CheckForStandardCHeaders:
-endif
-
 CHPL_CONFIG_CHECK_PREFIX = $(CHPL_BIN_DIR)/.built-for
 CHPL_CONFIG_CHECK = $(CHPL_CONFIG_CHECK_PREFIX)-$(CHPL_MAKE_COMPILER_SUBDIR)
 
 UPDATE_BUILD_VERSION = $(CHPL_MAKE_HOME)/util/devel/updateBuildVersion
 
-$(BUILD_VERSION_FILE): CheckForStandardCHeaders
+$(BUILD_VERSION_FILE): FORCE
 	@({ test -x $(CHPL_MAKE_HOME)/.git || test -x $(CHPL_MAKE_HOME)/.svn ; } && \
-	test -x $(UPDATE_BUILD_VERSION) && $(UPDATE_BUILD_VERSION) $@) || (echo 0 > $@);
+	test -x $(UPDATE_BUILD_VERSION) && $(UPDATE_BUILD_VERSION) $@) || (echo '"0"' > $@);
 
 $(CHPL_CONFIG_CHECK): | $(CHPL_BIN_DIR)
 	rm -f $(CHPL_CONFIG_CHECK_PREFIX)-*
@@ -131,3 +134,5 @@ third-party-pkgs:
 # include standard footer for compiler
 #
 include $(COMPILER_ROOT)/make/Makefile.compiler.foot
+
+.NOTPARALLEL:

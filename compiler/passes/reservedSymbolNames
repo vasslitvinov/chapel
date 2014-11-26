@@ -44,6 +44,10 @@
   acos
   asin
   atan
+  chdir
+  chmod
+  chown
+  cwd
   floor
   sqrt
   conjg
@@ -55,9 +59,12 @@
   fread
   fsync
   main
+  mkdir
   open
   pow
   printf
+  remove
+  rename
   scanf
   sync
   quad
@@ -249,3 +256,21 @@
   ten23
   ts
   two
+
+  // reserved on darwin
+  fls
+  wait2
+  wait3
+  wait4
+
+  // symbols in wordexp.h
+  wordexp
+
+  // symbols in glob.h
+  glob
+
+  // symbols in math.h
+  isinf
+  isfinite
+  NAN
+  INFINITY

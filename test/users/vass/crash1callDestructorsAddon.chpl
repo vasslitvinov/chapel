@@ -30,12 +30,12 @@ inline proc _traceddd(args...)
 /// the types for ... ///////////////////////////////////////////////////////
 
 type locCntT = uint(32); // ... locale counts
-type locIdT =  int(32);  // ... locale ID, i.e., its index in targetLocales
+type locIdT =  int(64);  // ... locale ID, i.e., its index in targetLocales
 type stoSzT  = uint(32); // ... local storage size and indices (0-based)
 
 param invalidLocID =
   // encode 'max(t)' as a compile-time expression
-  2 ** (numBits(locIdT) - 1 - _isSignedType(locIdT):bool);
+  (2 ** (numBits(locIdT) - 1 - isIntType(locIdT):bool)):int(64);
 
 
 /// class declarations //////////////////////////////////////////////////////
@@ -166,7 +166,7 @@ proc DimensionalDist.DimensionalDist(
   dataParMinGranularity: int      = getDataParMinGranularity()
 ) {
   this.name = name;
-  this.dataParTasksPerLocale = if dataParTasksPerLocale==0 then here.numCores
+  this.dataParTasksPerLocale = if dataParTasksPerLocale==0 then here.maxTaskPar
                                else dataParTasksPerLocale;
   this.dataParIgnoreRunningTasks = dataParIgnoreRunningTasks;
   this.dataParMinGranularity = dataParMinGranularity;
@@ -309,7 +309,7 @@ proc dsiIndexCurrentLocale1d((dimMultiD, dim): (?, int)): locIdT {
 }
 
 proc _dsiIndexCurrentLocale1dHelper(dd: DimensionalDist, dim: int) {
-  for (ix, loc) in (dd.targetIds, dd.targetLocales) do
+  for (ix, loc) in zip(dd.targetIds, dd.targetLocales) do
     if loc == here then
       return ix(dim);
   halt("DimensionalDist: the current locale ", here,
@@ -337,7 +337,9 @@ proc _CurrentLocaleToLocIDs(targetLocales): targetLocales.rank * locIdT
   var result: targetLocales.rank * locIdT;
   // gotta lock 'result' to ensure atomic update
   var gotresult$: sync bool = false;
-  forall (lls, loc) in (targetLocales.domain, targetLocales) do
+  forall (lls, loc) in zip(targetLocales.domain, targetLocales)
+    with (ref result)
+  do
     if loc == here then
       // if we get multiple matches, we do not specify which is returned
       if !gotresult$.readXX() { // cheap pre-test
@@ -465,6 +467,8 @@ proc DimensionalDom.dsiReprivatize(other, reprivatizeData) {
 
 proc DimensionalDom.dsiMyDist() return dist;
 
+proc DimensionalDom.dsiDims()     return whole.dims();
+
 proc DimensionalDom.dsiNumIndices return whole.numIndices;
 
 proc DimensionalDom.subordinate1dDist(param dim: int) {
@@ -510,7 +514,7 @@ proc DimensionalDist.dsiNewRectangularDom(param rank: int,
                                   dom1 = dom1, dom2 = dom2);
   // result.whole is initialized to the default value (empty domain)
   coforall (loc, locIds, locDdesc)
-   in (targetLocales, targetIds, result.localDdescs) do
+   in zip(targetLocales, targetIds, result.localDdescs) do
     on loc {
       const defaultVal1: result.lddTypeArg1;
       const locD1 = dom1.dsiNewLocalDom1d(locIds(1));
@@ -542,7 +546,7 @@ proc DimensionalDom._dsiSetIndicesHelper(newRanges: rank * rangeT): void {
   dom1.dsiSetIndices1d(newRanges(1));
   dom2.dsiSetIndices1d(newRanges(2));
 
-  coforall (locId, locDD) in (dist.targetIds, localDdescs) do
+  coforall (locId, locDD) in zip(dist.targetIds, localDdescs) do
     on locDD do
       locDD._dsiLocalSetIndicesHelper((dom1, dom2), locId);
 }
@@ -618,7 +622,7 @@ proc DimensionalDom.dsiBuildArray(type eltType)
 
   const result = new DimensionalArr(eltType = eltType, dom = this);
   coforall (loc, locDdesc, locAdesc)
-   in (dist.targetLocales, localDdescs, result.localAdescs) do
+   in zip(dist.targetLocales, localDdescs, result.localAdescs) do
     on loc do
       locAdesc = new LocDimensionalArr(eltType, locDdesc);
   return result;
@@ -627,7 +631,7 @@ proc DimensionalDom.dsiBuildArray(type eltType)
 
 //== dsiAccess
 
-proc DimensionalArr.dsiAccess(indexx: dom.indexT) var: eltType {
+proc DimensionalArr.dsiAccess(indexx: dom.indexT) ref: eltType {
   const dom = this.dom;
   _traceddc(traceDimensionalDist || traceDimensionalDistDsiAccess,
             this, ".dsiAccess", indexx);
@@ -718,7 +722,7 @@ iter DimensionalDom.these(param tag: iterKind) where tag == iterKind.leader {
   //     coforall ((l1,l2), locDdesc) in (dist.targetIds, localDdescs) do
   //   presently it will crash the compiler on an assertion.
   //
-  coforall (lls, locDdesc) in (overTargetIds, localDdescs[overTargetIds]) do
+  coforall (lls, locDdesc) in zip(overTargetIds, localDdescs[overTargetIds]) do
     on locDdesc {
       // mimic BlockDom leader
 
@@ -823,7 +827,7 @@ iter DimensionalDom.these(param tag: iterKind, followThis) where tag == iterKind
 //== serial iterator - array
 
 // note: no 'on' clauses - they not allowed by the compiler
-iter DimensionalArr.these() var {
+iter DimensionalArr.these() ref {
   const dom = this.dom;
   _traceddd(this, ".serial iterator");
   assert(dom.rank == 2);
@@ -845,7 +849,7 @@ iter DimensionalArr.these() var {
 
 //== follower iterator - array   (similar to the serial iterator)
 
-iter DimensionalArr.these(param tag: iterKind, followThis) var where tag == iterKind.follower {
+iter DimensionalArr.these(param tag: iterKind, followThis) ref where tag == iterKind.follower {
   const dom = this.dom;
   _traceddd(this, ".follower on ", here.id, "  got ", followThis);
   assert(dom.rank == 2);

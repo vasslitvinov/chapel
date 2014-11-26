@@ -1,3 +1,22 @@
+/*
+ * Copyright 2004-2014 Cray Inc.
+ * Other additional copyright holders may be indicated within.
+ * 
+ * The entirety of this work is licensed under the Apache License,
+ * Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License.
+ * 
+ * You may obtain a copy of the License at
+ * 
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 //
 // Transformations for begin, cobegin, and on statements
 //
@@ -187,6 +206,8 @@ static Symbol* insertAutoCopyDestroyForTaskArg
 
     if (isRefCountedType(baseType))
     {
+      // TODO: Can we consolidate these two clauses?
+      // Does arg->typeInfo() != baseType mean that arg is passed by ref?
       if (arg->typeInfo() != baseType)
       {
         // For internally reference-counted types, this punches through
@@ -197,7 +218,9 @@ static Symbol* insertAutoCopyDestroyForTaskArg
                                          new CallExpr(PRIM_DEREF, var)));
         // The result of the autoCopy call is dropped on the floor.
         // It is only called to increment the ref count.
-        fcall->insertBefore(new CallExpr(autoCopyFn, derefTmp));
+        CallExpr* autoCopyCall = new CallExpr(autoCopyFn, derefTmp);
+        fcall->insertBefore(autoCopyCall);
+        insertReferenceTemps(autoCopyCall);
         // But the original var is passed through to the field assignment.
       }
       else
@@ -205,8 +228,9 @@ static Symbol* insertAutoCopyDestroyForTaskArg
         VarSymbol* valTmp = newTemp(baseType);
         valTmp->addFlag(FLAG_NECESSARY_AUTO_COPY);
         fcall->insertBefore(new DefExpr(valTmp));
-        fcall->insertBefore(new CallExpr(PRIM_MOVE, valTmp,
-                                         new CallExpr(autoCopyFn, var)));
+        CallExpr* autoCopyCall = new CallExpr(autoCopyFn, var);
+        fcall->insertBefore(new CallExpr(PRIM_MOVE, valTmp, autoCopyCall));
+        insertReferenceTemps(autoCopyCall);
         // If the arg is not passed by reference, the result of the autoCopy is
         // passed to the field assignment.
         var = valTmp;
@@ -225,7 +249,9 @@ static Symbol* insertAutoCopyDestroyForTaskArg
             new CallExpr(PRIM_MOVE, derefTmp, new CallExpr(PRIM_DEREF,  formal)));
           formal = derefTmp;
         }
-        fn->insertBeforeDownEndCount(new CallExpr(autoDestroyFn, formal));
+        CallExpr* autoDestroyCall = new CallExpr(autoDestroyFn, formal);
+        fn->insertBeforeDownEndCount(autoDestroyCall);
+        insertReferenceTemps(autoDestroyCall);
       }
     }
     else if (isRecord(baseType))
@@ -242,6 +268,7 @@ static Symbol* insertAutoCopyDestroyForTaskArg
         fcall->insertBefore(new DefExpr(valTmp));
         CallExpr* autoCopyCall = new CallExpr(autoCopyFn, var);
         fcall->insertBefore(new CallExpr(PRIM_MOVE, valTmp, autoCopyCall));
+        insertReferenceTemps(autoCopyCall);
         var = valTmp;
 
         if (firstCall)
@@ -251,6 +278,7 @@ static Symbol* insertAutoCopyDestroyForTaskArg
           Symbol* formal = actual_to_formal(arg);
           CallExpr* autoDestroyCall = new CallExpr(autoDestroyFn,formal);
           fn->insertBeforeDownEndCount(autoDestroyCall);
+          insertReferenceTemps(autoDestroyCall);
         }
       }
     }
@@ -443,11 +471,11 @@ replicateGlobalRecordWrappedVars(DefExpr *def) {
   bool found = false;
   // Try to find the first definition of this variable in the
   //   module initialization function
-  while (stmt->next && !found) {
-    stmt = stmt->next;
-    Vec<SymExpr*> symExprs;
-    collectSymExprs(stmt, symExprs);
-    forv_Vec(SymExpr, se, symExprs) {
+  while (stmt && !found)
+  {
+    std::vector<SymExpr*> symExprs;
+    collectSymExprsSTL(stmt, symExprs);
+    for_vector(SymExpr, se, symExprs) {
       if (se->var == currDefSym) {
         INT_ASSERT(se->parentExpr);
         int result = isDefAndOrUse(se);
@@ -487,8 +515,16 @@ replicateGlobalRecordWrappedVars(DefExpr *def) {
         }
       }
     }
+    if (found)
+      break;
+
+    stmt = stmt->next;
   }
-  stmt->insertAfter(new CallExpr(PRIM_PRIVATE_BROADCAST, def->sym));
+  if (found)
+    stmt->insertAfter(new CallExpr(PRIM_PRIVATE_BROADCAST, def->sym));
+  else
+    mod->initFn->insertBeforeReturn(new CallExpr
+                                    (PRIM_PRIVATE_BROADCAST, def->sym));
 }
 
 
@@ -709,7 +745,7 @@ static void findHeapVarsAndRefs(Map<Symbol*,Vec<SymExpr*>*>& defMap,
         refSet.set_add(def->sym);
         refVec.add(def->sym);
       } else if (!isPrimitiveType(def->sym->type) ||
-                 toFnSymbol(def->parentSymbol)->retTag==RET_VAR) {
+                 toFnSymbol(def->parentSymbol)->retTag==RET_REF) {
         varSet.set_add(def->sym);
         varVec.add(def->sym);
       }

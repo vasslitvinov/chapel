@@ -1,3 +1,22 @@
+/*
+ * Copyright 2004-2014 Cray Inc.
+ * Other additional copyright holders may be indicated within.
+ * 
+ * The entirety of this work is licensed under the Apache License,
+ * Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License.
+ * 
+ * You may obtain a copy of the License at
+ * 
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 #include "chplrt.h"
 
 #include "chpl-comm.h"
@@ -41,7 +60,7 @@ chpl_comm_nb_handle_t chpl_comm_put_nb(void *addr, c_nodeid_t node, void* raddr,
                                        int ln, c_string fn)
 {
   assert(node == 0);
-  memcpy(raddr, addr, len*elemSize);
+  chpl_memcpy(raddr, addr, len*elemSize);
   return NULL;
 }
 
@@ -51,7 +70,7 @@ chpl_comm_nb_handle_t chpl_comm_get_nb(void* addr, c_nodeid_t node, void* raddr,
                                        int ln, c_string fn)
 {
   assert(node == 0);
-  memcpy(addr, raddr, len*elemSize);
+  chpl_memcpy(addr, raddr, len*elemSize);
   return NULL;
 }
 
@@ -475,7 +494,7 @@ void chpl_comm_fork_nb(c_nodeid_t node, c_sublocid_t subloc,
   info->fid = fid;
   info->arg_size = arg_size;
   if (arg_size)
-    memcpy(&(info->arg), arg, arg_size);
+    chpl_memcpy(&(info->arg), arg, arg_size);
   chpl_task_startMovedTask((chpl_fn_p)fork_nb_wrapper, (void*)info,
                            subloc, chpl_nullTaskID, false);
 }

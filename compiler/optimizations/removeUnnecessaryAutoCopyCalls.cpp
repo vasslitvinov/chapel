@@ -1,8 +1,29 @@
+/*
+ * Copyright 2004-2014 Cray Inc.
+ * Other additional copyright holders may be indicated within.
+ *
+ * The entirety of this work is licensed under the Apache License,
+ * Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License.
+ *
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+#include "optimizations.h"
+
 #include "astutil.h"
 #include "bb.h"
 #include "expr.h"
-#include "optimizations.h"
 #include "passes.h"
+#include "stlUtil.h"
 #include "stmt.h"
 
 //
@@ -25,7 +46,7 @@ class AutoTrack {
  public:
   AutoTrack();
   ~AutoTrack();
- public: 
+ public:
   void move(CallExpr* call);        // Track a move primitive.
   void autoCopy(CallExpr* call);    // Track an autoCopy call.
   void autoDestroy(CallExpr* call); // Track an autoDestroy call.
@@ -173,13 +194,13 @@ void AutoTrack::insertLink(Link** head, CallExpr* call) {
   p->next = *head;
   *head = p;
 }
- 
+
 //
 // Remove autoCopy (and matching autoDestroy calls) that are
 // unnecessary within a function
 //
 static void removeUnnecessaryAutoCopyCalls(FnSymbol* fn) {
-  buildBasicBlocks(fn);
+  BasicBlock::buildBasicBlocks(fn);
 
   bool changed = false;
 

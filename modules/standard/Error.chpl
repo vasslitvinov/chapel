@@ -1,3 +1,22 @@
+/*
+ * Copyright 2004-2014 Cray Inc.
+ * Other additional copyright holders may be indicated within.
+ * 
+ * The entirety of this work is licensed under the Apache License,
+ * Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License.
+ * 
+ * You may obtain a copy of the License at
+ * 
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 use SysBasic;
 
 // here's what we need from Sys
@@ -53,7 +72,9 @@ proc ioerror(error:syserr, msg:string, path:string, offset:int(64))
     var strerror_err:err_t = ENOERR;
     errstr = sys_strerror_syserr_str(error, strerror_err); 
     quotedpath = quote_string(path, path.length:ssize_t);
-    __primitive("chpl_error", errstr + " " + msg.c_str() + " with path " + quotedpath + " offset " + offset:c_string);
+    // TODO: Because the output of concatenation (+) is an allocated string,
+    // this routine leaks like a sieve.
+    __primitive("chpl_error", errstr + " " + msg.c_str() + " with path " + quotedpath + " offset " + offset:c_string_copy);
   }
 }
 
@@ -61,7 +82,9 @@ proc ioerror(errstr:string, msg:string, path:string, offset:int(64))
 {
   var quotedpath:c_string;
   quotedpath = quote_string(path, path.length:ssize_t);
-  __primitive("chpl_error", errstr + " " + msg.c_str() + " with path " + quotedpath + " offset " + offset:c_string);
+  // TODO: Because the output of concatenation (+) is an allocated string,
+  // this routine leaks like a sieve.
+  __primitive("chpl_error", errstr + " " + msg.c_str() + " with path " + quotedpath + " offset " + offset:c_string_copy);
 }
 
 proc errorToString(error:syserr):string

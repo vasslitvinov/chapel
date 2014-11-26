@@ -1,3 +1,22 @@
+/*
+ * Copyright 2004-2014 Cray Inc.
+ * Other additional copyright holders may be indicated within.
+ * 
+ * The entirety of this work is licensed under the Apache License,
+ * Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License.
+ * 
+ * You may obtain a copy of the License at
+ * 
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 //
 // Pthread implementation of Chapel threading interface
 //
@@ -117,6 +136,17 @@ void chpl_thread_yield(void) {
   //
   sched_yield();
 
+  //
+  // We expect sched_yield to yield the processor and move the thread to the
+  // end of the scheduling queue. However, on cygwin it seems there is no
+  // guarantee that the same thread won't be immediately rescheduled even if
+  // there are others threads waiting to run. Sleeping should yield the rest of
+  // the time slice and allow other threads to actually run.
+  //
+#ifdef __CYGWIN__
+  usleep(1);
+#endif
+
   (void) pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, &last_cancel_state);
   pthread_testcancel();
   (void) pthread_setcancelstate(last_cancel_state, NULL);
@@ -161,10 +191,12 @@ void chpl_thread_init(void(*threadBeginFn)(void*),
   // either the main process or a pthread.
   //
   {
-    size_t        css = chpl_task_getMinCallStackSize();
+    size_t        css;
     size_t        pagesize = (size_t) sysconf(_SC_PAGESIZE);
     struct rlimit rlim;
 
+    if ((css = chpl_task_getEnvCallStackSize()) == 0)
+      css = chpl_task_getDefaultCallStackSize();
     assert(css > 0);
 
     css = (css + pagesize - 1) & ~(pagesize - 1);
@@ -235,6 +267,12 @@ static void* initial_pthread_func(void* ignore) {
   while (1) {
     pthread_testcancel();
     sched_yield();
+
+    // see comment in chpl_thread_yield()
+#ifdef __CYGWIN__
+    usleep(1);
+#endif
+
   }
   return NULL;
 }
@@ -382,6 +420,11 @@ void chpl_thread_destroy(void) {
   // thread regains the processor.
   //
   sched_yield();
+
+  // see comment in chpl_thread_yield()
+#ifdef __CYGWIN__
+  usleep(1);
+#endif
 
   (void) pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, &last_cancel_state);
   pthread_testcancel();

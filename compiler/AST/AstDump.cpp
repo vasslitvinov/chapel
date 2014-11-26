@@ -1,3 +1,22 @@
+/*
+ * Copyright 2004-2014 Cray Inc.
+ * Other additional copyright holders may be indicated within.
+ *
+ * The entirety of this work is licensed under the Apache License,
+ * Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License.
+ *
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 #ifndef __STDC_FORMAT_MACROS
 #define __STDC_FORMAT_MACROS
 #endif
@@ -10,6 +29,10 @@
 #include "stringutil.h"
 #include "symbol.h"
 
+#include "WhileDoStmt.h"
+#include "DoWhileStmt.h"
+#include "CForLoop.h"
+#include "ForLoop.h"
 
 AstDump::AstDump() {
   mName      =     0;
@@ -56,7 +79,7 @@ bool AstDump::open(const ModuleSymbol* module, const char* passName, int passNum
 
 bool AstDump::close() {
   bool retval = false;
-  
+
   if (mFP != 0 && fclose(mFP) == 0) {
     mFP    =    0;
     retval = true;
@@ -258,6 +281,114 @@ void AstDump::exitBlockStmt(BlockStmt* node) {
 
 
 //
+// WhileDoStmt
+//
+bool AstDump::enterWhileDoStmt(WhileDoStmt* node) {
+  newline();
+
+  if (FnSymbol* fn = toFnSymbol(node->parentSymbol))
+    if (node == fn->where)
+      write(false, "where ", false);
+
+  write("WhileDo");
+  newline();
+  write("{");
+  printBlockID(node);
+  ++mIndent;
+
+  return true;
+}
+
+void AstDump::exitWhileDoStmt(WhileDoStmt* node) {
+  --mIndent;
+  newline();
+  write(false, "}", true);
+  printBlockID(node);
+}
+
+
+//
+// DoWhileStmt
+//
+bool AstDump::enterDoWhileStmt(DoWhileStmt* node) {
+  newline();
+
+  if (FnSymbol* fn = toFnSymbol(node->parentSymbol))
+    if (node == fn->where)
+      write(false, "where ", false);
+
+  write("DoWhile");
+  newline();
+  write("{");
+  printBlockID(node);
+  ++mIndent;
+
+  return true;
+}
+
+void AstDump::exitDoWhileStmt(DoWhileStmt* node) {
+  --mIndent;
+  newline();
+  write(false, "}", true);
+  printBlockID(node);
+}
+
+
+//
+// ForLoop
+//
+bool AstDump::enterForLoop(ForLoop* node) {
+  newline();
+
+  if (FnSymbol* fn = toFnSymbol(node->parentSymbol))
+    if (node == fn->where)
+      write(false, "where ", false);
+
+  write("ForLoop");
+  newline();
+  write("{");
+  printBlockID(node);
+  ++mIndent;
+
+  return true;
+}
+
+void AstDump::exitForLoop(ForLoop* node) {
+  --mIndent;
+  newline();
+  write(false, "}", true);
+  printBlockID(node);
+}
+
+
+//
+// CForLoop
+//
+bool AstDump::enterCForLoop(CForLoop* node) {
+  newline();
+
+  if (FnSymbol* fn = toFnSymbol(node->parentSymbol))
+    if (node == fn->where)
+      write(false, "where ", false);
+
+  write("CForLoop");
+  newline();
+  write("{");
+  printBlockID(node);
+  ++mIndent;
+
+  return true;
+}
+
+void AstDump::exitCForLoop(CForLoop* node) {
+  --mIndent;
+  newline();
+  write(false, "}", true);
+  printBlockID(node);
+}
+
+
+//
 // CondStmt
 //
 bool AstDump::enterCondStmt(CondStmt* node) {
@@ -348,7 +479,7 @@ void AstDump::writeFnSymbol(FnSymbol* fn) {
 
   switch (fn->retTag) {
     case RET_VALUE:                 break;
-    case RET_VAR:   write("var");   break;
+    case RET_REF:   write("ref");   break;
     case RET_PARAM: write("param"); break;
     case RET_TYPE:  write("type");  break;
   }
@@ -413,7 +544,7 @@ void AstDump::write(bool spaceBefore, const char* text, bool spaceAfter) {
 
   mNeedSpace = spaceAfter;
 }
-  
+
 void AstDump::printBlockID(Expr* expr) {
   if (fdump_html_print_block_IDs)
     fprintf(mFP, " %d", expr->id);

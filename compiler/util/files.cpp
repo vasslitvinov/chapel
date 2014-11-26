@@ -1,3 +1,22 @@
+/*
+ * Copyright 2004-2014 Cray Inc.
+ * Other additional copyright holders may be indicated within.
+ * 
+ * The entirety of this work is licensed under the Apache License,
+ * Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License.
+ * 
+ * You may obtain a copy of the License at
+ * 
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 // Get realpath on linux
 #ifndef _XOPEN_SOURCE
 #define _XOPEN_SOURCE 600
@@ -82,7 +101,7 @@ static void removeSpacesFromString(char* str)
 }
 
 
-static void ensureTmpDirExists(void) {
+static void ensureTmpDirExists() {
   if (saveCDir[0] == '\0') {
     if (tmpdirname == NULL) {
       const char* tmpdirprefix = "/tmp/chpl-";
@@ -382,6 +401,8 @@ const std::string runUtilScript(const char* script) {
 }
 
 const char* getIntermediateDirName() {
+  ensureTmpDirExists();
+
   return intDirName;
 }
 
@@ -649,6 +670,8 @@ void setupModulePaths(void) {
 
   intModPath.add(astr(CHPL_HOME, "/", modulesRoot, "/internal/localeModels/",
                       CHPL_LOCALE_MODEL));
+  intModPath.add(astr(CHPL_HOME, "/", modulesRoot, "/internal/tasktable/",
+                      fEnableTaskTracking ? "on" : "off"));
   intModPath.add(astr(CHPL_HOME, "/", modulesRoot, "/internal/threads/", 
                       CHPL_THREADS));
   intModPath.add(astr(CHPL_HOME, "/", modulesRoot, "/internal/tasks/", 
@@ -726,6 +749,9 @@ static void helpPrintPath(Vec<const char*> path) {
 
 void printModuleSearchPath(void) {
   fprintf(stderr, "module search dirs:\n");
+  if (developer) {
+    helpPrintPath(intModPath);
+  }
   helpPrintPath(usrModPath);
   helpPrintPath(stdModPath);
   fprintf(stderr, "end of module search dirs\n");

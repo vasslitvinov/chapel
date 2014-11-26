@@ -1,3 +1,22 @@
+/*
+ * Copyright 2004-2014 Cray Inc.
+ * Other additional copyright holders may be indicated within.
+ *
+ * The entirety of this work is licensed under the Apache License,
+ * Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License.
+ *
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 #ifndef __STDC_FORMAT_MACROS
 #define __STDC_FORMAT_MACROS
 #endif
@@ -82,6 +101,11 @@ static GenRet codegenFieldPtr(GenRet base, const char* field);
 
 static int codegen_tmp = 1;
 
+/************************************ | *************************************
+*                                                                           *
+*                                                                           *
+************************************* | ************************************/
+
 Expr::Expr(AstTag astTag) :
   BaseAST(astTag),
   parentSymbol(NULL),
@@ -91,8 +115,12 @@ Expr::Expr(AstTag astTag) :
   next(NULL)
 { }
 
-Expr::~Expr() { 
+Expr::~Expr() {
 
+}
+
+bool Expr::isStmt() const {
+  return false;
 }
 
 // Return true if this expression is a ModuleDefinition i.e. it
@@ -102,7 +130,7 @@ bool Expr::isModuleDefinition() {
   bool retval = false;
 
 #if 1
-  //  MDN 2014/07/02  
+  //  MDN 2014/07/02
   //  Leaving the old definition here until the scope-less BlockStmt
   //  change is stable.
   if (BlockStmt* block = toBlockStmt(this))
@@ -119,19 +147,31 @@ bool Expr::isModuleDefinition() {
   return retval;
 }
 
+bool Expr::isStmtExpr() const {
+  return isStmt() == true || isBlockStmt(parentExpr) == true;
+}
+
 Expr* Expr::getStmtExpr() {
   for (Expr* expr = this; expr; expr = expr->parentExpr) {
     if (expr->isStmt() || isBlockStmt(expr->parentExpr))
       return expr;
   }
+
   return NULL;
 }
 
+Expr* Expr::getNextExpr(Expr* expr) {
+  return NULL;
+}
 
 void Expr::verify() {
   if (prev || next)
     if (!list)
       INT_FATAL(this, "Expr is in list but does not point at it");
+  if (prev && prev->next != this)
+    INT_FATAL(this, "Bad Expr->prev->next");
+  if (next && next->prev != this)
+    INT_FATAL(this, "Bad Expr->next->prev");
   if (!parentSymbol)
     INT_FATAL(this, "Expr::parentSymbol is NULL");
   if (parentExpr && parentExpr->parentSymbol != parentSymbol)
@@ -139,7 +179,7 @@ void Expr::verify() {
 }
 
 
-bool Expr::inTree(void) {
+bool Expr::inTree() {
   if (parentSymbol)
     return parentSymbol->inTree();
   else
@@ -147,7 +187,7 @@ bool Expr::inTree(void) {
 }
 
 
-Type* Expr::typeInfo(void) {
+Type* Expr::typeInfo() {
   INT_FATAL(this, "Illegal call to Expr::typeInfo()");
   return NULL;
 }
@@ -291,6 +331,11 @@ void Expr::insertAfter(Expr* new_ast) {
 }
 
 
+/************************************ | *************************************
+*                                                                           *
+*                                                                           *
+************************************* | ************************************/
+
 SymExpr::SymExpr(Symbol* init_var) :
   Expr(E_SymExpr),
   var(init_var)
@@ -306,6 +351,10 @@ bool SymExpr::isNoInitExpr() const {
 
 void SymExpr::replaceChild(Expr* old_ast, Expr* new_ast) {
   INT_FATAL(this, "Unexpected case in SymExpr::replaceChild");
+}
+
+Expr* SymExpr::getFirstExpr() {
+  return this;
 }
 
 void SymExpr::verify() {
@@ -383,6 +432,11 @@ void SymExpr::accept(AstVisitor* visitor) {
   visitor->visitSymExpr(this);
 }
 
+/************************************ | *************************************
+*                                                                           *
+*                                                                           *
+************************************* | ************************************/
+
 UnresolvedSymExpr::UnresolvedSymExpr(const char* i_unresolved) :
   Expr(E_UnresolvedSymExpr),
   unresolved(astr(i_unresolved))
@@ -392,12 +446,15 @@ UnresolvedSymExpr::UnresolvedSymExpr(const char* i_unresolved) :
   gUnresolvedSymExprs.add(this);
 }
 
-
-void 
+void
 UnresolvedSymExpr::replaceChild(Expr* old_ast, Expr* new_ast) {
   INT_FATAL(this, "unexpected case in UnresolvedSymExpr::replaceChild");
 }
 
+
+Expr* UnresolvedSymExpr::getFirstExpr() {
+  return this;
+}
 
 void
 UnresolvedSymExpr::verify() {
@@ -437,6 +494,11 @@ void UnresolvedSymExpr::accept(AstVisitor* visitor) {
   visitor->visitUsymExpr(this);
 }
 
+/************************************ | *************************************
+*                                                                           *
+*                                                                           *
+************************************* | ************************************/
+
 DefExpr::DefExpr(Symbol* initSym, BaseAST* initInit, BaseAST* initExprType) :
   Expr(E_DefExpr),
   sym(initSym),
@@ -470,6 +532,10 @@ DefExpr::DefExpr(Symbol* initSym, BaseAST* initInit, BaseAST* initExprType) :
     INT_FATAL(this, "DefExpr of ArgSymbol cannot have either exprType or init");
 
   gDefExprs.add(this);
+}
+
+Expr* DefExpr::getFirstExpr() {
+  return this;
 }
 
 void DefExpr::verify() {
@@ -529,15 +595,15 @@ GenRet DefExpr::codegen() {
 #ifdef HAVE_LLVM
     if (toLabelSymbol(sym)) {
       llvm::Function *func = info->builder->GetInsertBlock()->getParent();
-      
+
       llvm::BasicBlock *blockLabel;
-      
+
       if(!(blockLabel = info->lvt->getBlock(sym->cname))) {
         blockLabel = llvm::BasicBlock::Create(
             info->module->getContext(), sym->cname);
         info->lvt->addBlock(sym->cname, blockLabel);
       }
-      
+
       info->builder->CreateBr(blockLabel);
 
       func->getBasicBlockList().push_back(blockLabel);
@@ -563,6 +629,11 @@ void DefExpr::accept(AstVisitor* visitor) {
   }
 }
 
+/************************************ | *************************************
+*                                                                           *
+*                                                                           *
+************************************* | ************************************/
+
 #ifdef HAVE_LLVM
 // Easier-to-use versions of functions in llvmUtil.h, not
 // defined there because we didn't want llvmUtil.h to depend on
@@ -574,10 +645,10 @@ llvm::Value* createTempVarLLVM(llvm::Type* type, const char* name)
 }
 
 static
-llvm::Value *convertValueToType(llvm::Value *value, llvm::Type *newType, bool isSigned = false)
+llvm::Value *convertValueToType(llvm::Value *value, llvm::Type *newType, bool isSigned = false, bool force = false)
 {
   GenInfo* info = gGenInfo;
-  return convertValueToType(info->builder, info->targetData, value, newType, isSigned);
+  return convertValueToType(info->builder, info->targetData, value, newType, isSigned, force);
 }
 
 static
@@ -605,7 +676,7 @@ static const char* wide_fields[] = {"locale", "addr", "size", NULL};
 // or in case it would be difficult to compute it. It used to be the case that
 // it was sometimes impossible to reference types for some arguments but
 // getOrMakeRefTypeDuringCodegen/getOrMakeWideTypeDuringCodegen may cover
-// all the cases. 
+// all the cases.
 static
 GenRet codegenWideAddr(GenRet locale, GenRet raddr, Type* wideType = NULL)
 {
@@ -679,7 +750,7 @@ GenRet codegenWideAddr(GenRet locale, GenRet raddr, Type* wideType = NULL)
       GenRet wideTy = wideRefType; // get the LLVM type for the wide ref.
       llvm::PointerType *addrType = llvm::cast<llvm::PointerType>(wideTy.type);
 
-      // call GLOBAL_FN_GLOBAL_MAKE dummy function 
+      // call GLOBAL_FN_GLOBAL_MAKE dummy function
       llvm::Function* fn = getMakeFn(info->module, &info->globalToWideInfo,
                                      addrType);
       INT_ASSERT(fn);
@@ -870,6 +941,7 @@ GenRet codegenGetLocaleID(void)
     // the right type (since clang likes to fold int32/int32 into int32).
     GenRet expectType = LOCALE_ID_TYPE;
     ret.val = convertValueToType(ret.val, expectType.type);
+    assert(ret.val);
   }
 #endif
   return ret;
@@ -997,6 +1069,7 @@ static GenRet codegenWideThingField(GenRet ws, int field)
       ret.isLVPtr = GEN_VAL;
       ret.val = info->builder->CreateExtractValue(ws.val, field);
     }
+    assert(ret.val);
 #endif
   }
 
@@ -1087,12 +1160,12 @@ static GenRet codegenRlocale(GenRet wide)
       // Packed wide pointers
       ret = codegenCallExpr("chpl_wide_ptr_get_localeID",
                             codegenCastWideToVoid(wide));
-      if( ret.val ) {
 #ifdef HAVE_LLVM
-        GenRet expectType = LOCALE_ID_TYPE;
-        ret.val = convertValueToType(ret.val, expectType.type);
+      assert(ret.val);
+      GenRet expectType = LOCALE_ID_TYPE;
+      ret.val = convertValueToType(ret.val, expectType.type);
+      assert(ret.val);
 #endif
-      }
     }
   }
   ret.chplType = type;
@@ -1207,7 +1280,7 @@ GenRet codegenFieldPtr(
     // Reduce GEN_WIDE_PTR or FLAG_WIDE_CLASS cases to local versions
     // and rebuild addresses.
     if( base.isLVPtr == GEN_WIDE_PTR ||
-        baseType->symbol->hasFlag(FLAG_WIDE_CLASS) ) {
+        (baseType && baseType->symbol->hasFlag(FLAG_WIDE_CLASS)) ) {
       GenRet addr;
       addr = codegenRaddr(base);
       addr = codegenFieldPtr(addr, c_field_name, chpl_field_name, special);
@@ -1621,7 +1694,11 @@ GenRet codegenValue(GenRet r)
   } else {
 #ifdef HAVE_LLVM
     if (r.isLVPtr) {
-      ret.val = codegenLoadLLVM(r); // TODO - is r pointer to const?
+      // But don't dereference star tuples (since C views these as arrays)
+      if( r.chplType && r.chplType->symbol->hasFlag(FLAG_STAR_TUPLE) ) {
+        ret.val = r.val;
+        ret.isLVPtr = r.isLVPtr;
+      } else ret.val = codegenLoadLLVM(r); // TODO - is r pointer to const?
     } else {
       ret.val = r.val;
     }
@@ -2246,7 +2323,7 @@ void convertArgumentForCall(llvm::FunctionType *fnType,
   }
 
   llvm::Value* out;
-  if( targetType ) out = convertValueToType(v, targetType, isSigned);
+  if( targetType ) out = convertValueToType(v, targetType, isSigned, false);
   else out = v; // no target type means we just emit it.
 
   if( out ) {
@@ -2256,34 +2333,67 @@ void convertArgumentForCall(llvm::FunctionType *fnType,
     // OK, just don't emit an argument at all.
   } else if( t->isStructTy() || t->isArrayTy() || t->isVectorTy() ) {
     // We might need to put the arguments in one-at-a-time,
-    // in order to put up with structure expansion done by clang.
+    // in order to put up with structure expansion done by clang
+    // (see canExpandIndirectArgument)
     // TODO - this should actually depend on the clang ABI,
     // or else we should find a way to disable the optimization in clang.
     //   It should be possible to get the necessariy information from clang
     //   with cgModule->getTypes()->arrangeFunctionDeclaration(FunctionDecl)
 
-    if( t->isStructTy() || t->isArrayTy() ) {
-      unsigned n;
-      if( t->isStructTy() ) n = t->getStructNumElements();
-      else n = t->getArrayNumElements();
-      for( unsigned i = 0; i < n; i++ ) {
-        unsigned indexes[1] = { i };
-        GenRet r;
-        r.val = info->builder->CreateExtractValue(v, indexes);
-        convertArgumentForCall(fnType, r, outArgs);
+
+    // Work with a prefix of the structure/vector argument.
+    llvm::Type* int8_type;
+    llvm::Type* int8_ptr_type;
+    llvm::Type* dst_ptr_type;
+    
+    llvm::Value* arg_ptr;
+    llvm::Value* arg_i8_ptr;
+    llvm::Value* cur_ptr;
+    llvm::Value* casted_ptr;
+    llvm::Value* cur;
+    int64_t offset = 0;
+    int64_t cur_size = 0;
+    int64_t arg_size = 0;
+
+    int8_type = llvm::Type::getInt8Ty(info->llvmContext);
+    int8_ptr_type = int8_type->getPointerTo();
+
+    arg_size = getTypeSizeInBytes(info->targetData, t);
+    assert(arg_size >= 0);
+
+    // Allocate space on the stack...
+    arg_ptr = createTempVarLLVM(info->builder, t, "");
+    arg_i8_ptr = info->builder->CreatePointerCast(arg_ptr, int8_ptr_type, "");
+
+    // Copy the value to the stack...
+    info->builder->CreateStore(v, arg_ptr);
+
+    while(offset < arg_size) {
+      if( outArgs.size() >= fnType->getNumParams() ) {
+        INT_FATAL("Could not convert arguments for call");
       }
-    } else {
-      // vector types.
-      unsigned n = t->getVectorNumElements();
-      for( unsigned i = 0; i < n; i++ ) {
-        GenRet r;
-        r.val =
-          info->builder->CreateExtractElement(
-              v,
-              llvm::ConstantInt::get(
-                llvm::IntegerType::getInt64Ty(info->llvmContext), i));
-        convertArgumentForCall(fnType, r, outArgs);
+      targetType = fnType->getParamType(outArgs.size());
+      dst_ptr_type = targetType->getPointerTo();
+      cur_size = getTypeSizeInBytes(info->targetData, targetType);
+
+      assert(cur_size > 0);
+
+      if( offset + cur_size > arg_size ) {
+        INT_FATAL("Could not convert arguments for call");
       }
+
+      // Now load cur_size bytes from pointer into the argument.
+      cur_ptr = info->builder->CreateConstInBoundsGEP1_64(arg_i8_ptr,
+                                                          offset);
+      casted_ptr = info->builder->CreatePointerCast(cur_ptr, dst_ptr_type);
+
+      cur = info->builder->CreateLoad(casted_ptr);
+      
+      outArgs.push_back(cur);
+
+      //printf("offset was %i\n", (int) offset);
+      offset = getTypeFieldNext(info->targetData, t, offset + cur_size - 1);
+      //printf("offset now %i\n", (int) offset);
     }
   } else {
     INT_FATAL("Could not convert arguments for call");
@@ -2868,8 +2978,11 @@ void codegenCopy(GenRet dest, GenRet src, Type* chplType=NULL)
       llvm::Type* ptrTy = src.val->getType();
       llvm::Type* eltTy = ptrTy->getPointerElementType();
 
-      if( isTypeSizeSmallerThan(info->targetData, eltTy, 
-                                256 /* max bytes to load/store */ ) )  {
+      if( chplType && chplType->symbol->hasFlag(FLAG_STAR_TUPLE) ) {
+        // Always use memcpy for star tuples.
+        useMemcpy = true;
+      } else if( isTypeSizeSmallerThan(info->targetData, eltTy, 
+                                       256 /* max bytes to load/store */)) {
         // OK
       } else {
         useMemcpy = true;
@@ -3111,7 +3224,9 @@ void codegenAssign(GenRet to_ptr, GenRet from)
       } else {
 #ifdef HAVE_LLVM
         // LLVM codegen assignment (non-wide, non-tuple)
+        assert(from.val);
         GenRet value = codegenValue(from);
+        assert(value.val);
        
         codegenStoreLLVM(value, to_ptr, type);
 #endif
@@ -3224,6 +3339,11 @@ static void callExprHelper(CallExpr* call, BaseAST* arg) {
 }
 
 
+/************************************ | *************************************
+*                                                                           *
+*                                                                           *
+************************************* | ************************************/
+
 CallExpr::CallExpr(BaseAST* base, BaseAST* arg1, BaseAST* arg2,
                    BaseAST* arg3, BaseAST* arg4) :
   Expr(E_CallExpr),
@@ -3309,11 +3429,37 @@ CallExpr::CallExpr(const char* name, BaseAST* arg1, BaseAST* arg2,
 CallExpr::~CallExpr() { }
 
 
+Expr* CallExpr::getFirstExpr() {
+  Expr* retval = NULL;
+
+  if (baseExpr != NULL)
+    retval = baseExpr->getFirstExpr();
+
+  else if (argList.head != NULL)
+    retval = argList.head;
+
+  else
+    retval = this;
+
+  return retval;
+}
+
+Expr* CallExpr::getNextExpr(Expr* expr) {
+  Expr* retval = NULL;
+
+  if (expr == baseExpr && argList.head != NULL)
+    retval = argList.head->getFirstExpr();
+
+  return retval;
+}
+
 void CallExpr::verify() {
   Expr::verify();
   if (astTag != E_CallExpr) {
     INT_FATAL(this, "Bad CallExpr::astTag");
   }
+  if (! parentExpr)
+    INT_FATAL(this, "Every CallExpr is expected to have a parentExpr");
   if (argList.parent != this)
     INT_FATAL(this, "Bad AList::parent in CallExpr");
   if (baseExpr && baseExpr->parentExpr != this)
@@ -3352,15 +3498,17 @@ void CallExpr::verify() {
     case PRIM_BLOCK_COFORALL_ON:
     case PRIM_BLOCK_LOCAL:
       if (toBlockStmt(parentExpr)) {
-        // does not pass:
-        //if (toBlockStmt(parentExpr)->blockInfo != this)
-        //  INT_FATAL(this, "blockInfo-type CallExpr not parent's blockInfo");
+
       } else {
         INT_FATAL(this, "blockInfo-type CallExpr not in a BlockStmt");
       }
       break;
     case PRIM_BLOCK_UNLOCAL:
       INT_FATAL("PRIM_BLOCK_UNLOCAL between passes");
+      break;
+    case PRIM_TYPE_INIT:
+      // A "type init" call is always expected to have a parent.
+      INT_ASSERT(toCallExpr(this->parentExpr));
       break;
     default:
       break; // do nothing
@@ -3508,7 +3656,8 @@ void CallExpr::prettyPrint(std::ostream *o) {
       baseExpr->prettyPrint(o);
     }
   } else if (primitive != NULL) {
-    if (primitive->tag == PRIM_INIT) {
+    if (primitive->tag == PRIM_INIT ||
+      primitive->tag == PRIM_TYPE_INIT) {
       unusual = true;
       argList.head->prettyPrint(o);
     }
@@ -3561,7 +3710,15 @@ void codegenOpAssign(GenRet a, GenRet b, const char* op,
 {
   GenInfo* info = gGenInfo;
 
-  GenRet ap = codegenDeref(a);  // deref 'a' since it's a 'ref' argument
+  // deref 'a' if it is a 'ref' argument
+  GenRet ap;
+  if (a.chplType->symbol->hasFlag(FLAG_REF) ||
+      a.chplType->symbol->hasFlag(FLAG_WIDE) ||
+      a.chplType->symbol->hasFlag(FLAG_WIDE_CLASS)) {
+    ap = codegenDeref(a);
+  } else {
+    ap = a;
+  }
   GenRet bv = codegenValue(b);  // get the value of 'b'
 
   bool aIsRemote = ap.isLVPtr == GEN_WIDE_PTR;
@@ -4336,11 +4493,24 @@ GenRet CallExpr::codegen() {
       // optimizations depending on specifics of the RHS expression.)
 
       // PRIM_ASSIGN expects either a narrow or wide pointer as its LHS arg.
-      INT_ASSERT(get(1)->typeInfo()->symbol->hasFlag(FLAG_REF) ||
-                 get(1)->typeInfo()->symbol->hasFlag(FLAG_WIDE));
-
-      // Handle general cases of PRIM_ASSIGN.
-      codegenAssign(codegenDeref(get(1)), get(2));
+      if (get(1)->typeInfo()->symbol->hasFlag(FLAG_WIDE_CLASS) &&
+          get(2)->typeInfo()->symbol->hasFlag(FLAG_WIDE_CLASS)) {
+        codegenAssign(get(1), get(2));
+      } else if (get(1)->typeInfo()->symbol->hasFlag(FLAG_WIDE_CLASS) &&
+                 !get(2)->typeInfo()->symbol->hasFlag(FLAG_WIDE_CLASS)) {
+        // This case was taken from PRIM_MOVE unfortunately
+        if (get(2)->typeInfo() != dtString)
+          codegenAssign(get(1), codegenAddrOf(codegenWideHere(get(2))));
+        else
+          codegenCall("chpl_string_widen", codegenAddrOf(get(1)), get(2),
+                      get(3), get(4));
+      } else if (get(1)->typeInfo()->symbol->hasFlag(FLAG_REF) ||
+          get(1)->typeInfo()->symbol->hasFlag(FLAG_WIDE) ||
+          get(1)->typeInfo()->symbol->hasFlag(FLAG_WIDE_CLASS)) {
+        codegenAssign(codegenDeref(get(1)), get(2));
+      } else {
+        codegenAssign(get(1), get(2));
+      }
       break;
     case PRIM_ADD_ASSIGN:
       codegenOpAssign(get(1), get(2), " += ", codegenAdd);
@@ -4989,57 +5159,6 @@ GenRet CallExpr::codegen() {
         GenRet v = codegenValue(get(2));
         // cast like this: (type) (intptr_t) v
         ret = codegenCast(typeInfo(), codegenCast("intptr_t", v));
-      } else if (dst == dtString || src == dtString ||
-                 dst == dtStringC || src == dtStringC) {
-        const char* dst_cname = dst->symbol->cname;
-        const char* src_cname = src->symbol->cname;
-        if (src == dtString && dst != dtStringC) {
-          src_cname = dtStringC->symbol->cname;
-        } else if (dst == dtString && src != dtStringC) {
-          dst_cname = dtStringC->symbol->cname;
-        }
-        std::string fn;
-        if( dst->symbol->cname[0] == '_' ) {
-          fn += src_cname;
-          fn += "_to";
-          fn += dst_cname;
-        } else {
-          fn += src_cname;
-          fn += "_to_";
-          fn += dst_cname;
-        }
-        if (src == dtString) {
-          if (dst == dtStringC) {
-            ret = codegenCallExpr("chpl_string_to_c_string",
-                                  get(2), get(3), get(4));
-          } else {
-            // convert string to c_string
-            ret = codegenCallExpr(fn.c_str(),
-                                  codegenCallExpr("chpl_string_to_c_string",
-                                                  get(2), get(3), get(4)),
-                                  get(3), get(4));
-          }
-        } else if (src == dtStringC) {
-          if (dst == dtString) {
-            // FIX ME: leak string
-            ret = codegenCallExpr("c_string_to_chpl_string",
-                                  get(2), get(3), get(4));
-          } else {
-            ret = codegenCallExpr(fn.c_str(), codegenValue(get(2)),
-                                  get(3), get(4));
-          }
-
-        } else { // other primitive type
-          if (dst == dtString) {
-            // FIX ME: leak string
-            ret = codegenCallExpr("c_string_to_chpl_string",
-                                  codegenCallExpr(fn.c_str(),
-                                                  codegenValue(get(2))),
-                                  get(3), get(4));
-          } else {
-            ret = codegenCallExpr(fn.c_str(), codegenValue(get(2)));
-          }
-        }
       } else {
         if (isRecord(typeInfo()) || isUnion(typeInfo())) {
           INT_FATAL("TODO - don't like type-punning record/union");
@@ -5479,9 +5598,11 @@ GenRet CallExpr::codegen() {
     if( this->typeInfo() != dtVoid ) {
       GenRet ty = this->typeInfo();
       INT_ASSERT(ty.type); 
-      llvm::Value* converted = convertValueToType(ret.val, ty.type);
-      INT_ASSERT(converted);
-      ret.val = converted;
+      if( ty.type != ret.val->getType() ) {
+        llvm::Value* converted = convertValueToType(ret.val, ty.type, false, true);
+        INT_ASSERT(converted);
+        ret.val = converted;
+      }
     }
 #endif
   }
@@ -5502,8 +5623,12 @@ bool CallExpr::isPrimitive(const char* primitiveName) {
   return primitive && !strcmp(primitive->name, primitiveName);
 }
 
+/************************************ | *************************************
+*                                                                           *
+*                                                                           *
+************************************* | ************************************/
 
-NamedExpr::NamedExpr(const char* init_name, Expr* init_actual) : 
+NamedExpr::NamedExpr(const char* init_name, Expr* init_actual) :
   Expr(E_NamedExpr),
   name(init_name),
   actual(init_actual)
@@ -5511,6 +5636,10 @@ NamedExpr::NamedExpr(const char* init_name, Expr* init_actual) :
   gNamedExprs.add(this);
 }
 
+
+Expr* NamedExpr::getFirstExpr() {
+  return (actual != NULL) ? actual->getFirstExpr() : this;
+}
 
 void NamedExpr::verify() {
   Expr::verify();
@@ -5564,7 +5693,12 @@ void NamedExpr::accept(AstVisitor* visitor) {
   }
 }
 
-bool 
+/************************************ | *************************************
+*                                                                           *
+*                                                                           *
+************************************* | ************************************/
+
+bool
 get_int(Expr *e, int64_t *i) {
   if (e) {
     if (SymExpr *l = toSymExpr(e)) {
@@ -5581,7 +5715,7 @@ get_int(Expr *e, int64_t *i) {
   return false;
 }
 
-bool 
+bool
 get_uint(Expr *e, uint64_t *i) {
   if (e) {
     if (SymExpr *l = toSymExpr(e)) {
@@ -5598,7 +5732,7 @@ get_uint(Expr *e, uint64_t *i) {
   return false;
 }
 
-bool 
+bool
 get_string(Expr *e, const char **s) {
   if (e) {
     if (SymExpr *l = toSymExpr(e)) {
@@ -5696,62 +5830,23 @@ CallExpr* callChplHereFree(BaseAST* p) {
   }
 }
 
-
-// getNextExpr(expr) returns the lexically next expr in a normalized
-// tree
-#define AST_RET_CHILD(_t, _m) \
-  if (((_t*)expr)->_m) return getFirstExpr(((_t*)expr)->_m)
-#define AST_RET_LIST(_t, _m) \
-  if (((_t*)expr)->_m.head) return getFirstExpr(((_t*)expr)->_m.head)
-
-Expr* getFirstExpr(Expr* expr) {
-  switch (expr->astTag) {
-  default:
-    INT_FATAL(expr, "unexpected expr in getFirstExpr");
-    return NULL;
-  case E_SymExpr:
-  case E_UnresolvedSymExpr:
-  case E_DefExpr:
-    return expr;
-  case E_BlockStmt:
-    AST_RET_CHILD(BlockStmt, blockInfo);
-    AST_RET_LIST(BlockStmt, body);
-    break;
-  case E_CondStmt:
-    AST_RET_CHILD(CondStmt, condExpr);
-    break;
-  case E_GotoStmt:
-    AST_RET_CHILD(GotoStmt, label);
-    break;
-  case E_CallExpr:
-    AST_RET_CHILD(CallExpr, baseExpr);
-    AST_RET_LIST(CallExpr, argList);
-    break;
-  case E_NamedExpr:
-    AST_RET_CHILD(NamedExpr, actual);
-    break;
-  }
-  return expr;
-}
-
 Expr* getNextExpr(Expr* expr) {
-  if (expr->next)
-    return getFirstExpr(expr->next);
-  if (CallExpr* parent = toCallExpr(expr->parentExpr)) {
-    if (expr == parent->baseExpr && parent->argList.head)
-      return getFirstExpr(parent->argList.head);
-  } else if (CondStmt* parent = toCondStmt(expr->parentExpr)) {
-    if (expr == parent->condExpr && parent->thenStmt)
-      return getFirstExpr(parent->thenStmt);
-    else if (expr == parent->thenStmt && parent->elseStmt)
-      return getFirstExpr(parent->elseStmt);
-  } else if (BlockStmt* parent = toBlockStmt(expr->parentExpr)) {
-    if (expr == parent->blockInfo && parent->body.head)
-      return getFirstExpr(parent->body.head);
+  Expr* retval = NULL;
+
+  if (expr->next) {
+    retval = expr->next->getFirstExpr();
+
+  } else if (expr->parentExpr == NULL) {
+    retval = NULL;
+
+  } else {
+    retval = expr->parentExpr->getNextExpr(expr);
+
+    if (retval == NULL)
+      retval = expr->parentExpr;
   }
-  if (expr->parentExpr)
-    return expr->parentExpr;
-  return NULL;
+
+  return retval;
 }
 
 static bool

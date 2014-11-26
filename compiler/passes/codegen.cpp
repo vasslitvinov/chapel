@@ -1,14 +1,30 @@
+/*
+ * Copyright 2004-2014 Cray Inc.
+ * Other additional copyright holders may be indicated within.
+ * 
+ * The entirety of this work is licensed under the Apache License,
+ * Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License.
+ * 
+ * You may obtain a copy of the License at
+ * 
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 #ifndef __STDC_FORMAT_MACROS
 #define __STDC_FORMAT_MACROS
 #endif
-#include <inttypes.h>
 
-#include <cctype>
-#include <cstring>
-#include <cstdio>
-
+#include "codegen.h"
 
 #include "astutil.h"
+#include "config.h"
 #include "driver.h"
 #include "expr.h"
 #include "files.h"
@@ -17,15 +33,19 @@
 #include "stmt.h"
 #include "stringutil.h"
 #include "symbol.h"
-#include "config.h"
-#include "codegen.h"
+
+#include <inttypes.h>
+
+#include <cctype>
+#include <cstring>
+#include <cstdio>
+
 
 // Global so that we don't have to pass around
 // to all of the codegen() routines
-GenInfo* gGenInfo;
-int gMaxVMT = -1;
-fileinfo gAllExternCode;
-int stmtCount = 0;
+GenInfo* gGenInfo   =  0;
+int      gMaxVMT    = -1;
+int      gStmtCount =  0;
 
 
 static const char*
@@ -266,6 +286,8 @@ genVirtualMethodTable(Vec<TypeSymbol*>& types) {
         }
       }
     }
+    if (types.n == 0 || maxVMT == 0)
+      fprintf(hdrfile, "(chpl_fn_p)0");
     fprintf(hdrfile, "\n};\n");
   } else {
 #ifdef HAVE_LLVM
@@ -342,27 +364,33 @@ compareSymbol(const void* v1, const void* v2) {
 // given a name and up to two sets of names, return a name that is in
 // neither set and add the name to the first set; the second set may
 // be omitted; the returned name to be capped at fMaxCIdentLen if non-0
+// less how much can be added to it - maxCNameAddedChars
 //
 // the unique numbering is based on the map uniquifyNameCounts which
 // can be cleared to reset
 //
 int fMaxCIdentLen = 0;
 static const int maxUniquifyAddedChars = 25;
+// keep in sync with AggregateType::classStructName()
+static const int maxCNameAddedChars = 20;
 static char* longCNameReplacementBuffer = NULL;
 static Map<const char*, int> uniquifyNameCounts;
 static const char* uniquifyName(const char* name,
                                 Vec<const char*>* set1,
                                 Vec<const char*>* set2 = NULL) {
   const char* newName = name;
-  if (fMaxCIdentLen > 0 && (int)(strlen(newName)) > fMaxCIdentLen) {
+  if (fMaxCIdentLen > 0 &&
+      (int)(strlen(newName) + maxCNameAddedChars) > fMaxCIdentLen)
+  {
     // how much of the name to preserve
-    int prefixLen = fMaxCIdentLen - maxUniquifyAddedChars;
+    int prefixLen = fMaxCIdentLen - maxUniquifyAddedChars - maxCNameAddedChars;
     if (!longCNameReplacementBuffer) {
       longCNameReplacementBuffer = (char*)malloc(prefixLen+1);
       longCNameReplacementBuffer[prefixLen] = '\0';
     }
     strncpy(longCNameReplacementBuffer, newName, prefixLen);
     INT_ASSERT(longCNameReplacementBuffer[prefixLen] == '\0');
+    longCNameReplacementBuffer[prefixLen-1] = 'X'; //fyi truncation marker
     name = newName = astr(longCNameReplacementBuffer);
   }
   while (set1->set_in(newName) || (set2 && set2->set_in(newName))) {
@@ -433,59 +461,72 @@ static void codegen_aggregate_def(AggregateType* ct) {
 
 
 //
-// Produce compilation-time configuration info into a .h file and
-// #include that .h into the current codegen output file.
+// Produce compilation-time configuration info into a .c file and
+// #include that .c into the current codegen output file.
 //
 // Only put C data objects into this file, not Chapel ones, as it may
 // also be #include'd into a launcher, and those are C/C++ code.
 //
-static const char* cfg_fname = "chpl_compilation_config";
-static void codegen_header_compilation_config() {
-  int i;
-  GenInfo* info = gGenInfo;
-  FILE* save_cfile = info->cfile;
+// New generated variables should be added to runtime/include/chplcgfns.h
+//
+static const char* sCfgFname = "chpl_compilation_config";
 
+static void codegen_header_compilation_config() {
   fileinfo cfgfile = { NULL, NULL, NULL };
 
-  openCFile(&cfgfile, cfg_fname, "h");
+  openCFile(&cfgfile, sCfgFname, "c");
+#ifdef HAVE_LLVM
+  gChplCompilationConfig = cfgfile; // so LLVM backend can use it too.
+#endif
 
-  if (!cfgfile.fptr) return; // follow convention of just not writing
-                             // to the file if we can't open it
+  // follow convention of just not writing to the file if we can't open it
+  if (cfgfile.fptr != NULL) {
+    FILE* save_cfile = gGenInfo->cfile;
 
-  info->cfile = cfgfile.fptr;
+    gGenInfo->cfile = cfgfile.fptr;
 
-  genComment("Compilation Info");
+    genComment("Compilation Info");
 
-  genGlobalString("chpl_compileCommand", compileCommand);
-  genGlobalString("chpl_compileVersion", compileVersion);
-  genGlobalString("CHPL_HOME", CHPL_HOME);
+    fprintf(cfgfile.fptr, "\n#include <stdio.h>\n");
 
-  for (i=0; i < num_chpl_env_vars; i++) {
-    genGlobalString(chpl_env_var_names[i], chpl_env_vars[i]);
+    genGlobalString("chpl_compileCommand", compileCommand);
+    genGlobalString("chpl_compileVersion", compileVersion);
+    genGlobalString("CHPL_HOME",           CHPL_HOME);
+
+    for (int i = 0; i < num_chpl_env_vars; i++) {
+      genGlobalString(chpl_env_var_names[i], chpl_env_vars[i]);
+    }
+
+    genGlobalInt("CHPL_STACK_CHECKS", !fNoStackChecks);
+    genGlobalInt("CHPL_CACHE_REMOTE", fCacheRemote);
+
+    // generate the "about" function
+    fprintf(cfgfile.fptr, "\nvoid chpl_program_about(void);\n");
+    fprintf(cfgfile.fptr, "\nvoid chpl_program_about() {\n");
+
+    fprintf(cfgfile.fptr,
+            "printf(\"%%s\", \"Compilation command: %s\\n\");\n",
+            compileCommand);
+    fprintf(cfgfile.fptr,
+            "printf(\"%%s\", \"Chapel compiler version: %s\\n\");\n",
+            compileVersion);
+    fprintf(cfgfile.fptr, "printf(\"Chapel environment:\\n\");\n");
+    fprintf(cfgfile.fptr,
+            "printf(\"%%s\", \"  CHPL_HOME: %s\\n\");\n",
+            CHPL_HOME);
+    for (int i = 0; i < num_chpl_env_vars; i++) {
+      fprintf(cfgfile.fptr,
+              "printf(\"%%s\", \"  %s: %s\\n\");\n",
+              chpl_env_var_names[i],
+              chpl_env_vars[i]);
+    }
+
+    fprintf(cfgfile.fptr, "}\n");
+
+    closeCFile(&cfgfile);
+
+    gGenInfo->cfile = save_cfile;
   }
-
-  genGlobalInt("CHPL_STACK_CHECKS", !fNoStackChecks);
-  genGlobalInt("CHPL_CACHE_REMOTE", fCacheRemote);
-
-  // generate the "about" function
-  fprintf(cfgfile.fptr, "\nvoid chpl_program_about(void);\n");
-  fprintf(cfgfile.fptr, "\nvoid chpl_program_about() {\n");
-  fprintf(cfgfile.fptr, "printf(\"Compilation command: %s\\n\");\n",
-          compileCommand);
-  fprintf(cfgfile.fptr, "printf(\"Chapel compiler version: %s\\n\");\n",
-          compileVersion);
-  fprintf(cfgfile.fptr, "printf(\"Chapel environment:\\n\");\n");
-  fprintf(cfgfile.fptr, "printf(\"  CHPL_HOME: %s\\n\");\n",
-          CHPL_HOME);
-  for (i=0; i < num_chpl_env_vars; i++) {
-    fprintf(cfgfile.fptr, "printf(\"  %s: %s\\n\");\n",
-            chpl_env_var_names[i], chpl_env_vars[i]);
-  }
-  fprintf(cfgfile.fptr, "}\n");
-
-  closeCFile(&cfgfile);
-
-  info->cfile = save_cfile;
 }
 
 
@@ -658,12 +699,14 @@ static void codegen_header() {
     fprintf(hdrfile, "#include \"stdchpl.h\"\n");
 
     // Include the compilation config file
-    fprintf(hdrfile, "#include \"%s.h\"\n", cfg_fname);
+    fprintf(hdrfile, "#include \"%s.c\"\n", sCfgFname);
 
+#ifdef HAVE_LLVM
     //include generated extern C header file
     if (externC && gAllExternCode.filename != NULL) {
       fprintf(hdrfile, "%s", astr("#include \"", gAllExternCode.filename, "\"\n"));
     }
+#endif
   }
 
   genClassIDs(types);
@@ -1193,7 +1236,7 @@ void codegen(void) {
 
   if (fPrintEmittedCodeSize)
   {
-    fprintf(stderr, "Statements emitted: %d\n", stmtCount);
+    fprintf(stderr, "Statements emitted: %d\n", gStmtCount);
   }
 }
 

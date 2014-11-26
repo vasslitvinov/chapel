@@ -6,5 +6,5 @@ proc main {
     sleep(2);
     a += 1;
   }
-  writeln(a);
+  writeln(a.readFF());
 }

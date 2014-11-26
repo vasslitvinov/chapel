@@ -1,3 +1,22 @@
+/*
+ * Copyright 2004-2014 Cray Inc.
+ * Other additional copyright holders may be indicated within.
+ * 
+ * The entirety of this work is licensed under the Apache License,
+ * Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License.
+ * 
+ * You may obtain a copy of the License at
+ * 
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 #define _QIO_C
 
 #ifndef _DARWIN_C_SOURCE
@@ -32,7 +51,6 @@
 #include <fcntl.h>
 #include <sys/select.h>
 //#include <sys/fcntl.h> no sys/fcntl.h on AIX, fcntl.h should cover it.
-#include <sys/param.h> // MAXPATHLEN
 #include <sys/stat.h>
 
 #include <assert.h>
@@ -831,7 +849,7 @@ error:
 qioerr qio_file_init_usr(qio_file_t** file_out, void* file_info, qio_hint_t iohints, int flags, const qio_style_t* style, void* fs_info, const qio_file_functions_t* fns)
 {
   off_t initial_pos = 0;
-  off_t initial_length = 0;
+  int64_t initial_length = 0;
   qioerr err = 0;
   err_t err_code;
   qio_file_t* file = NULL;
@@ -856,14 +874,17 @@ qioerr qio_file_init_usr(qio_file_t** file_out, void* file_info, qio_hint_t iohi
     seekable = 1;
   }
 
+  if (fns->filelength) { // We can get length in our FS
+    err = fns->filelength(file_info, &initial_length, fs_info);
+    // Disregard errors in case it is not seekable (and if we need seek to get the
+    // length). If we can't get the length, we'll set initial_pos below anyways.
+    err = 0;
+  }
+
   if( seekable ) {
     // seekable.
     flags = (qio_fdflag_t) (flags | QIO_FDFLAG_SEEKABLE);
     initial_pos = seek_ret;
-    if (fns->filelength) { // We can get length in our FS
-      err = fns->filelength(file_info, &initial_length, fs_info);
-      if( err ) return err;
-    }
   } else {
      // Not seekable.
     initial_pos = 0;
@@ -1283,11 +1304,14 @@ qioerr qio_file_open_tmp(qio_file_t** file_out, qio_hint_t iohints, const qio_st
 // string_out must be freed by the caller.
 qioerr qio_file_path_for_fd(fd_t fd, const char** string_out)
 {
-#ifdef __linux__
+#if defined(__linux__) || defined(__CYGWIN__)
   char pathbuf[500];
   qioerr err;
+  const char* result;
   sprintf(pathbuf, "/proc/self/fd/%i", fd);
-  err = qio_int_to_err(sys_readlink(pathbuf, string_out));
+  err = qio_int_to_err(sys_readlink(pathbuf, &result));
+  // result is owned by sys_readlink, so has to be copied.
+  *string_out = qio_strdup(result);
   return err;
 #else
 #ifdef __APPLE__
@@ -1357,13 +1381,6 @@ qioerr qio_file_length(qio_file_t* f, int64_t *len_out)
 
   return err;
 }
-
-// get the (total) length of the file that is backing this channel
-qioerr qio_channel_get_filelength(qio_channel_t* chan, int64_t* len_out) 
-{ 
-  return qio_file_length(chan->file, len_out);
-}
-
 
 /* CHANNELS ----------------------------- */
 static
@@ -1584,6 +1601,8 @@ qioerr qio_channel_create(qio_channel_t** ch_out, qio_file_t* file, qio_hint_t h
   }
 }
 
+// This routine always returns a malloc'd string in the path_out pointer.
+// The caller must free the passed-back pointer.
 qioerr qio_relative_path(const char** path_out, const char* cwd, const char* path)
 {
   ssize_t i,j;
@@ -1652,7 +1671,7 @@ qioerr qio_relative_path(const char** path_out, const char* cwd, const char* pat
     tmp[j++] = '/';
   }
   // Now, copy the path after last_common_slash, including trailing '\0'
-  memcpy(&tmp[j], &path[last_common_slash + 1], after_len+1);
+  qio_memcpy(&tmp[j], &path[last_common_slash + 1], after_len+1);
 
   *path_out = tmp;
   return 0;
@@ -1667,6 +1686,7 @@ qioerr qio_shortest_path(qio_file_t* file, const char** path_out, const char* pa
   const char* relpath = NULL;
   qioerr err;
 
+  // TODO: Ensure that cwd is a malloc'd string.
   if (file->fsfns && file->fsfns->getcwd) {
     err = file->fsfns->getcwd(file, &cwd, file->fs_info);
   } else {
@@ -1679,16 +1699,19 @@ qioerr qio_shortest_path(qio_file_t* file, const char** path_out, const char* pa
 
   //printf("cwd %s abs %s rel %s\n", cwd, path_in, relpath);
 
+  qio_free((void*) cwd); cwd = NULL;
+
   if( ! err ) {
+    // Use relpath or path_in, whichever is shorter.
     if( strlen(relpath) < strlen(path_in) ) {
-      *path_out = relpath;
+      *path_out = relpath; relpath = NULL;
     } else {
+      // Not returning relpath, so free it.
+      qio_free((void*) relpath); relpath = NULL;
       *path_out = qio_strdup(path_in);
       if( ! *path_out ) err = QIO_ENOMEM;
     }
   }
-
-  qio_free((void*) cwd);
 
   return err;
 }
@@ -2651,7 +2674,7 @@ qioerr _qio_unbuffered_write(qio_channel_t* ch, const void* ptr, ssize_t len_in,
   if( method == QIO_METHOD_MMAP &&
       ch->file->mmap && _right_mark_start(ch) + len <= ch->file->mmap->len) {
     // Copy the data to the mmap.
-    memcpy( VOID_PTR_ADD(ch->file->mmap->data,_right_mark_start(ch)), ptr, len);
+    qio_memcpy( VOID_PTR_ADD(ch->file->mmap->data,_right_mark_start(ch)), ptr, len);
     _add_right_mark_start(ch, len);
   } else {
     while( len > 0 ) {
@@ -2742,7 +2765,7 @@ qioerr _qio_unbuffered_read(qio_channel_t* ch, void* ptr, ssize_t len_in, ssize_
       _right_mark_start(ch) + len <= ch->file->mmap->len) {
     // As long as we're using an I/O method that seeks on every read,
     // copy the data out of the mmap.
-    memcpy( ptr, VOID_PTR_ADD(ch->file->mmap->data,_right_mark_start(ch)), len);
+    qio_memcpy( ptr, VOID_PTR_ADD(ch->file->mmap->data,_right_mark_start(ch)), len);
     _add_right_mark_start(ch, len);
   } else {
     while( len > 0 ) {
@@ -3568,7 +3591,7 @@ void _qio_channel_write_bits_cached_realign(qio_channel_t* restrict ch, uint64_t
   
   //printf("WRITE BITS REALIGNALIGNED WRITING %llx %i\n", (long long int) part_one_bits, (int) (8*to_copy));
   // memcpy will work because part_one_bits is big endian now.
-  memcpy(ch->cached_cur, &part_one_bits_be, to_copy);
+  qio_memcpy(ch->cached_cur, &part_one_bits_be, to_copy);
   ch->cached_cur = VOID_PTR_ADD(ch->cached_cur, to_copy);
 
   // Remove junk from the top of tmp_bits, so only bottom tmp_live bits are set.
@@ -3768,7 +3791,7 @@ void _qio_channel_read_bits_cached_realign(qio_channel_t* restrict ch, uint64_t*
   to_copy = (7 + value_part) / 8;
 
   buf = 0;
-  memcpy(&buf, ch->cached_cur, to_copy);
+  qio_memcpy(&buf, ch->cached_cur, to_copy);
   ch->cached_cur = VOID_PTR_ADD(ch->cached_cur, to_copy);
 
   // now we've set the top several bytes of buf.
@@ -3795,7 +3818,8 @@ void _qio_channel_read_bits_cached_realign(qio_channel_t* restrict ch, uint64_t*
   if( to_copy == sizeof(qio_bitbuffer_t) ) to_copy = 0;
 
   buf = 0;
-  if( to_copy ) memcpy(&buf, ch->cached_cur, to_copy);
+  if( to_copy )
+    qio_memcpy(&buf, ch->cached_cur, to_copy);
   tmp_read = to_copy;
   part_two = 8*to_copy;
 
@@ -3920,5 +3944,85 @@ int64_t qio_channel_style_element(qio_channel_t* ch, int64_t element)
   }
 #endif // __BYTE_ORDER
   return 0;
+}
+
+qioerr qio_get_fs_type(qio_file_t* fl, int* out)
+{
+  sys_statfs_t s;
+  int rc = 1;
+
+  if (fl->fsfns && fl->fsfns->get_fs_type) {
+    *out = fl->fsfns->get_fs_type(fl->file_info, fl->fs_info);
+    return 0;
+  } 
+
+  // else
+  if (fl->fp)
+    rc = sys_fstatfs(fileno(fl->fp), &s);
+  else if (fl->fd != -1)
+    rc = sys_fstatfs(fl->fd, &s);
+
+  // can't stat, and we don't have a foreign FS
+  if (rc != 0)
+    QIO_RETURN_CONSTANT_ERROR(ENOTSUP, "Unable to find file system type");
+
+  if (s.f_type == LUSTRE_SUPER_MAGIC) {
+    *out = FTYPE_LUSTRE;
+    return 0;
+  }
+
+  // else
+  *out = FTYPE_NONE;
+  return 0;
+}
+
+
+qioerr qio_get_chunk(qio_file_t* fl, int64_t* len_out)
+{
+  // In the case where we do not have a Lustre or block type fs, we set the chunk
+  // size to be the optimal transfer block size
+  qioerr err = 0;
+  int fd = 0;
+  sys_statfs_t s;
+
+  if (fl->fsfns && fl->fsfns->get_chunk) {
+    err = fl->fsfns->get_chunk(fl->file_info, len_out, fl->fs_info);
+  } else {
+    fd = fl->fd;
+    if (fl->fp) fd = fileno(fl->fp);
+
+#ifdef SYS_HAS_LLAPI 
+    {
+      int ftype = 0;
+      // This will be set in the lustre plugin if we have Lustre support available
+      err = qio_get_fs_type(fl, &ftype);
+      if (ftype == FTYPE_LUSTRE) {
+        // lustre FS
+        err = qio_int_to_err(sys_lustre_get_stripe_size(fd, len_out));
+      } else {
+        // non-lustre FS
+        err = qio_int_to_err(sys_fstatfs(fd, &s));
+        *len_out = s.f_bsize;
+      }
+    }
+#else
+    err = qio_int_to_err(sys_fstatfs(fd, &s));
+    *len_out = s.f_bsize;
+#endif
+  }
+
+  return err;
+}
+
+qioerr qio_locales_for_region(qio_file_t* fl, off_t start, off_t end, const char*** loc_names_out, int* num_locs_out)
+{ 
+  qioerr err = 0;
+  if (fl->fsfns && fl->fsfns->get_locales_for_region) {
+    err = fl->fsfns->get_locales_for_region(fl->file_info, start, end, loc_names_out, num_locs_out, fl->fs_info);
+    return err;
+  } else {
+    *num_locs_out = 0;
+    QIO_RETURN_CONSTANT_ERROR(ENOSYS, "Unable to get locale for specified region of file");
+  }
 }
 
