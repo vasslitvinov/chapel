@@ -1,5 +1,4 @@
 use LocalesRepDist;
-use ReplicatedDist;
 
 class LocalesDist : BaseDist {
   proc dsiClone() : LocalesDist {
@@ -57,17 +56,22 @@ class LocalesDom : BaseRectangularDom {
       if backingDom.high > numLocales {
         halt("LocalesDom can not perform a parallel iteration over more locales than exist");
       }
+      // We need to clarify how an element of backingDom is mapped to
+      // a node ID. Comparison of backingDom.high vs. numLocales above
+      // is inconsistent with adjustment by backingDom.low
+      // in __primitive("chpl_on_locale_num", ...) below.  -Vass
+      const lowAdj = backingDom.low;
       if numLocales == 1 {
         for locIdx in backingDom {
-          const adjLocIdx = locIdx-backingDom.low;
+          const adjLocIdx = locIdx-lowAdj;
           yield (adjLocIdx..adjLocIdx,);
         }
       } else {
         coforall locIdx in backingDom {
-          const adjLocIdx = locIdx-backingDom.low;
           on __primitive("chpl_on_locale_num",
                          chpl_buildLocaleID(adjLocIdx:chpl_nodeID_t,
                                             c_sublocid_any)) {
+            const adjLocIdx = locIdx-lowAdj;
             yield (adjLocIdx..adjLocIdx,);
           }
         }
