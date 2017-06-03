@@ -135,13 +135,13 @@ class DiagonalDom: BaseRectangularDom {
 // rank: generic domain rank
 // idxType: generic domain index type
 // stridable: generic domain stridable parameter
-// myDiagonal: a non-distributed domain that defines the local indices
+// myBlock: a non-distributed domain that defines the local indices
 //
 class LocDiagonalDom {
   param rank: int;
   type idxType;
   param stridable: bool;
-  var myDiagonal: domain(rank, idxType, stridable);
+  var myBlock: domain(rank, idxType, stridable);
 }
 
 //
@@ -183,7 +183,7 @@ class LocDiagonalArr {
   param stridable: bool;
   const locDom: LocDiagonalDom(rank, idxType, stridable);
   // TODO diagonal - adjust
-  var myElems: [locDom.myDiagonal] eltType;
+  var myElems: [locDom.myBlock] eltType;
 }
 
 //
@@ -397,7 +397,7 @@ proc DiagonalDom.dsiMyDist() return dist;
 proc DiagonalDom.dsiDisplayRepresentation() {
   writeln("whole = ", whole);
   for tli in dist.targetLocDom do
-    writeln("locDoms[", tli, "].myDiagonal = ", locDoms[tli].myDiagonal);
+    writeln("locDoms[", tli, "].myBlock = ", locDoms[tli].myBlock);
 }
 
 proc DiagonalDom.dsiDims() return whole.dims();
@@ -448,17 +448,17 @@ iter DiagonalDom.these(param tag: iterKind) where tag == iterKind.leader {
     // Use the internal function for untranslate to avoid having to do
     // extra work to negate the offset
     type strType = chpl__signedType(idxType);
-    const tmpDiagonal = locDom.myDiagonal.chpl__unTranslate(wholeLow);
+    const tmpBlock = locDom.myBlock.chpl__unTranslate(wholeLow);
     var locOffset: rank*idxType;
-    for param i in 1..tmpDiagonal.rank {
-      const stride = tmpDiagonal.dim(i).stride;
+    for param i in 1..tmpBlock.rank {
+      const stride = tmpBlock.dim(i).stride;
       if stride < 0 && strType != idxType then
         halt("negative stride not supported with unsigned idxType");
         // (since locOffset is unsigned in that case)
-      locOffset(i) = tmpDiagonal.dim(i).first / stride:idxType;
+      locOffset(i) = tmpBlock.dim(i).first / stride:idxType;
     }
     // Forward to defaultRectangular
-    for followThis in tmpDiagonal._value.these(iterKind.leader,
+    for followThis in tmpBlock._value.these(iterKind.leader,
                                             locOffset) do
       yield followThis;
   }
@@ -576,7 +576,7 @@ proc DiagonalDom.setup() {
   } else {
     coforall localeIdx in dist.targetLocDom do {
       on dist.targetLocales(localeIdx) do
-        locDoms(localeIdx).myDiagonal = dist.getChunk(whole, localeIdx);
+        locDoms(localeIdx).myBlock = dist.getChunk(whole, localeIdx);
     }
   }
 }
@@ -599,7 +599,7 @@ proc DiagonalDom.dsiIndexOrder(i) {
 //
 // Added as a performance stopgap to avoid returning a domain
 //
-proc LocDiagonalDom.member(i) return myDiagonal.member(i);
+proc LocDiagonalDom.member(i) return myBlock.member(i);
 
 proc DiagonalArr.dsiDisplayRepresentation() {
   for tli in dom.dist.targetLocDom {
@@ -960,7 +960,7 @@ proc DiagonalDom.dsiHasSingleLocalSubdomain() param return true;
 
 // TODO diagonal - adjust
 proc DiagonalArr.dsiLocalSubdomain() {
-  return myLocArr.locDom.myDiagonal;
+  return myLocArr.locDom.myBlock;
 }
 proc DiagonalDom.dsiLocalSubdomain() {
   // TODO -- could be replaced by a privatized myLocDom in DiagonalDom
@@ -970,5 +970,5 @@ proc DiagonalDom.dsiLocalSubdomain() {
     if loc == here then
       myLocDom = locDom;
   }
-  return myLocDom.myDiagonal;
+  return myLocDom.myBlock;
 }
