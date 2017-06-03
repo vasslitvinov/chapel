@@ -458,8 +458,8 @@ iter DiagonalDom.these(param tag: iterKind) where tag == iterKind.leader {
       locOffset(i) = tmpBlock.dim(i).first / stride:idxType;
     }
     // Forward to defaultRectangular
-    for followThis in tmpBlock._value.these(iterKind.leader,
-                                            locOffset) do
+    for followThis in tmpBlock._value.these(tag=iterKind.leader,
+                                            offset=locOffset) do
       yield followThis;
   }
 }
