@@ -1,0 +1,12 @@
+#!/bin/bash
+
+outfile=$2
+
+sed '
+  /In function .main.:/d;
+  /note: to formal of type domain(1,int(64),false)/d;
+  s@^[^:.]*\.chpl:*:@filename.chpl:@
+' \
+$outfile > $outfile.tmp
+
+mv $outfile.tmp $outfile

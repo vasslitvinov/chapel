@@ -4227,32 +4227,37 @@ void printTaskOrForallConstErrorNote(Symbol* aVar) {
 
   if (isArgSymbol(aVar) || aVar->hasFlag(FLAG_TEMP)) {
     Symbol*     enclTaskFn    = aVar->defPoint->parentSymbol;
-    BaseAST*    marker        = NULL;
+    BaseAST*    marker        = enclTaskFn;
     const char* constructName = NULL;
 
-    if (enclTaskFn->hasFlag(FLAG_BEGIN)) {
-      // enclTaskFn points to a good line number
-      marker        = enclTaskFn;
-      constructName = "begin";
+    while (enclTaskFn->hasFlag(FLAG_ON) &&
+           !enclTaskFn->hasFlag(FLAG_NON_BLOCKING))
+      // Move up to the caller, which corresponds to the lexically-enclosing
+      // parallel or 'on' statement.
+      enclTaskFn = enclTaskFn->firstSymExpr()->parentSymbol;
 
+    if (enclTaskFn->hasFlag(FLAG_BEGIN)) {
+      constructName = "begin";
     } else {
-      marker        = enclTaskFn->defPoint->parentExpr;
+      INT_ASSERT(enclTaskFn->hasFlag(FLAG_COBEGIN_OR_COFORALL));
       constructName = "parallel";
     }
 
-    USR_PRINT(marker,
-              "The shadow variable '%s' is constant due to task intents "
-              "in this %s statement",
-              varname,
-              constructName);
+    // Alas the line number for 'enclTaskFn' is not necessarily
+    // where the actual begin/cobegin/coforall statement is.
+    // Instead use the line number for the _EndCount formal.
+    // The heuristic is to pick the last such formal.
+    if (FnSymbol* enclTaskFnFn = toFnSymbol(enclTaskFn))
+      for_formals(formal, enclTaskFnFn)
+        if (formal->type->symbol->hasFlag(FLAG_END_COUNT))
+          marker = formal;
+
+    USR_PRINT(marker, "The shadow variable '%s' is constant due to task intents in this %s statement", varname, constructName);
 
   } else {
     Expr* enclLoop = aVar->defPoint->parentExpr;
 
-    USR_PRINT(enclLoop,
-              "The shadow variable '%s' is constant due to forall intents "
-              "in this loop",
-              varname);
+    USR_PRINT(enclLoop, "The shadow variable '%s' is constant due to forall intents in this loop", varname);
   }
 }
 
