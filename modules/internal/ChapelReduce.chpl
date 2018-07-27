@@ -20,6 +20,7 @@
 // ChapelReduce.chpl
 //
 module ChapelReduce {
+/*
   use ChapelStandard;
 
   iter chpl__scanIteratorZip(op, data) {
@@ -293,5 +294,5 @@ module ChapelReduce {
     proc generate() return value;
     proc clone() return new unmanaged minloc(eltType=eltType);
   }
-
+*/
 }

@@ -3275,8 +3275,15 @@ module ChapelArray {
     //
     if isArrayType(this.eltType) {
       var ret = true;
+/*VASS
       forall (thisArr, thatArr) in zip(this, that) with (&& reduce ret) do
         ret &&= thisArr.equals(thatArr);
+*/
+//vass start
+      for (thisArr, thatArr) in zip(this, that) do
+        if !thisArr.equals(thatArr) then
+          return false;
+//vass end
       return ret;
     } else {
       return && reduce (this == that);

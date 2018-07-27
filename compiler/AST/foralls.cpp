@@ -1052,11 +1052,32 @@ void static setupRecIterFields(ForallStmt* fs)
   holder->remove();
 }
 
+static void setupFinalGenerates(ForallStmt* fs) {
+  for_shadow_vars(svar, temp, fs)
+    if (svar->isReduce()) {
+      SET_LINENO(svar);
+      ShadowVarSymbol* RP = svar->ReduceOpForAccumState();
+      Symbol*    globalAS = svar; // to be substituted during lowering
+      Symbol*    globalOp = RP->outerVarSym();
+      Symbol*    outerVar = svar->outerVarSym();
+      // TODO: choose which generate() to invoke?
+      // generate() calls are to happen in the reverse order
+      // of how reduce intents are given in the source code.
+      // globalOp.generate(outerVar, globalAS)
+      fs->fGenerates->insertAtHead("generate(%S,%S,%S,%S)",
+                               gMethodToken, globalOp, outerVar, globalAS);
+    }
+
+  // This may not resolve if postponed until lowerIterators.
+  resolveBlockStmt(fs->fGenerates);
+}
+
 void resolveForallStmts1() {
   forv_Vec(ForallStmt, fs, gForallStmts) {
     if (!fs->inTree() || !fs->getFunction()->isResolved())
       continue;
     setupRecIterFields(fs);
+    setupFinalGenerates(fs);
   }
 }
 

@@ -25,6 +25,7 @@
 #include "resolution.h"
 #include "stringutil.h"
 #include "wellknown.h"
+#include "view.h" //wass
 
 /*
 
@@ -393,6 +394,7 @@ static void setupForREF(ForallStmt* fs, ShadowVarSymbol* SR, Symbol* gR,
                         BlockStmt* IB, BlockStmt* DB) {
 }  // nothing for a REF intent
 
+#if 0 // wass
 // Set up the SVar for the ReduceOp class.
 static void setupForReduce_OP(ForallStmt* fs, ShadowVarSymbol* RP, Symbol* gOp,
                               BlockStmt* IB, BlockStmt* DB) {
@@ -412,13 +414,30 @@ static void setupForReduce_AS(ForallStmt* fs, ShadowVarSymbol* AS, Symbol* dum,
   DB->insertAtTail("accumulate(%S,%S,%S)", gMethodToken, RP, AS);
   insertDeinitialization(DB, AS);
 }
+#endif
 
-static void setupForReduce(ForallStmt* fs, ShadowVarSymbol* AS, Symbol* AS_ovar,
+static void setupForReduce(ForallStmt* fs, ShadowVarSymbol* AS, Symbol* ASovar,
                            BlockStmt* IB, BlockStmt* DB) {
-  ShadowVarSymbol* RP = create_REDUCE_OP(fs, AS);
-  setupForReduce_OP(fs, RP, RP->outerVarSym(),
-                    RP->initBlock(), RP->deinitBlock());
-  setupForReduce_AS(fs, AS, AS_ovar, IB, DB);
+  ShadowVarSymbol* RP     = create_REDUCE_OP(fs, AS);
+  Symbol*          RPovar = RP->outerVarSym();
+
+printf("fs %d %s   AS %d %s  RPovar %d %s\n", fs->id, debugLoc(fs),
+       AS->id, AS->name, RPovar->id, RPovar->name);
+
+  // The code within IB/DB will be inserted after/before, resp., the code
+  // within RP->initBlock()/RP->deinitBlock().
+
+  /// at task startup ///
+  insertInitialization(RP->initBlock(), RP, RPovar);
+  insertInitialization(IB, AS,
+    new_Expr("newAccumState(%S,%S)", gMethodToken, RP));
+
+  /// at task teardown ///
+  // chpl__reduceCombine(parentOp, parentAS, childAS) et al.
+  // vass todo
+  DB->insertAtTail("chpl__reduceCombine(%S,%S,%S)", RPovar, ASovar, AS);
+  insertDeinitialization(DB, AS);
+  insertDeinitialization(RP->deinitBlock(), RP);
 }
 
 static void setupForTaskPrivate(ForallStmt* fs, ShadowVarSymbol* TPV,
@@ -972,6 +991,8 @@ static void expandTopLevel(ExpandVisitor* outerVis,
 
   for_shadow_vars(svar, temp, outerVis->forall)
     expandShadowVarTopLevel(aInit, aFini, map, svar);
+
+  gdbShouldBreakHere(); //vass
 }
 
 
@@ -1295,6 +1316,12 @@ static void lowerOneForallStmt(ForallStmt* fs) {
 
   // Traverse recursively.
   ibody->accept(&outerVis);
+
+  if (! fs->fGenerates->body.empty()) {
+    BlockStmt* generate = fs->fGenerates->copy(&map);
+    iwrap->insertAtTail(generate);
+    generate->flattenAndRemove();
+  }
 
   fs->remove();
   // We could also do {iwrap,ibody}->flattenAndRemove().
