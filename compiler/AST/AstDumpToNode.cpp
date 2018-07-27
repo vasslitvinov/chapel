@@ -417,7 +417,6 @@ bool AstDumpToNode::enterForallStmt(ForallStmt* node)
     writeField("fRecIterFreeIterator: ", 20, node->fRecIterFreeIterator);
   }
   writeField("loopBody: ", 10, node->loopBody());
-  writeField("fGenerates: ", 12, node->fGenerates);
 
   mOffset = mOffset - 2;
   newline();

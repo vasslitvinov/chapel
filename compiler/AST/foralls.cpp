@@ -1053,6 +1053,7 @@ void static setupRecIterFields(ForallStmt* fs)
 }
 
 static void setupFinalGenerates(ForallStmt* fs) {
+/*VASS CONTINUE HERE
   for_shadow_vars(svar, temp, fs)
     if (svar->isReduce()) {
       SET_LINENO(svar);
@@ -1070,6 +1071,7 @@ static void setupFinalGenerates(ForallStmt* fs) {
 
   // This may not resolve if postponed until lowerIterators.
   resolveBlockStmt(fs->fGenerates);
+*/
 }
 
 void resolveForallStmts1() {

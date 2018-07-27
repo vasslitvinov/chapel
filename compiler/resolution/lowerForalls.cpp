@@ -1317,12 +1317,6 @@ static void lowerOneForallStmt(ForallStmt* fs) {
   // Traverse recursively.
   ibody->accept(&outerVis);
 
-  if (! fs->fGenerates->body.empty()) {
-    BlockStmt* generate = fs->fGenerates->copy(&map);
-    iwrap->insertAtTail(generate);
-    generate->flattenAndRemove();
-  }
-
   fs->remove();
   // We could also do {iwrap,ibody}->flattenAndRemove().
 

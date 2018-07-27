@@ -89,9 +89,6 @@ public:
   DefExpr*       fRecIterICdef;
   CallExpr*      fRecIterGetIterator;
   CallExpr*      fRecIterFreeIterator;
-
-  // for the final generate() calls
-  BlockStmt*     fGenerates;   // always present
 };
 
 /* fFromForLoop and its accessors

@@ -42,8 +42,7 @@ ForallStmt::ForallStmt(bool zippered, BlockStmt* body):
   fRecIterIRdef(NULL),
   fRecIterICdef(NULL),
   fRecIterGetIterator(NULL),
-  fRecIterFreeIterator(NULL),
-  fGenerates(new BlockStmt())
+  fRecIterFreeIterator(NULL)
 {
   fIterVars.parent = this;
   fIterExprs.parent = this;
@@ -71,9 +70,6 @@ ForallStmt* ForallStmt::copyInner(SymbolMap* map) {
   _this->fRecIterGetIterator  = COPY_INT(fRecIterGetIterator);
   _this->fRecIterFreeIterator = COPY_INT(fRecIterFreeIterator);
 
-  for_alist(expr, fGenerates->body)
-    _this->fGenerates->insertAtTail(COPY_INT(expr));
-
   return _this;
 }
 
@@ -89,8 +85,6 @@ void ForallStmt::replaceChild(Expr* oldAst, Expr* newAst) {
     fRecIterGetIterator = toCallExpr(newAst);
   else if (oldAst == fRecIterFreeIterator)
     fRecIterFreeIterator = toCallExpr(newAst);
-  else if (oldAst == fGenerates)
-    fGenerates = toBlockStmt(newAst);
 
   else
     INT_ASSERT(false);
@@ -152,10 +146,6 @@ void ForallStmt::verify() {
   INT_ASSERT(!fLoopBody->byrefVars);
   INT_ASSERT(!fLoopBody->forallIntents);
 
-  INT_ASSERT(fGenerates);
-  verifyParent(fGenerates);
-  verifyNotOnList(fGenerates);
-
   // ForallStmts are lowered away during lowerIterators().
   INT_ASSERT(!iteratorsLowered);
 }
@@ -173,8 +163,6 @@ void ForallStmt::accept(AstVisitor* visitor) {
     if (fRecIterFreeIterator) fRecIterFreeIterator->accept(visitor);
     
     fLoopBody->accept(visitor);
-
-    fGenerates->accept(visitor);
 
     visitor->exitForallStmt(this);
   }
@@ -226,9 +214,6 @@ Expr* ForallStmt::getNextExpr(Expr* expr) {
     return fLoopBody->getFirstExpr();
 
   if (expr == fLoopBody)
-    return fGenerates->getFirstExpr();;
-
-  if (expr == fGenerates)
     return this;
 
   INT_ASSERT(false); // should have done one of the above
