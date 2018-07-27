@@ -2132,8 +2132,6 @@ static Symbol* setupRiGlobalOp(ForallStmt* fs, Symbol* fiVarSym,
 
   hld->flattenAndRemove();
 
-  // Todo: this replace() is somewhat expensive.
-  // Can instead we update fs->riSpecs[i] aka 'riSpec' in-place?
   origRiSpec->replace(new SymExpr(globalOp));
   
   return globalOp;
