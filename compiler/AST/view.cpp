@@ -148,7 +148,7 @@ list_ast(BaseAST* ast, BaseAST* parentAst = NULL, int indent = 0) {
   if (Expr* expr = toExpr(ast)) {
     if (ForallStmt* pfs = toForallStmt(parentAst)) {
       if (expr == pfs->fRecIterIRdef) {
-        print_on_its_own_line(indent, "fRecIterIRdef et al.\n");
+        print_on_its_own_line(indent, "fRecIterIRdef et al.\n", false);
       } else if (expr == pfs->loopBody()) {
         if (pfs->numShadowVars() == 0)
           print_on_its_own_line(indent, "with() do\n");
@@ -246,16 +246,9 @@ list_ast(BaseAST* ast, BaseAST* parentAst = NULL, int indent = 0) {
         printf("}"); // newline is coming
       else
         printf("}\n");
-      if (ForallStmt* pfs = toForallStmt(parentAst)) {
-        if (expr == pfs->fGenerates) {
-          print_indent(indent);
-          printf("        end forall %d", parentAst->id);
-        } else if (expr == pfs->fRecIterIRdef        ||
-                   expr == pfs->fRecIterICdef        ||
-                   expr == pfs->fRecIterGetIterator  ||
-                   expr == pfs->fRecIterFreeIterator  ) {
-          printf("\n");
-        }
+      if (isForallLoopBody(expr) && parentAst != NULL) {
+        print_indent(indent);
+        printf("      end forall %d", parentAst->id);
       }
     } else if (LoopExpr* e = toLoopExpr(expr)) {
       if (e->cond) printf(") ");
@@ -292,15 +285,25 @@ list_ast(BaseAST* ast, BaseAST* parentAst = NULL, int indent = 0) {
       if (cond->condExpr == expr)
         printf("\n");
     } else if (ForallStmt* pfs = toForallStmt(parentAst)) {
-      if (AList* list = expr->list)
-        if (list->parent == pfs)
+      if (AList* list = expr->list) {
+        if (list == &pfs->inductionVariables()  ||
+            list == &pfs->iteratedExpressions() ) {
           if (expr != list->tail)
             printf("\n");
-      if (expr == pfs->inductionVariables().tail) {
-        print_on_its_own_line(indent, pfs->zippered() ? "in zip\n" : "in\n");
-      } else if (expr == pfs->iteratedExpressions().tail &&
-                 pfs->numShadowVars() > 0) {
-        print_on_its_own_line(indent, "with\n");
+          if (expr == pfs->inductionVariables().tail) {
+            print_on_its_own_line(indent, pfs->zippered() ? "in zip\n" : "in\n");
+          } else if (expr == pfs->iteratedExpressions().tail &&
+                     pfs->numShadowVars() > 0) {
+            print_on_its_own_line(indent, "with\n");
+          }
+        }
+      } else {
+        if (expr == pfs->fRecIterIRdef        ||
+            expr == pfs->fRecIterICdef        ||
+            expr == pfs->fRecIterGetIterator  ||
+            expr == pfs->fRecIterFreeIterator )
+          printf("\n");
+ 
       }
     } else if (!toCondStmt(expr) && do_list_line) {
       DefExpr* def = toDefExpr(expr);
