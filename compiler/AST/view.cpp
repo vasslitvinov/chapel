@@ -48,6 +48,18 @@
 int  debugShortLoc  = true;
 bool whocalls_nview = false;
 
+static void print_indent(int indent) {
+  for (int i = 0; i < indent; i++) printf(" ");
+}
+
+static void print_on_its_own_line(int indent, const char* msg,
+                                  bool newline = true) {
+  if (newline) printf("\n");
+  printf("%6c", ' ');
+  print_indent(indent);
+  printf("%s", msg);
+}
+
 static void
 list_sym(Symbol* sym, bool type = true) {
   if (VarSymbol* var = toVarSymbol(sym)) {
@@ -113,6 +125,24 @@ forall_explanation_start(BaseAST* ast, BaseAST* parentAst) {
   return NULL;
 }
 
+static void
+forall_preamble(Expr* expr, BaseAST* parentAst, int indent) {
+  if (ForallStmt* pfs = toForallStmt(parentAst)) {
+    if (expr == pfs->fRecIterIRdef) {
+      print_on_its_own_line(indent, "fRecIterIRdef et al.\n", false);
+    } else if (expr == pfs->loopBody()) {
+      if (pfs->numShadowVars() == 0)
+        print_on_its_own_line(indent, "with() do\n");
+      else
+        print_on_its_own_line(indent, "do\n", false);
+    }
+  } else if (ShadowVarSymbol* svar = toShadowVarSymbol(parentAst)) {
+    if (expr == svar->outerVarSE                          ||
+        ( expr == svar->initBlock() && !svar->outerVarSE ) )
+      printf("\n");
+  }
+}
+
 static bool
 list_line(Expr* expr, BaseAST* parentAst) {
   if (expr->isStmt())
@@ -129,34 +159,13 @@ list_line(Expr* expr, BaseAST* parentAst) {
   return false;
 }
 
-static void print_indent(int indent) {
-  for (int i = 0; i < indent; i++) printf(" ");
-}
-static void print_on_its_own_line(int indent, const char* msg,
-                                  bool newline = true) {
-  if (newline) printf("\n");
-  printf("%6c", ' ');
-  print_indent(indent);
-  printf("%s", msg);
-}
-
 static void
 list_ast(BaseAST* ast, BaseAST* parentAst = NULL, int indent = 0) {
   bool do_list_line = false;
   bool is_C_loop = false;
   const char* block_explain = NULL;
   if (Expr* expr = toExpr(ast)) {
-    if (ForallStmt* pfs = toForallStmt(parentAst)) {
-      if (expr == pfs->fRecIterIRdef) {
-        print_on_its_own_line(indent, "fRecIterIRdef et al.\n", false);
-      } else if (expr == pfs->loopBody()) {
-        if (pfs->numShadowVars() == 0)
-          print_on_its_own_line(indent, "with() do\n");
-        else
-          print_on_its_own_line(indent, "do\n", false);
-        //wass - remove? indent -= 2;
-      }
-    }
+    forall_preamble(expr, parentAst, indent);
     do_list_line = !parentAst || list_line(expr, parentAst);
     if (do_list_line) {
       printf("%-7d ", expr->id);
