@@ -125,8 +125,7 @@ forall_explanation_start(BaseAST* ast, BaseAST* parentAst) {
   return NULL;
 }
 
-static void
-forall_preamble(Expr* expr, BaseAST* parentAst, int indent) {
+static void forallPreamble(Expr* expr, BaseAST* parentAst, int indent) {
   if (ForallStmt* pfs = toForallStmt(parentAst)) {
     if (expr == pfs->fRecIterIRdef) {
       print_on_its_own_line(indent, "fRecIterIRdef et al.\n", false);
@@ -141,6 +140,63 @@ forall_preamble(Expr* expr, BaseAST* parentAst, int indent) {
         ( expr == svar->initBlock() && !svar->outerVarSE ) )
       printf("\n");
   }
+}
+
+static void forallPostamble(Expr* expr, ForallStmt* pfs, int indent) {
+  if (AList* list = expr->list) {
+    if (list == &pfs->inductionVariables()  ||
+        list == &pfs->iteratedExpressions() ) {
+      if (expr != list->tail)
+        printf("\n");
+      if (expr == pfs->inductionVariables().tail) {
+        print_on_its_own_line(indent, pfs->zippered() ? "in zip\n" : "in\n");
+      } else if (expr == pfs->iteratedExpressions().tail &&
+                 pfs->numShadowVars() > 0) {
+        print_on_its_own_line(indent, "with\n");
+      }
+    }
+  } else {
+    if (expr == pfs->fRecIterIRdef        ||
+        expr == pfs->fRecIterICdef        ||
+        expr == pfs->fRecIterGetIterator  ||
+        expr == pfs->fRecIterFreeIterator )
+      printf("\n");
+
+  }
+}
+
+static void usePostamble(UseStmt* use, int indent) {
+  if (use->isPlainUse())
+    return;
+
+  if (use->hasExceptList()) {
+    printf("except ");
+  } else {
+    printf("only ");
+  }
+
+  bool first = true;
+
+  for_vector(const char, str, use->named) {
+    if (first) {
+      first = false;
+    } else {
+      printf(", ");
+    }
+    printf("%s", str);
+  }
+
+  for (std::map<const char*, const char*>::iterator it = use->renamed.begin();
+       it != use->renamed.end(); ++it) {
+    if (first) {
+      first = false;
+    } else {
+      printf(", ");
+    }
+    printf("%s as %s", it->second, it->first);
+  }
+
+  printf("\n");
 }
 
 static bool
@@ -165,7 +221,7 @@ list_ast(BaseAST* ast, BaseAST* parentAst = NULL, int indent = 0) {
   bool is_C_loop = false;
   const char* block_explain = NULL;
   if (Expr* expr = toExpr(ast)) {
-    forall_preamble(expr, parentAst, indent);
+    forallPreamble(expr, parentAst, indent);
     do_list_line = !parentAst || list_line(expr, parentAst);
     if (do_list_line) {
       printf("%-7d ", expr->id);
@@ -263,57 +319,12 @@ list_ast(BaseAST* ast, BaseAST* parentAst = NULL, int indent = 0) {
       if (e->cond) printf(") ");
       else         printf("} ");
     } else if (UseStmt* use = toUseStmt(expr)) {
-      if (!use->isPlainUse()) {
-        if (use->hasExceptList()) {
-          printf("except ");
-        } else {
-          printf("only ");
-        }
-        bool first = true;
-        for_vector(const char, str, use->named) {
-          if (first) {
-            first = false;
-          } else {
-            printf(", ");
-          }
-          printf("%s", str);
-        }
-
-        for (std::map<const char*, const char*>::iterator it = use->renamed.begin();
-             it != use->renamed.end(); ++it) {
-          if (first) {
-            first = false;
-          } else {
-            printf(", ");
-          }
-          printf("%s as %s", it->second, it->first);
-        }
-        printf("\n");
-      }
+      usePostamble(use, indent);
     } else if (CondStmt* cond = toCondStmt(parentAst)) {
       if (cond->condExpr == expr)
         printf("\n");
     } else if (ForallStmt* pfs = toForallStmt(parentAst)) {
-      if (AList* list = expr->list) {
-        if (list == &pfs->inductionVariables()  ||
-            list == &pfs->iteratedExpressions() ) {
-          if (expr != list->tail)
-            printf("\n");
-          if (expr == pfs->inductionVariables().tail) {
-            print_on_its_own_line(indent, pfs->zippered() ? "in zip\n" : "in\n");
-          } else if (expr == pfs->iteratedExpressions().tail &&
-                     pfs->numShadowVars() > 0) {
-            print_on_its_own_line(indent, "with\n");
-          }
-        }
-      } else {
-        if (expr == pfs->fRecIterIRdef        ||
-            expr == pfs->fRecIterICdef        ||
-            expr == pfs->fRecIterGetIterator  ||
-            expr == pfs->fRecIterFreeIterator )
-          printf("\n");
- 
-      }
+      forallPostamble(expr, pfs, indent);
     } else if (!toCondStmt(expr) && do_list_line) {
       DefExpr* def = toDefExpr(expr);
       if (!(def && early_newline))
