@@ -21,6 +21,7 @@
 
 #include "resolveFunction.h"
 #include "UnmanagedClassType.h"
+#include "view.h" //wass
 
 //
 //-----------------------------------------------------------------------------
@@ -1989,6 +1990,7 @@ static void resolveOneShadowVar(ForallStmt* fs, ShadowVarSymbol* svar) {
 static void insertAndResolveInitialAccumulate(ForallStmt* fs, BlockStmt* hld,
                                             Symbol* globalOp, Symbol* outerVar)
 {
+#if 0 //wass
   CallExpr* initAccum = new CallExpr("initialAccumulate", gMethodToken,
                                      globalOp, outerVar);
   if (hld)
@@ -2023,10 +2025,12 @@ static void insertAndResolveInitialAccumulate(ForallStmt* fs, BlockStmt* hld,
   }
 
   resolveFnForCall(initAccumOutcome, initAccum);
+#endif
 }
 
 // Finalize the reduction:  outerVar = globalOp.generate()
 static void insertFinalGenerate(Expr* ref, Symbol* fiVarSym, Symbol* globalOp) {
+#if 0 //wass -no-op for now
   Expr* next = ref->next; // nicer ordering of the following insertions
   INT_ASSERT(next);
   VarSymbol* genTemp = newTemp("chpl_gentemp");
@@ -2034,6 +2038,7 @@ static void insertFinalGenerate(Expr* ref, Symbol* fiVarSym, Symbol* globalOp) {
   next->insertBefore("'move'(%S, generate(%S,%S))",
                      genTemp, gMethodToken, globalOp);
   next->insertBefore(new CallExpr("=", fiVarSym, genTemp));
+#endif
 }
 
 static void moveInstantiationPoint(BlockStmt* to, BlockStmt* from, Type* type) {
@@ -2091,14 +2096,14 @@ static Symbol* setupRiGlobalOp(ForallStmt* fs, Symbol* fiVarSym,
 
 
   {
-    NamedExpr* newArg = new NamedExpr("eltType", eltTypeArg);
+    NamedExpr* newArg = new NamedExpr("inputType", eltTypeArg);
     CallExpr* newCall = new CallExpr(PRIM_NEW, new SymExpr(riTypeSym), newArg,
                                      new NamedExpr(astr_chpl_manager,
                                          new SymExpr(dtUnmanaged->symbol)));
     hld->insertAtTail(new CallExpr(PRIM_MOVE, globalOp, newCall));
   }
 
-  fs->insertAfter("chpl__delete(%S)", globalOp);
+  fs->insertAfter("chpl__autoDestroy(%S)", globalOp);
   insertFinalGenerate(fs, fiVarSym, globalOp);
 
   resolveBlockStmt(hld);
@@ -2162,45 +2167,21 @@ static ShadowVarSymbol* create_REDUCE_OP(ForallStmt* fs, ShadowVarSymbol* AS)
 {
   SymExpr* gOpSE = toSymExpr(AS->reduceOpExpr()->remove());
   Symbol*  gOp   = gOpSE->symbol();
-  // Handling of the case of gOp being a type should have happened earlier.
+
+  // The case of gOp being a type is handled in handleRISpec().
   INT_ASSERT(!gOp->hasFlag(FLAG_TYPE_VARIABLE));
 
   ShadowVarSymbol* RP = new ShadowVarSymbol(TFI_REDUCE_OP,
                                             astr("RP_", AS->name), gOpSE);
 
-  // It always points to the same reduction op class instance.
-  RP->addFlag(FLAG_CONST);
-  RP->qual = QUAL_CONST_VAL;
+  RP->qual = QUAL_VAL;
   RP->type = gOp->type;
 
   // It goes on the shadow variable list right before AS.
   AS->defPoint->insertBefore(new DefExpr(RP));
-  INT_ASSERT(AS->ReduceOpForAccumState() == RP);  // ensure ReduceOpForAccumState() works
+  INT_ASSERT(AS->ReduceOpForAccumState() == RP); //ReduceOpForAccumState works?
 
   return RP;
-}
-
-// Set up the SVar for the ReduceOp class.
-static void setupForReduce_OP(ForallStmt* fs, ShadowVarSymbol* RP) {
-  Symbol*    gOp = RP->outerVarSym();
-  BlockStmt* IB  = RP->initBlock();
-  BlockStmt* DB  = RP->deinitBlock();
-
-  IB->insertAtTail("'move'(%S, clone(%S,%S))", // initialization
-                   RP, gMethodToken, gOp);
-
-  DB->insertAtTail("chpl__reduceCombine(%S,%S)", gOp, RP);
-  DB->insertAtTail("chpl__cleanupLocalOp(%S,%S)", gOp, RP); // deletes RP
-}
-
-// Set up the SVar for the Accumulation State.
-static void setupForReduce_AS(ForallStmt* fs, ShadowVarSymbol* AS) {
-  ShadowVarSymbol* RP = AS->ReduceOpForAccumState();
-  insertInitialization(AS, new_Expr("identity(%S,%S)", gMethodToken, RP));
-
-  BlockStmt* DB  = AS->deinitBlock();
-  DB->insertAtTail("accumulate(%S,%S,%S)", gMethodToken, RP, AS);
-  insertDeinitialization(AS);
 }
 
 static void handleReduce(ForallStmt* fs, ShadowVarSymbol* AS) {
@@ -2217,10 +2198,30 @@ static void handleReduce(ForallStmt* fs, ShadowVarSymbol* AS) {
   AS->qual = QUAL_REF;
   AS->type = dtUnknown;
 
-  // The RP shadow var is the reduction-op object.
+  // The RP shadow var is the reduction-op record.
   ShadowVarSymbol* RP = create_REDUCE_OP(fs, AS);
-  setupForReduce_OP(fs, RP);
-  setupForReduce_AS(fs, AS);
+  Symbol*      RPovar = RP->outerVarSym();
+
+printf("fs %d %s   AS %d %s   RPovar %d %s\n", fs->id, debugLoc(fs),
+       AS->id, AS->name, RPovar->id, RPovar->name);
+
+  // The init blocks are to go at task startup in this order:
+  //   RP, AS
+  // The deinit blocks go at task teardown in the reverse order.
+
+  /// at task startup ///
+  insertInitialization(RP, RPovar);
+  insertInitialization(AS, new_Expr(
+    "newAccumState(%S,%S)", gMethodToken, RP));
+
+  /// at task teardown ///
+  // chpl__reduceCombine(parentOp, parentAS, childAS) et al.
+  // vass todo
+  AS->deinitBlock()->insertAtTail(
+    "chpl__reduceCombine(%S,%S,%S)", RPovar, ASovar, AS);
+
+  insertDeinitialization(AS);
+  insertDeinitialization(RP);
 
   resolveOneShadowVar(fs, RP);
 }

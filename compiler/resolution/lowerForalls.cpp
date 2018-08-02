@@ -25,6 +25,7 @@
 #include "resolution.h"
 #include "stringutil.h"
 #include "wellknown.h"
+#include "view.h" //wass
 
 /*
 
@@ -774,6 +775,8 @@ static void expandTopLevel(ExpandVisitor* outerVis,
 
   for_shadow_vars(svar, temp, outerVis->forall)
     expandShadowVarTopLevel(aInit, aFini, map, svar);
+
+  gdbShouldBreakHere(); //wass
 }
 
 
