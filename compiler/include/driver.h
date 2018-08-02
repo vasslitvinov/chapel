@@ -183,6 +183,7 @@ extern int  squelch_header_errors;
 extern bool fWarnConstLoops;
 extern bool fWarnUnstable;
 extern bool fDefaultUnmanaged;
+extern bool fWarnConstructors;
 
 extern bool fReportOptimizedLoopIterators;
 extern bool fReportInlinedIterators;
@@ -204,7 +205,7 @@ extern int  numGlobalsOnHeap;
 extern bool preserveInlinedLineNumbers;
 
 extern int breakOnID;
-extern int breakOnDeleteID;
+extern int breakOnRemoveID;
 
 extern char stopAfterPass[128];
 

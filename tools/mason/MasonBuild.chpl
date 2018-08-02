@@ -26,17 +26,19 @@ use MasonHelp;
 use MasonEnv;
 use MasonUpdate;
 use MasonSystem;
+use MasonExample;
 
 proc masonBuild(args) {
   var show = false;
   var release = false;
   var force = false;
   var compopts: [1..0] string;
+  var example = false;
   if args.size > 2 {
     for arg in args[2..] {
       if arg == '-h' || arg == '--help' {
         masonBuildHelp();
-        exit();
+        exit(0);
       }
       else if arg == '--release' {
         release = true;
@@ -47,18 +49,31 @@ proc masonBuild(args) {
       else if arg == '--show' {
         show = true;
       }
+      else if arg == '--example' {
+        example = true;
+      }
       else {
         compopts.push_back(arg);
       }
     }
   }
-  const configNames = UpdateLock(args);
-  const tomlName = configNames[1];
-  const lockName = configNames[2];
-  buildProgram(release, show, force, compopts, tomlName, lockName);
+  if example {
+    // compopts become test names. Build never runs examples
+    compopts.push_back("--no-run");
+    if show then compopts.push_back("--show");
+    if release then compopts.push_back("--release");
+    if force then compopts.push_back("--force");
+    masonExample(compopts);
+  }
+  else {
+    const configNames = UpdateLock(args);
+    const tomlName = configNames[1];
+    const lockName = configNames[2];
+    buildProgram(release, show, force, compopts, tomlName, lockName);
+  }
 }
 
-private proc checkChplVersion(lockFile : Toml) throws {
+private proc checkChplVersion(lockFile : borrowed Toml) throws {
   const root = lockFile["root"];
   const (success, low, hi) = verifyChapelVersion(root);
 
@@ -104,7 +119,7 @@ proc buildProgram(release: bool, show: bool, force: bool, cmdLineCompopts: [?d] 
         getSrcCode(sourceList, show);
 
         // get compilation options including external dependencies
-        const compopts = getCompopts(lockFile, cmdLineCompopts);
+        const compopts = getTomlCompopts(lockFile, cmdLineCompopts);
 
         // Compile Program
         if compileSrc(lockFile, binLoc, show, release, compopts, projectHome) {
@@ -135,7 +150,7 @@ proc buildProgram(release: bool, show: bool, force: bool, cmdLineCompopts: [?d] 
    folder. Requires that the main library file be
    named after the project folder in which it is
    contained */
-proc compileSrc(lockFile: Toml, binLoc: string, show: bool,
+proc compileSrc(lockFile: borrowed Toml, binLoc: string, show: bool,
                 release: bool, compopts: [?dom] string, projectHome: string) : bool throws {
 
   const sourceList = genSourceList(lockFile);
@@ -178,7 +193,7 @@ proc compileSrc(lockFile: Toml, binLoc: string, show: bool,
 
 /* Generates a list of tuples that holds the git repo
    url and the name for local mason dependency pool */
-proc genSourceList(lockFile: Toml) {
+proc genSourceList(lockFile: borrowed Toml) {
   var sourceList: [1..0] (string, string, string);
   for (name, package) in zip(lockFile.D, lockFile.A) {
     if package.tag == fieldToml {
@@ -227,7 +242,7 @@ proc getSrcCode(sourceList: [?d] 3*string, show) {
   }
 }
 
-private proc getCompopts(lock: Toml, compopts: [?d] string) {
+proc getTomlCompopts(lock: borrowed Toml, compopts: [?d] string) {
 
   // Checks for compilation options are present in Mason.toml
   if lock.pathExists('root.compopts') {

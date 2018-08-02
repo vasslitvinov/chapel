@@ -1031,6 +1031,11 @@ bool canCoerce(Type*     actualType,
     }
   }
 
+  // Handle coercions nil -> owned/shared
+  if (actualType == dtNil && isManagedPtrType(formalType)) {
+    return true;
+  }
+
   if (canCoerceTuples(actualType, actualSym, formalType, fn)) {
     return true;
   }
@@ -6962,8 +6967,6 @@ Expr* resolveExpr(Expr* expr) {
     }
 
     retval = foldTryCond(postFold(expr));
-
-    resolveShadowVarsIfNeeded(def);
 
   } else if (SymExpr* se = toSymExpr(expr)) {
     makeRefType(se->symbol()->type);
