@@ -2011,7 +2011,6 @@ static void findOuterVarsNew(ForallStmt* fs, SymbolMap& outer2shadow,
 static void insertAndResolveInitialAccumulate(ForallStmt* fs, BlockStmt* hld,
                                             Symbol* globalOp, Symbol* outerVar)
 {
-#if 0 //wass
   CallExpr* initAccum = new CallExpr("initialAccumulate", gMethodToken,
                                      globalOp, outerVar);
   if (hld)
@@ -2046,12 +2045,10 @@ static void insertAndResolveInitialAccumulate(ForallStmt* fs, BlockStmt* hld,
   }
 
   resolveFnForCall(initAccumOutcome, initAccum);
-#endif
 }
 
 // Finalize the reduction:  outerVar = globalOp.generate()
 static void insertFinalGenerate(Expr* ref, Symbol* fiVarSym, Symbol* globalOp) {
-#if 0 //wass -no-op for now
   Expr* next = ref->next; // nicer ordering of the following insertions
   INT_ASSERT(next);
   VarSymbol* genTemp = newTemp("chpl_gentemp");
@@ -2059,7 +2056,6 @@ static void insertFinalGenerate(Expr* ref, Symbol* fiVarSym, Symbol* globalOp) {
   next->insertBefore("'move'(%S, generate(%S,%S))",
                      genTemp, gMethodToken, globalOp);
   next->insertBefore(new CallExpr("=", fiVarSym, genTemp));
-#endif
 }
 
 static void moveInstantiationPoint(BlockStmt* to, BlockStmt* from, Type* type) {
@@ -2115,14 +2111,14 @@ static Symbol* setupRiGlobalOp(ForallStmt* fs, Symbol* fiVarSym,
 
 
   {
-    NamedExpr* newArg = new NamedExpr("inputType", eltTypeArg);
+    NamedExpr* newArg = new NamedExpr("eltType", eltTypeArg);
     CallExpr* newCall = new CallExpr(PRIM_NEW, new SymExpr(riTypeSym), newArg,
                                      new NamedExpr(astr_chpl_manager,
                                          new SymExpr(dtUnmanaged->symbol)));
     hld->insertAtTail(new CallExpr(PRIM_MOVE, globalOp, newCall));
   }
 
-  fs->insertAfter("chpl__autoDestroy(%S)", globalOp);
+  fs->insertAfter("chpl__delete(%S)", globalOp);
   insertFinalGenerate(fs, fiVarSym, globalOp);
 
   resolveBlockStmt(hld);
