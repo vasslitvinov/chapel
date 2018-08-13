@@ -683,10 +683,21 @@ static void expandForall(ExpandVisitor* EV, ForallStmt* fs)
 
     // Redirect the original outer vars to their current counterparts.
     if (Symbol* srcOVar = srcSV->outerVarSym())
-      map.put(srcOVar, iMap.get(srcSV));
+      // wass was: map.put(srcOVar, iMap.get(srcSV));
+    {
+      Symbol* mapped = iMap.get(srcSV);
+      INT_ASSERT(mapped);
+      // If the above assert fails, it means we do not use this mapping.
+      // So, do not add it.
+      map.put(srcOVar, mapped);
+    }
 
     // copy() also performs map.put(srcSV, newSV)
     ShadowVarSymbol* newSV = srcSV->copy(&map);
+
+    // wass: What if we make outerVarSE NULL for all newSVs?
+    // Seems I need outerVarSyms only at the global level.
+    // Ditto when expanding task fns?
 
     fs->shadowVariables().insertAtTail(new DefExpr(newSV));
   }

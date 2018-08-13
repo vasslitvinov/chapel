@@ -88,7 +88,9 @@ enum ForallIntentTag {
   TFI_REF,
   TFI_CONST_REF,
   TFI_REDUCE,
-  TFI_REDUCE_OP,      // see below
+  TFI_REDUCE_OP,      // see below for TFI_REDUCE_*
+  TFI_REDUCE_PARENT_AS,
+  TFI_REDUCE_PARENT_OP,
   TFI_TASK_PRIVATE,   // a task-private variable, TPV
 };
 
@@ -96,11 +98,26 @@ const char* forallIntentTagDescription(ForallIntentTag tfiTag);
 
 /* ForallIntentTag enum:
 
-TFI_IN_OUTERVAR shadow var is added by compiler as a placeholder
-for the TFI_IN/TFI_CONST_IN shadow var's outer variable.
+TFI_IN_OUTERVAR
+  The compiler adds this shadow var during resolution for each TFI_IN
+  and TFI_CONST_IN. A TFI_IN_OUTERVAR represents the task function's formal
+  that the corresponding TFI_IN or TFI_CONST_IN is to be initialized from.
 
-TFI_REDUCE_OP shadow var is added by compiler. It is the reduce op
-for the TFI_REDUCE shadow var, which is the accumulation state.
+TFI_REDUCE
+  This shadow var replaces the uses of the outer variable in the loop body
+  in case of a 'reduce' intent. This is done in parsing and scopeResolve.
+  It is analogous to the TFI_IN shadow var for an 'in' intent.
+  A TFI_REDUCE var represents the current task's accumulation state.
+
+TFI_REDUCE_*
+  The compiler adds one each of these shadow vars during resolution
+  for each TFI_REDUCE. They represent:
+
+  TFI_REDUCE_OP        - the current task's reduction OP
+  TFI_REDUCE_PARENT_AS - the parent task's Accumulation State
+  TFI_REDUCE_PARENT_OP - the parent task's reduction OP
+
+  The PARENT*, like TFI_IN_OUTERVAR, are the task function's formals.
 */
 
 // for task intents and forall intents
@@ -429,7 +446,7 @@ public:
   // Convert between TFI_[CONST]_IN and TFI_IN_OUTERVAR svars.
   ShadowVarSymbol* OutervarForIN() const;
   ShadowVarSymbol* INforOutervar() const;
-  // Convert between TFI_REDUCE and TFI_REDUCE_OP svars.
+  // Convert between TFI_REDUCE and TFI_REDUCE_* svars.
   ShadowVarSymbol* ReduceOpForAccumState() const;
   ShadowVarSymbol* AccumStateForReduceOp() const;
 

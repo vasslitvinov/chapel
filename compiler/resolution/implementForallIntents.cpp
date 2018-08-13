@@ -2246,6 +2246,10 @@ static ShadowVarSymbol* create_IN_OUTERVAR(ForallStmt* fs, ShadowVarSymbol* SI)
   INT_ASSERT(SI->OutervarForIN() == SO);  // ensure OutervarForIN() works
 
   // initialize the new outer var from the real outer var
+  // wass: go ahead and insert it into the AST right away.
+  // NB resolve that code before insertion!!
+  // Remove or incorporate the corresponding code from expandShadowVarTopLevel().
+  // No need to resolveOneShadowVar(SO) any more, as its IB/DB will remain empty.
   if (realOuterVar->getValType() != SO->getValType()) {
     BlockStmt* IB = SO->initBlock();
     CallExpr* cast = createCast(realOuterVar, SO->getValType()->symbol);
