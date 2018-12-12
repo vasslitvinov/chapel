@@ -549,6 +549,8 @@ bool ResolutionCandidate::checkResolveFormalsWhereClauses(CallInfo& info) {
 
   bool isCopyInit = looksLikeCopyInit(this);
   bool isInitCopy = fn->hasFlag(FLAG_INIT_COPY_FN);
+  bool isIteratorLike = fn->isIterator() ||
+                        fn->hasFlag(FLAG_FN_RETURNS_ITERATOR);
 
   for_formals(formal, fn) {
     if (Symbol* actual = formalIdxToActual[++coindex]) {
@@ -597,7 +599,7 @@ bool ResolutionCandidate::checkResolveFormalsWhereClauses(CallInfo& info) {
         if (ft != at && ft->isInstantiatedFrom(at) == false) {
           return false;
         }
-      } else if (promotes && isCopyInit) {
+      } else if (promotes && (isCopyInit || isIteratorLike)) {
         return false;
       }
     }
