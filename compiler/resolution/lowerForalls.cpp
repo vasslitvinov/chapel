@@ -769,7 +769,7 @@ static void expandShadowVarTaskFn(FnSymbol* cloneTaskFn, CallExpr* callToTFn,
                    map, AS, ix, PAS);
       map.get(PRP)->name = PRP->name; // tweak the names
       map.get(PAS)->name = PAS->name;
-      gdbShouldBreakHere(); //wass
+//      gdbShouldBreakHere(); //wass
       addDefAndMap(aInit, map, RP, createCurrRP(RP));
       addDefAndMap(aInit, map, AS, createCurrAS(AS));
 
