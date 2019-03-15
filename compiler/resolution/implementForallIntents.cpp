@@ -362,9 +362,7 @@ static Symbol* setupRiGlobalOp(ForallStmt* fs, Symbol* fiVarSym,
 
   {
     NamedExpr* newArg = new NamedExpr("inputType", eltTypeArg);
-    CallExpr* newCall = new CallExpr(PRIM_NEW, new SymExpr(riTypeSym), newArg,
-                                     new NamedExpr(astr_chpl_manager,
-                                         new SymExpr(dtUnmanaged->symbol)));
+    CallExpr* newCall = new CallExpr(PRIM_NEW, new SymExpr(riTypeSym), newArg);
     hld->insertAtTail(new CallExpr(PRIM_MOVE, globalOp, newCall));
   }
 
