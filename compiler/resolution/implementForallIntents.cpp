@@ -24,6 +24,7 @@
 #include "stringutil.h"
 #include "stmt.h"
 #include "UnmanagedClassType.h"
+#include "view.h" //wass
 
 
 /////////////////////////////////////////////////////////////////////////////
@@ -153,11 +154,16 @@ static void insertInitialization(BlockStmt* destBlock,
 }
 
 // insertDeinitialization() flavors: as (a1) or (a2) above
+// or (a1') insert after a given Expr.
 
 static void insertDeinitialization(BlockStmt* destBlock, Symbol* destVar) {
   // NB if we use PRIM_CALL_DESTRUCTOR, we end up with
   // deinit() calls for shadow variables of class types.
   destBlock->insertAtTail("chpl__autoDestroy(%S)", destVar);
+}
+
+static void insertDeinitializationAfter(Expr* ref, Symbol* destVar) {
+  ref->insertAfter("chpl__autoDestroy(%S)", destVar);
 }
 
 static void insertDeinitialization(ShadowVarSymbol* destVar) {
@@ -182,6 +188,7 @@ static void resolveOneShadowVar(ForallStmt* fs, ShadowVarSymbol* svar) {
 static void insertAndResolveInitialAccumulate(ForallStmt* fs, BlockStmt* hld,
                                             Symbol* globalOp, Symbol* outerVar)
 {
+#if 0 //wass
   CallExpr* initAccum = new CallExpr("initialAccumulate", gMethodToken,
                                      globalOp, outerVar);
   if (hld)
@@ -216,8 +223,10 @@ static void insertAndResolveInitialAccumulate(ForallStmt* fs, BlockStmt* hld,
   }
 
   resolveFnForCall(initAccumOutcome, initAccum);
+#endif //wass
 }
 
+#if 0 //wass
 //
 // This works around #12497, whereby FLAG_EXPR_TEMP works correctly
 // for all cases except when:
@@ -269,11 +278,13 @@ static void workaroundForReduceIntoDetupleDecl(ForallStmt* fs, Symbol* svar) {
           svar->removeFlag(FLAG_EXPR_TEMP);
       }
 }
+#endif //wass
 
 // Finalize the reduction:  outerVar = globalOp.generate()
 static void insertFinalGenerate(ForallStmt* fs,
                                 Symbol* fiVarSym, Symbol* globalOp)
 {
+#if 0 //wass
   Expr* next = fs->next; // nicer ordering of the following insertions
   INT_ASSERT(next);
   if (fs->needsInitialAccumulate()) {
@@ -292,6 +303,7 @@ static void insertFinalGenerate(ForallStmt* fs,
     fiVarSym->addFlag(FLAG_EXPR_TEMP);
     workaroundForReduceIntoDetupleDecl(fs, fiVarSym);
   }
+#endif //wass
 }
 
 static void moveInstantiationPoint(BlockStmt* to, BlockStmt* from, Type* type) {
@@ -349,14 +361,14 @@ static Symbol* setupRiGlobalOp(ForallStmt* fs, Symbol* fiVarSym,
 
 
   {
-    NamedExpr* newArg = new NamedExpr("eltType", eltTypeArg);
+    NamedExpr* newArg = new NamedExpr("inputType", eltTypeArg);
     CallExpr* newCall = new CallExpr(PRIM_NEW, new SymExpr(riTypeSym), newArg,
                                      new NamedExpr(astr_chpl_manager,
                                          new SymExpr(dtUnmanaged->symbol)));
     hld->insertAtTail(new CallExpr(PRIM_MOVE, globalOp, newCall));
   }
 
-  fs->insertAfter("chpl__delete(%S)", globalOp);
+  fs->insertAfter("chpl__autoDestroy(%S)", globalOp);
   insertFinalGenerate(fs, fiVarSym, globalOp);
 
   resolveBlockStmt(hld);
@@ -440,18 +452,16 @@ static ShadowVarSymbol* create_REDUCE_PRP(ForallStmt* fs, ShadowVarSymbol* AS)
 {
   // This is the global reduce op, either provided by user or set up by us.
   // PRP->outerVarSE will point to it.
-  SymExpr* gOpSE = toSymExpr(AS->reduceOpExpr()->remove());
-  Symbol*  gOp   = gOpSE->symbol();
-  // Handling of the case of gOp being a type should have happened earlier.
-  INT_ASSERT(!gOp->hasFlag(FLAG_TYPE_VARIABLE));
+  SymExpr* globSE   = toSymExpr(AS->reduceOpExpr()->remove());
+  Symbol*  globalOp = globSE->symbol();
+
+  // The case of globalOp being a type is handled in handleRISpec().
+  INT_ASSERT(!globalOp->hasFlag(FLAG_TYPE_VARIABLE));
 
   ShadowVarSymbol* PRP = new ShadowVarSymbol(TFI_REDUCE_PARENT_OP,
-                                             astr("PRP_", AS->name), gOpSE);
-
-  // It always points to the same reduction op class instance.
-  PRP->addFlag(FLAG_CONST);
-  PRP->qual = QUAL_CONST_VAL;
-  PRP->type = gOp->type;
+                                             astr("PRP_", AS->name), globSE);
+  PRP->qual = QUAL_VAL;
+  PRP->type = globalOp->type;
 
   // It goes on the shadow variable list before AS.
   AS->defPoint->insertBefore(new DefExpr(PRP));
@@ -485,9 +495,55 @@ static ShadowVarSymbol* create_REDUCE_RP(ForallStmt* fs, ShadowVarSymbol* PRP,
 
   // It goes on the shadow variable list right before AS.
   AS->defPoint->insertBefore(new DefExpr(RP));
-  INT_ASSERT(AS->ReduceOpForAccumState() == RP); //ReduceOpForAccumState() OK?
-
+  INT_ASSERT(AS->ReduceOpForAccumState() == RP); //ReduceOpForAccumState works?
   return RP;
+}
+
+static Symbol* setupGlobalASandGenerate(ForallStmt* fs, Symbol* globalRP,
+                                        ShadowVarSymbol* AS)
+{
+  // First, determine whether the reduce implementation chose
+  // the "with generate" interface option. For that, need some AS.
+  // We create globalAS. We will discard it if it ends up not needed.
+
+  /// before the forall ///
+  BlockStmt* holder1 = new BlockStmt();
+  fs->insertBefore(holder1);
+
+  Symbol* globalAS = new VarSymbol(astr("globalAS_", AS->name), AS->type);
+  globalAS->qual = QUAL_VAL;
+  holder1->insertAtTail(new DefExpr(globalAS));
+  insertInitialization(holder1, globalAS,
+                    new_Expr("newAccumState(%S,%S)", gMethodToken, globalRP));
+  resolveBlockStmt(holder1);
+
+  // Given globalAS, check if globalRP.generate(globalAS) is available.
+
+  BlockStmt* holder2 = new BlockStmt();
+  fs->insertBefore(holder2);
+  
+  CallExpr* generateCall = new CallExpr("generate", gMethodToken,
+                                        globalRP, globalAS);
+  holder2->insertAtTail(generateCall);
+  bool withGenerate = tryResolveCall(generateCall) != NULL;
+  // We will not use holder2 afterwards.
+  holder2->remove();
+
+  if (withGenerate) {
+    // Keep globalAS. Insert generate() after the forall.
+    holder1->flattenAndRemove();
+    /// after the forall ///
+    // All this will be resolved later.
+    insertDeinitializationAfter(fs, globalAS);
+    fs->insertAfter("chpl_reduce_generate(%S,%S,%S)",
+                    AS->outerVarSym(), globalRP, globalAS);
+  } else {
+    // Use the outer variable for globalAS. Discard scratch work.
+    holder1->remove();
+    globalAS = AS->outerVarSym();
+  }
+
+  return globalAS;
 }
 
 static void setupForReduce(ForallStmt* fs,
@@ -499,42 +555,24 @@ static void setupForReduce(ForallStmt* fs,
   BlockStmt* DB  = AS->deinitBlock();
 
   /// at task startup ///
-  insertInitialization(IB, RP, new_Expr("clone(%S,%S)", gMethodToken, PRP));
-  insertInitialization(IB, AS, new_Expr("identity(%S,%S)", gMethodToken, RP));
+  insertInitialization(IB, RP, PRP);  // RP.init(PRP)
+  insertInitialization(IB, AS, new_Expr("newAccumState(%S,%S)",
+                                        gMethodToken, RP));
 
   /// at task teardown ///
-  DB->insertAtTail("accumulate(%S,%S,%S)", gMethodToken, RP, AS);
+  DB->insertAtTail("chpl__reduceCombine(%S,%S,%S)", PRP, PAS, AS);
   insertDeinitialization(DB, AS);
-  DB->insertAtTail("chpl__reduceCombine(%S,%S)", PRP, RP);
-  DB->insertAtTail("chpl__cleanupLocalOp(%S,%S)", PRP, RP); // deletes RP
+  insertDeinitialization(DB, RP);
 
   // At the top level, we have global RP and global AS.
-  // The global RP has already been set up. On to the global AS.
-  Symbol*    globalRP = PRP->outerVarSym();
-  VarSymbol* globalAS = new VarSymbol(astr("globalAS_", AS->name), AS->type);
-  globalAS->qual = QUAL_VAL;
+  // The global RP has already been set up. Now, do the global AS.
+  Symbol* globalRP = PRP->outerVarSym();
+  Symbol* globalAS = setupGlobalASandGenerate(fs, globalRP, AS);
 
   PAS->outerVarSE = new SymExpr(globalAS);
   insert_help(PAS->outerVarSE, NULL, PAS);
-
-  /// before the forall ///
-  BlockStmt* holder1 = new BlockStmt();
-  fs->insertBefore(holder1);
-  holder1->insertAtTail(new DefExpr(globalAS));
-  insertInitialization(holder1, globalAS,
-                       new_Expr("identity(%S,%S)", gMethodToken, globalRP));
-  resolveBlockStmt(holder1);
-  PAS->type = globalAS->type; // now that we know it
-  holder1->flattenAndRemove();
-
-  /// after the forall ///
-  BlockStmt* holder2 = new BlockStmt();
-  fs->insertAfter(holder2);
-  holder2->insertAtTail("accumulate(%S,%S,%S)",
-                        gMethodToken, globalRP, globalAS);
-  insertDeinitialization(holder2, globalAS);
-  // the contents will be resolved after resolving 'fs'
-  holder2->flattenAndRemove();
+  INT_ASSERT(PAS->type == dtUnknown); //wass - see next
+  PAS->type = globalAS->type; // now that we know it // wass is it needed?
 }
 
 static void handleReduce(ForallStmt* fs, ShadowVarSymbol* AS) {

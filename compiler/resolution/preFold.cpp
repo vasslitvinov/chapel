@@ -1055,7 +1055,7 @@ static Expr* preFoldPrimOp(CallExpr* call) {
   }
 
   case PRIM_REDUCE_ASSIGN: {
-    // Convert this 'call' into a call to accumulateOntoState().
+    // Convert this 'call' into call accumulate().
     INT_ASSERT(call->numActuals() == 2);
     Expr*         rhs       = call->get(2)->remove();
     Expr*         lhs       = call->get(1)->remove();
@@ -1064,9 +1064,9 @@ static Expr* preFoldPrimOp(CallExpr* call) {
 
     INT_ASSERT(!strcmp(toSymExpr(lhs)->symbol()->name, svar->name));
     INT_ASSERT(svar->isReduce());
-    INT_ASSERT(isReduceOp(globalOp->type));
+//    INT_ASSERT(isReduceOp(globalOp->type)); //wass
 
-    retval = new_Expr("accumulateOntoState(%S,%S,%E,%E)",
+    retval = new_Expr("accumulate(%S,%S,%E,%E)",
                       gMethodToken, globalOp, lhs, rhs);
     call->replace(retval);
 

@@ -20,6 +20,77 @@
 // ChapelReduce.chpl
 //
 module ChapelReduce {
+
+  proc chpl__reduceCombine(ref parentOp, ref parentAS, childAS) {
+    use Reflection;
+    on parentOp {
+      parentOp.lock();
+      if canResolveMethod(parentOp, "combine", parentAS, childAS) then
+        parentOp.combine(parentAS, childAS);
+      else
+        parentOp.accumulate(parentAS, childAS);
+      parentOp.unlock();
+    }
+  }
+
+  proc chpl_reduce_generate(ref ovar, ref globalOp, ref globalAS) {
+    use Reflection;
+    if canResolveMethod(globalOp, "generate", ovar, globalAS) {
+      // Use this more general methood, if available.
+      globalOp.generate(ovar, globalAS);
+    } else {
+      // Incorporate the initial value of ovar, as required
+      // by the semantics of reduce intents.
+      globalOp.accumulate(globalAS, ovar);
+      ovar = globalOp. generate(globalAS);
+    }
+  }
+
+  record chpl_reduce_lock {
+    var l: chpl__processorAtomicType(bool); // only accessed locally
+
+    proc lock() {
+      var lockAttempts = 0,
+          maxLockAttempts = (2**10-1);
+      while l.testAndSet() {
+        lockAttempts += 1;
+        if (lockAttempts & maxLockAttempts) == 0 {
+          maxLockAttempts >>= 1;
+          chpl_task_yield();
+        }
+      }
+    }
+    proc unlock() {
+      l.clear();
+    }
+  }
+
+  record chpl_SumReduceOp {
+    type accumType;
+    proc init(type inputType) { accumType = chpl__sumType(inputType); }
+    proc init(parentOp)  { accumType = parentOp.accumType; }
+    proc newAccumState() { var x: accumType; return x; }
+    proc accumulate(ref AS, input) { AS += input; }
+    // no combine()
+    // no generate()
+
+    forwarding var mylock: chpl_reduce_lock;  // provide for locking, for now
+  }
+
+  record chpl_LogicalAndReduceOp {
+    type inputType;
+    proc init(type inputType) { this.inputType = inputType; }
+    proc init(parentOp)  { this.inputType = parentOp.inputType; }
+    proc newAccumState() return _land_id(inputType);
+    proc accumulate(ref AS, input) { AS &&= input; }
+    // no combine()
+    // no generate()
+
+    forwarding var mylock: chpl_reduce_lock;  // provide for locking, for now
+  }
+
+
+/*
   use ChapelStandard;
 
   config param enableParScan = false;
@@ -371,5 +442,5 @@ module ChapelReduce {
     proc generate() return value;
     proc clone() return new unmanaged minloc(eltType=eltType);
   }
-
+*/
 }

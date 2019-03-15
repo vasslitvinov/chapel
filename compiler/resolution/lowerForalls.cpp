@@ -26,6 +26,7 @@
 #include "resolution.h"
 #include "stringutil.h"
 #include "wellknown.h"
+#include "view.h" //wass
 #include <set>
 
 /*
@@ -387,6 +388,12 @@ ExpandVisitor::ExpandVisitor(ExpandVisitor* parentEV, SymbolMap& map) :
 {
 }
 
+static bool checkVoidHelp(Symbol* currVar) {
+  bool isVoid = (currVar->type == dtVoid);
+  if (isVoid) INT_ASSERT(currVar->firstSymExpr() == NULL);
+  return isVoid;
+}
+
 
 /////////// misc helpers ///////////
 
@@ -443,7 +450,7 @@ static VarSymbol* createCurrIN(ShadowVarSymbol* SI) {
 // ... for the ReduceOp class of a reduce intent
 static VarSymbol* createCurrRP(ShadowVarSymbol* RP) {
   VarSymbol* currRP = new VarSymbol(RP->name, RP->type);
-  currRP->qual = QUAL_CONST_VAL;
+  currRP->qual = QUAL_VAL;
   return currRP;
 }
 
@@ -466,10 +473,7 @@ static VarSymbol* createCurrTPV(ShadowVarSymbol* TPV) {
 static void addDefAndMap(Expr* aInit, SymbolMap& map, ShadowVarSymbol* svar,
                          VarSymbol* currVar)
 {
-  if (currVar->type == dtVoid) {
-    INT_ASSERT(currVar->firstSymExpr() == NULL);
-    return;
-  }
+  if (checkVoidHelp(currVar)) return;
   aInit->insertBefore(new DefExpr(currVar));
   map.put(svar, currVar);
 }
@@ -637,10 +641,10 @@ static IntentTag argIntentForForallIntent(ForallIntentTag tfi) {
     case TFI_CONST_IN:     return INTENT_CONST_IN;
     case TFI_REF:          return INTENT_REF;
     case TFI_CONST_REF:    return INTENT_CONST_REF;
-    case TFI_REDUCE_OP:    return INTENT_CONST_IN;
+    case TFI_REDUCE:       return INTENT_REF;
+    case TFI_REDUCE_OP:    return INTENT_REF;
 
     case TFI_IN_PARENT:
-    case TFI_REDUCE:
     case TFI_REDUCE_PARENT_AS:
     case TFI_REDUCE_PARENT_OP:
     case TFI_TASK_PRIVATE:
@@ -710,6 +714,7 @@ static void addArgAndMap(FnSymbol* cloneTaskFn, CallExpr* callToTFn,
                          int ix, Symbol* mappee = NULL)
 {
   Symbol* eActual = iMap.get(svar);   // 'e' for "extra" (i.e. newly added)
+  if (checkVoidHelp(eActual)) return;
   callToTFn->insertAtTail(eActualOrRef(callToTFn, svar, eActual));
 
   ArgSymbol* eFormal = newExtraFormal(svar, ix, eActual, /*nested:*/true);
@@ -756,13 +761,15 @@ static void expandShadowVarTaskFn(FnSymbol* cloneTaskFn, CallExpr* callToTFn,
       - map:
          PRP+PAS svars --> the PRP+PAS formals
          RP+AS svars --> the curr RP+AS vars
-
-      [Currently there is no PAS/AS formal/actual. They are upcoming.]
       */
 
       addArgAndMap(cloneTaskFn, callToTFn, numOrigAct, iMap,
                    map, RP, ix, PRP);
-      map.get(PRP)->name = PRP->name; // tweak the name
+      addArgAndMap(cloneTaskFn, callToTFn, numOrigAct, iMap,
+                   map, AS, ix, PAS);
+      map.get(PRP)->name = PRP->name; // tweak the names
+      map.get(PAS)->name = PAS->name;
+      gdbShouldBreakHere(); //wass
       addDefAndMap(aInit, map, RP, createCurrRP(RP));
       addDefAndMap(aInit, map, AS, createCurrAS(AS));
 
