@@ -52,7 +52,7 @@ def main():
     check_environment_with_args()
 
     invocation_dir = os.getcwd()
-    
+
     run_tests(args.tests)
 
     # in case we've changed directories
@@ -322,8 +322,8 @@ def test_directory(test, test_type):
 
 def summarize():
     date_str = time.strftime("%y%m%d.%H%M%S")
-    logger.write("[Done with tests - {0}]".format(date_str))
-    logger.write("[Log file: {0} ]".format(os.path.abspath(log_file)))
+    logger.write("[{1}] [Done with tests - {0}]".format(date_str,time.strftime("%Y-%m-%d %H:%M:%S")))
+    logger.write_always("[Log file: {0} ]".format(os.path.abspath(log_file)))
     logger.write()
     logger.stop()
     # setup regular expressions for searching
@@ -357,7 +357,8 @@ def summarize():
     suppression_summary = ""
     future_summary = ""
     warning_summary = ""
-    summary = "[Test Summary - {0}]\n".format(date_str)
+    summary_START = "[Test Summary - {0}]\n".format(date_str)
+    summary_END = "[END]\n"
 
     # scan line-by-line, logging failures, warnings, etc.. and updating counts
     with open(log_file, "r") as log:
@@ -383,6 +384,7 @@ def summarize():
                 skip_stdin_redirects += 1
 
     # compile summary
+    summary = ""
     summary += failure_summary
     summary += suppression_summary
     summary += future_summary
@@ -404,14 +406,17 @@ def summarize():
     if args.junit_xml:
         print("[Generating jUnit XML report]")
         summary += jUnit()
-    summary += "[END]\n"
 
     # log summary, and write it to its own .summary file
     logger.restart()
-    logger.write(summary)
+    logger.write(summary_START)
+    logger.write_always(summary)
+    logger.write(summary_END)
 
     with open(log_file + ".summary", "w") as log_summary:
+        log_summary.write(summary_START)
         log_summary.write(summary)
+        log_summary.write(summary_END)
 
 
 def clean(test=False):
@@ -450,7 +455,9 @@ def run_sub_test(test=False):
         sys.stderr.write("Testing {0} ... \n".format(test))
 
     logger.write("[Starting {0} {1}]".format(sub_test, date_str))
+    args.in_sub_test = True
     status = run_and_log([sub_test, compiler])
+    args.in_sub_test = False
     return status
 
 
@@ -591,6 +598,8 @@ def check_environment():
 def check_environment_with_args():
     # find test dir and check for access
     global test_dir, auto_gen_spec_tests
+
+    args.in_sub_test = False
 
     auto_gen_spec_tests = os.access(os.path.join(home, "spec"), os.F_OK)
 
@@ -748,8 +757,8 @@ def set_up_logger():
                 .format(log_file_dir))
         sys.exit(1)
     if os.path.isfile(log_file):
-        print()
-        print("[Removing log file with duplicate name {0}".format(log_file))
+        if not args.brief:
+            print("[Removing log file with duplicate name {0}".format(log_file))
         os.remove(log_file)
 
     ## START LOGGING TO FILE ##
@@ -836,6 +845,8 @@ def set_up_general():
                 .format(host_bin_subdir))
     else:
         compiler = args.compiler
+    cver = subprocess.check_output([compiler, "--version"])
+    logger.write(cver)
 
 
 def set_up_performance_testing_A():
@@ -1238,7 +1249,7 @@ def run_and_log(cmd):
 
 def cleanup():
     if os.path.isdir(chpl_test_tmp_dir):
-        print("[Removing {0} directory]".format(chpl_test_tmp_dir))
+        logger.write("[Removing {0} directory]".format(chpl_test_tmp_dir))
         shutil.rmtree(chpl_test_tmp_dir)
 
 
@@ -1305,6 +1316,8 @@ def parser_setup():
     # log_file
     parser.add_argument("-logfile", "--logfile", action="store",
             dest="log_file", help="set alternate log file")
+    parser.add_argument("-brief", "--brief", action="store_true",
+            dest="brief", help="reduce the amount of concole")
     # mem leaks log
     parser.add_argument("-memleaks", "--memleaks", action="store",
             dest="mem_leaks_log", help=("set location for memLeaks log, "
@@ -1474,6 +1487,13 @@ class Logger():
         self.logger.addHandler(self.file_out)
 
     def write(self, msg=" "):
+        if args.brief and not args.in_sub_test:
+            self.logger.removeHandler(self.console_out)
+        self.write_always(msg)
+        if args.brief and not args.in_sub_test:
+            self.logger.addHandler(self.console_out)
+
+    def write_always(self, msg=" "):
         self.logger.info(msg.rstrip())
 
     def flush(self):
