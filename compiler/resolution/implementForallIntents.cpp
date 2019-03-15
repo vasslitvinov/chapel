@@ -307,7 +307,7 @@ static void insertFinalGenerate(ForallStmt* fs,
 }
 
 static void moveInstantiationPoint(BlockStmt* to, BlockStmt* from, Type* type) {
-  //
+
   // BHARSH 2018-05-08:
   // Workaround for point of instantiation issue. We resolve some functions
   // within the block 'hld', which sets the point of instantiation for those
@@ -320,6 +320,7 @@ static void moveInstantiationPoint(BlockStmt* to, BlockStmt* from, Type* type) {
   // Vass 2018-08-01: Does not look like we can remove this yet. See ex.:
   //   release/examples/benchmarks/isx
   //   parallel/forall/reduce-intents
+
   AggregateType* reductionClass = toAggregateType(canonicalClassType(type));
   if (reductionClass->symbol->instantiationPoint == from) {
     reductionClass->symbol->instantiationPoint = to;
@@ -359,13 +360,8 @@ static Symbol* setupRiGlobalOp(ForallStmt* fs, Symbol* fiVarSym,
     }
   }
 
-
-  {
-    NamedExpr* newArg = new NamedExpr("inputType", eltTypeArg);
-    CallExpr* newCall = new CallExpr(PRIM_NEW, new SymExpr(riTypeSym), newArg);
-    hld->insertAtTail(new CallExpr(PRIM_MOVE, globalOp, newCall));
-  }
-
+  hld->insertAtTail("'move'(%S,'new'(%S,%E))", globalOp,
+                    riTypeSym, new NamedExpr("inputType", eltTypeArg));
   fs->insertAfter("chpl__autoDestroy(%S)", globalOp);
   insertFinalGenerate(fs, fiVarSym, globalOp);
 
@@ -429,8 +425,8 @@ static void handleRISpec(ForallStmt* fs, ShadowVarSymbol* svar)
   if (globalOp) INT_ASSERT(globalOp); // dummy use of 'globalOp'
 }
 
-void  setReduceSVars(ShadowVarSymbol*& PRP, ShadowVarSymbol*& PAS,
-                     ShadowVarSymbol*& RP, ShadowVarSymbol* AS)
+void setReduceSVars(ShadowVarSymbol*& PRP, ShadowVarSymbol*& PAS,
+                    ShadowVarSymbol*& RP, ShadowVarSymbol* AS)
 {
   DefExpr* defRP  = toDefExpr(AS->defPoint->prev);
   DefExpr* defPAS = toDefExpr(defRP->prev);
