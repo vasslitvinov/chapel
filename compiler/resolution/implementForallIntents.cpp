@@ -529,6 +529,8 @@ static void replaceReduceTmpWithGlobalAS(Symbol* globalAS, ShadowVarSymbol* AS)
 static Symbol* setupGlobalASandGenerate(ForallStmt* fs, Symbol* globalRP,
                                         ShadowVarSymbol* AS)
 {
+  Symbol* outerVarAS = AS->outerVarSym();
+
   // First, determine whether the reduce implementation chose
   // the "with generate" interface option. For that, need some AS.
   // We create globalAS. We will discard it if it ends up not needed.
@@ -548,35 +550,49 @@ static Symbol* setupGlobalASandGenerate(ForallStmt* fs, Symbol* globalRP,
   /// Given globalAS, check if globalRP.generate(globalAS) is available. ///
 
   BlockStmt* holder2 = new BlockStmt();
-  fs->insertBefore(holder2);
+  fs->insertAfter(holder2);
   
   CallExpr* generateCall = new CallExpr("generate", gMethodToken,
                                         globalRP, globalAS);
   holder2->insertAtTail(generateCall);
   bool withGenerate = tryResolveCall(generateCall) != NULL;
-  // We will not use holder2 afterwards.
   holder2->remove();
 
-  /// Insert generate() or set up globalAS as appropriate ///
+  /// Insert generate() and set up globalAS as appropriate ///
 
-  if (withGenerate) {
-    // Keep globalAS.
-    holder1->flattenAndRemove();
-
-    // Insert generate() after the forall. All this will be resolved later.
-    insertDeinitializationAfter(fs, globalAS);
-    fs->insertAfter("chpl_reduce_generate(%S,%S,%S)",
-                    AS->outerVarSym(), globalRP, globalAS);
-
-  } else if (fs->fromReduce()) {
+  if (fs->fromReduce()) {
     // We need to have globalAS initialized. So, keep holder1.
     holder1->flattenAndRemove();
-    replaceReduceTmpWithGlobalAS(globalAS, AS);
 
+    if (withGenerate) {
+      // Reduce expression, with generate.
+      // Use generate() in holder2, after all.
+      holder2->insertAtTail("'move'(%S,%E)",
+                            outerVarAS, generateCall->remove());
+      fs->insertAfter(holder2);
+      holder2->flattenAndRemove();
+
+    } else {
+      // Reduce expression, no generate.
+      replaceReduceTmpWithGlobalAS(globalAS, AS);
+    }
   } else {
-    // Use the outer variable for globalAS. Discard scratch work.
-    holder1->remove();
-    globalAS = AS->outerVarSym();
+    if (withGenerate) {
+      // Forall intent, with generate ==> keep globalAS.
+      // ASTs inserted below will be resolved after fs.
+      holder1->flattenAndRemove();
+      insertDeinitializationAfter(fs, globalAS);
+
+      // Instead of generate() in holder2, call chpl_reduce_generate()
+      // because it will choose the other generate() if available.
+      // Simpler code than if the compiler makes that choice.
+      fs->insertAfter("chpl_reduce_generate(%S,%S,%S)",
+                      outerVarAS, globalRP, globalAS);
+    } else {
+      // Forall intent, no generate ==> use the outer variable for globalAS.
+      holder1->remove();
+      globalAS = outerVarAS;
+    }
   }
 
   /// Done. ///
