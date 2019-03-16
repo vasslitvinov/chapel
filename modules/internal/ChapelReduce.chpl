@@ -20,75 +20,6 @@
 // ChapelReduce.chpl
 //
 module ChapelReduce {
-
-  proc chpl__reduceCombine(ref parentOp, ref parentAS, childAS) {
-    on parentOp {
-      parentOp.lock();
-      if Reflection.canResolveMethod(parentOp, "combine", parentAS, childAS) {
-        parentOp.combine(parentAS, childAS);
-      } else {
-        parentOp.accumulate(parentAS, childAS);
-      }
-      parentOp.unlock();
-    }
-  }
-
-  proc chpl_reduce_generate(ref ovar, ref globalOp, ref globalAS) {
-    if Reflection.canResolveMethod(globalOp, "generate", ovar, globalAS) {
-      // Use this more general methood, if available.
-      globalOp.generate(ovar, globalAS);
-    } else {
-      // Incorporate the initial value of ovar, as required by semantics.
-      globalOp.accumulate(globalAS, ovar);
-      ovar = globalOp. generate(globalAS);
-    }
-  }
-
-  record chpl_reduce_lock {
-    var l: chpl__processorAtomicType(bool); // only accessed locally
-    proc init() { }     // avoid calculating default arg at callsite
-
-    proc lock() {
-      var lockAttempts = 0,
-          maxLockAttempts = (2**10-1);
-      while l.testAndSet() {
-        lockAttempts += 1;
-        if (lockAttempts & maxLockAttempts) == 0 {
-          maxLockAttempts >>= 1;
-          chpl_task_yield();
-        }
-      }
-    }
-    proc unlock() {
-      l.clear();
-    }
-  }
-
-  record chpl_SumReduceOp {
-    type accumType;
-    proc init(type inputType) { accumType = chpl__sumType(inputType); }
-    proc init(parentOp)  { accumType = parentOp.accumType; }
-    proc newAccumState() { var x: accumType; return x; }
-    proc accumulate(ref AS, input) { AS += input; }
-    // no combine()
-    // no generate()
-
-    forwarding var mylock: chpl_reduce_lock;  // provide for locking, for now
-  }
-
-  record chpl_LogicalAndReduceOp {
-    type inputType;
-    proc init(type inputType) { this.inputType = inputType; }
-    proc init(parentOp)  { this.inputType = parentOp.inputType; }
-    proc newAccumState() return _land_id(inputType);
-    proc accumulate(ref AS, input) { AS &&= input; }
-    // no combine()
-    // no generate()
-
-    forwarding var mylock: chpl_reduce_lock;  // provide for locking, for now
-  }
-
-
 /*
   use ChapelStandard;
 
@@ -143,6 +74,49 @@ module ChapelReduce {
   inline proc chpl__cleanupLocalOp(globalOp, localOp) {
     // should this be part of chpl__reduceCombine ?
     delete localOp;
+  }
+*/
+  proc chpl__reduceCombine(ref parentOp, ref parentAS, childAS) {
+    on parentOp {
+      parentOp.lock();
+      if Reflection.canResolveMethod(parentOp, "combine", parentAS, childAS) {
+        parentOp.combine(parentAS, childAS);
+      } else {
+        parentOp.accumulate(parentAS, childAS);
+      }
+      parentOp.unlock();
+    }
+  }
+
+  inline proc chpl_reduce_generate(ref ovar, ref globalOp, ref globalAS) {
+    if Reflection.canResolveMethod(globalOp, "generate", ovar, globalAS) {
+      // Use this more general methood, if available.
+      globalOp.generate(ovar, globalAS);
+    } else {
+      // Incorporate the initial value of ovar, as required by semantics.
+      globalOp.accumulate(globalAS, ovar);
+      ovar = globalOp.generate(globalAS);
+    }
+  }
+
+  record chpl_reduce_lock {
+    var l: chpl__processorAtomicType(bool); // only accessed locally
+    proc init() { }     // avoid calculating default arg at callsite
+
+    proc lock() {
+      var lockAttempts = 0,
+          maxLockAttempts = (2**10-1);
+      while l.testAndSet() {
+        lockAttempts += 1;
+        if (lockAttempts & maxLockAttempts) == 0 {
+          maxLockAttempts >>= 1;
+          chpl_task_yield();
+        }
+      }
+    }
+    proc unlock() {
+      l.clear();
+    }
   }
 
   // Return true for simple cases where x.type == (x+x).type.
@@ -203,6 +177,32 @@ module ChapelReduce {
    }
   }
 
+  record SumReduceScanOp {
+    type accumType;
+    inline proc init(type inputType) { accumType = chpl__sumType(inputType); }
+    inline proc init=(parentOp)      { accumType = parentOp.accumType; }
+    inline proc newAccumState()           { var x: accumType; return x; }
+    inline proc accumulate(ref AS, input) { AS += input; }
+    // no combine()
+    // no generate()
+
+    forwarding var mylock: chpl_reduce_lock;  // provide for locking, for now
+  }
+
+  record LogicalAndReduceScanOp {
+    type accumType;
+    inline proc init(type inputType)  { this.accumType = inputType; }
+    inline proc init=(parentOp)       { this.accumType = parentOp.accumType; }
+    inline proc newAccumState()           { return _land_id(accumType); }
+    inline proc accumulate(ref AS, input) { AS &&= input; }
+    // no combine()
+    // no generate()
+
+    forwarding var mylock: chpl_reduce_lock;  // provide for locking, for now
+  }
+
+
+/*
   pragma "ReduceScanOp"
   class ReduceScanOp {
     var l: chpl__processorAtomicType(bool); // only accessed locally
