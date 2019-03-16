@@ -1155,6 +1155,14 @@ ShadowVarSymbol* ShadowVarSymbol::AccumStateForParentAS() const {
   return AS;
 }
 
+ShadowVarSymbol* ShadowVarSymbol::ParentASForAccumState() const {
+  const ShadowVarSymbol* AS = this;
+  DefExpr* pasDef = toDefExpr(AS->defPoint->prev->prev);
+  ShadowVarSymbol* PAS = toShadowVarSymbol(pasDef->sym);
+  INT_ASSERT(PAS->intent == TFI_REDUCE_PARENT_AS);
+  return PAS;
+}
+
 void ShadowVarSymbol::removeSupportingReferences() {
   if (outerVarSE)    outerVarSE->remove();
   if (specBlock)     specBlock->remove();

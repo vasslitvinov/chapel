@@ -170,8 +170,25 @@ static void insertDeinitialization(ShadowVarSymbol* destVar) {
   insertDeinitialization(destVar->deinitBlock(), destVar);
 }
 
+// Helper for reduce expressions. In this case we do not know beforehand
+// the type of the outer variable for accumulation state. Once we have
+// resolved `RP.newAccumState()` in AS->initBlock, we know AS's type.
+// Propagate it to PAS and AS->outerVarSym().
+static void adjustReduceParentAS(ShadowVarSymbol* AS) {
+  ShadowVarSymbol* PAS = AS->ParentASForAccumState();
+  Symbol* ovar = AS->outerVarSym();
+  // Document the current state.
+  INT_ASSERT( (PAS->type == AS->type) == (ovar->type == AS->type) );
+  if (PAS->type != AS->type) {
+    INT_ASSERT(PAS->type == dtUnknown);
+    INT_ASSERT(ovar->type == dtUnknown);
+    PAS->type = ovar->type = AS->type;
+  }
+}
+
 static void resolveOneShadowVar(ForallStmt* fs, ShadowVarSymbol* svar) {
   resolveBlockStmt(svar->initBlock());
+  if (svar->isReduce()) adjustReduceParentAS(svar);
   resolveBlockStmt(svar->deinitBlock());
 }
 

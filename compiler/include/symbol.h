@@ -459,6 +459,7 @@ public:
   ShadowVarSymbol* AccumStateForReduceOp() const;
   ShadowVarSymbol* ReduceOpForParentRP()   const;
   ShadowVarSymbol* AccumStateForParentAS() const;
+  ShadowVarSymbol* ParentASForAccumState() const;
 
   // Remove no-longer-needed references to outside symbols when lowering.
   void     removeSupportingReferences();
