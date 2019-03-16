@@ -175,6 +175,7 @@ static void insertDeinitialization(ShadowVarSymbol* destVar) {
 // resolved `RP.newAccumState()` in AS->initBlock, we know AS's type.
 // Propagate it to PAS and AS->outerVarSym().
 static void adjustReduceParentAS(ShadowVarSymbol* AS) {
+#if 0 //wass
   ShadowVarSymbol* PAS = AS->ParentASForAccumState();
   Symbol* ovar = AS->outerVarSym();
   // Document the current state.
@@ -184,6 +185,7 @@ static void adjustReduceParentAS(ShadowVarSymbol* AS) {
     INT_ASSERT(ovar->type == dtUnknown);
     PAS->type = ovar->type = AS->type;
   }
+#endif //wass
 }
 
 static void resolveOneShadowVar(ForallStmt* fs, ShadowVarSymbol* svar) {
@@ -510,6 +512,20 @@ static ShadowVarSymbol* create_REDUCE_RP(ForallStmt* fs, ShadowVarSymbol* PRP,
   return RP;
 }
 
+// The temp that stores the reduce expression's result is AS's outer var.
+// For clarity, use the globalAS symbol instead of it.
+static void replaceReduceTmpWithGlobalAS(Symbol* globalAS, ShadowVarSymbol* AS)
+{
+  Symbol* reduceTemp = AS->outerVarSym();
+  INT_ASSERT(reduceTemp->hasFlag(FLAG_TEMP));
+
+  for_SymbolSymExprs(tempSE, reduceTemp)
+    tempSE->replace(new SymExpr(globalAS));
+
+  INT_ASSERT(reduceTemp->firstSymExpr() == NULL); // we replaced all uses
+  reduceTemp->defPoint->remove();
+}
+
 static Symbol* setupGlobalASandGenerate(ForallStmt* fs, Symbol* globalRP,
                                         ShadowVarSymbol* AS)
 {
@@ -517,7 +533,8 @@ static Symbol* setupGlobalASandGenerate(ForallStmt* fs, Symbol* globalRP,
   // the "with generate" interface option. For that, need some AS.
   // We create globalAS. We will discard it if it ends up not needed.
 
-  /// before the forall ///
+  /// Resolve "globalAS = globalRP.newAccumState()".
+
   BlockStmt* holder1 = new BlockStmt();
   fs->insertBefore(holder1);
 
@@ -528,7 +545,7 @@ static Symbol* setupGlobalASandGenerate(ForallStmt* fs, Symbol* globalRP,
                     new_Expr("newAccumState(%S,%S)", gMethodToken, globalRP));
   resolveBlockStmt(holder1);
 
-  // Given globalAS, check if globalRP.generate(globalAS) is available.
+  /// Given globalAS, check if globalRP.generate(globalAS) is available. ///
 
   BlockStmt* holder2 = new BlockStmt();
   fs->insertBefore(holder2);
@@ -540,19 +557,29 @@ static Symbol* setupGlobalASandGenerate(ForallStmt* fs, Symbol* globalRP,
   // We will not use holder2 afterwards.
   holder2->remove();
 
+  /// Insert generate() or set up globalAS as appropriate ///
+
   if (withGenerate) {
-    // Keep globalAS. Insert generate() after the forall.
+    // Keep globalAS.
     holder1->flattenAndRemove();
-    /// after the forall ///
-    // All this will be resolved later.
+
+    // Insert generate() after the forall. All this will be resolved later.
     insertDeinitializationAfter(fs, globalAS);
     fs->insertAfter("chpl_reduce_generate(%S,%S,%S)",
                     AS->outerVarSym(), globalRP, globalAS);
+
+  } else if (fs->fromReduce()) {
+    // We need to have globalAS initialized. So, keep holder1.
+    holder1->flattenAndRemove();
+    replaceReduceTmpWithGlobalAS(globalAS, AS);
+
   } else {
     // Use the outer variable for globalAS. Discard scratch work.
     holder1->remove();
     globalAS = AS->outerVarSym();
   }
+
+  /// Done. ///
 
   return globalAS;
 }
@@ -582,8 +609,8 @@ static void setupForReduce(ForallStmt* fs,
 
   PAS->outerVarSE = new SymExpr(globalAS);
   insert_help(PAS->outerVarSE, NULL, PAS);
-  INT_ASSERT(PAS->type == dtUnknown); //wass - see next
-  PAS->type = globalAS->type; // now that we know it // wass is it needed?
+  INT_ASSERT(PAS->type == dtUnknown); // otherwise do not update it next?
+  PAS->type = globalAS->type;         // now that we know it
 }
 
 static void handleReduce(ForallStmt* fs, ShadowVarSymbol* AS) {
