@@ -22,25 +22,23 @@
 module ChapelReduce {
 
   proc chpl__reduceCombine(ref parentOp, ref parentAS, childAS) {
-    use Reflection;
     on parentOp {
       parentOp.lock();
-      if canResolveMethod(parentOp, "combine", parentAS, childAS) then
+      if Reflection.canResolveMethod(parentOp, "combine", parentAS, childAS) {
         parentOp.combine(parentAS, childAS);
-      else
+      } else {
         parentOp.accumulate(parentAS, childAS);
+      }
       parentOp.unlock();
     }
   }
 
   proc chpl_reduce_generate(ref ovar, ref globalOp, ref globalAS) {
-    use Reflection;
-    if canResolveMethod(globalOp, "generate", ovar, globalAS) {
+    if Reflection.canResolveMethod(globalOp, "generate", ovar, globalAS) {
       // Use this more general methood, if available.
       globalOp.generate(ovar, globalAS);
     } else {
-      // Incorporate the initial value of ovar, as required
-      // by the semantics of reduce intents.
+      // Incorporate the initial value of ovar, as required by semantics.
       globalOp.accumulate(globalAS, ovar);
       ovar = globalOp. generate(globalAS);
     }
@@ -48,6 +46,7 @@ module ChapelReduce {
 
   record chpl_reduce_lock {
     var l: chpl__processorAtomicType(bool); // only accessed locally
+    proc init() { }     // avoid calculating default arg at callsite
 
     proc lock() {
       var lockAttempts = 0,
