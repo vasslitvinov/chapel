@@ -1571,12 +1571,7 @@ module ChapelArray {
       if super.type != this.type then
         compilerError("isSubset called with different associative domain types");
 
-//wass
-      writeln("isSubset: returning a bogus value");
-      return true;
-/*
       return && reduce forall i in this do super.contains(i);
-*/
     }
 
     /* Return true if this domain is a superset of ``sub``. Otherwise
@@ -1595,12 +1590,7 @@ module ChapelArray {
       if sub.type != this.type then
         compilerError("isSuper called with different associative domain types");
 
-//wass
-      writeln("isSuper: returning a bogus value");
-      return true;
-/*
       return && reduce forall i in sub do this.contains(i);
-*/
     }
 
     // 1/5/10: do we want to support order() and position()?
@@ -3266,12 +3256,7 @@ module ChapelArray {
 
     /* Return the number of times ``val`` occurs in the array. */
     proc count(val: this.eltType): int {
-//wass
-      writeln("count: returning a bogus value");
-      return 1;
-/*
       return + reduce (this == val);
-*/
     }
 
    /* Return a tuple of integers describing the size of each dimension.
@@ -3353,10 +3338,6 @@ module ChapelArray {
           return false;
     }
 
-//wass
-      writeln("_array.equals: returning a bogus value");
-      return false;
-/*
     //
     // if all the above tests match, see if zippered equality is
     // true everywhere
@@ -3366,15 +3347,9 @@ module ChapelArray {
       forall (thisArr, thatArr) in zip(this, that) with (&& reduce ret) do
         ret &&= thisArr.equals(thatArr);
       return ret;
-/* wass
-      for (thisArr, thatArr) in zip(this, that) do
-        if !thisArr.equals(thatArr) then
-          return false;
-*/
     } else {
       return && reduce (this == that);
     }
-*/
   }
 
   // The same as the built-in _cast, except accepts a param arg.
