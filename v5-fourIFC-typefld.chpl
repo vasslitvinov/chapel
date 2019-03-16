@@ -58,6 +58,14 @@ record ROP4 {
   forwarding var mylock: chpl_reduce_lock;
 }
 
+iter MYITER() { yield 55; }
+iter MYITER(param tag) {
+  yield 66;
+  coforall idx in 33..44 {
+    yield idx;
+  }
+}
+
 proc main {
   var xv1 = 5;
   var xv2 = 6;
@@ -80,12 +88,11 @@ proc main {
   writeln(xv2);
   writeln(xv3);
   writeln(xv4);
-}
 
-iter MYITER() { yield 55; }
-iter MYITER(param tag) {
-  yield 66;
-  coforall idx in 33..44 {
-    yield idx;
-  }
+  writeln();
+
+  writeln(ROP1 reduce MYITER());
+  writeln(ROP2 reduce MYITER());
+  writeln(ROP3 reduce MYITER());
+  writeln(ROP4 reduce MYITER());
 }
