@@ -512,12 +512,30 @@ static ShadowVarSymbol* create_REDUCE_RP(ForallStmt* fs, ShadowVarSymbol* PRP,
   return RP;
 }
 
+// Does 'sym' have "uses" besides 'se' ?
+static bool symbolHasUsesBesides(Symbol* sym, SymExpr* se) {
+  // follow Symbol::getSingleUse()
+  for_SymbolUses(use, sym)
+    if (use != se)
+      return true; // yes, there is at least one other use
+  return false;
+}
+
 // The temp that stores the reduce expression's result is AS's outer var.
 // For clarity, use the globalAS symbol instead of it.
-static void replaceReduceTmpWithGlobalAS(Symbol* globalAS, ShadowVarSymbol* AS)
+static void adjustReduceTmp(ForallStmt* fs,
+                            Symbol* globalAS, ShadowVarSymbol* AS)
 {
   Symbol* reduceTemp = AS->outerVarSym();
   INT_ASSERT(reduceTemp->hasFlag(FLAG_TEMP));
+
+  if (! symbolHasUsesBesides(reduceTemp, AS->outerVarSE)) {
+    // Except when the reduce expression is a field's default, the temp's use
+    // is added later in buildDefaultedActualFn(). Prepare for that.
+    //   test/classes/initializers/compilerGenerated/reduction.chpl
+    fs->insertAfter("'move'(%S,%S)", reduceTemp, globalAS);
+    return;
+  }
 
   for_SymbolSymExprs(tempSE, reduceTemp)
     tempSE->replace(new SymExpr(globalAS));
@@ -574,7 +592,7 @@ static Symbol* setupGlobalASandGenerate(ForallStmt* fs, Symbol* globalRP,
 
     } else {
       // Reduce expression, no generate.
-      replaceReduceTmpWithGlobalAS(globalAS, AS);
+      adjustReduceTmp(fs, globalAS, AS);
     }
   } else {
     if (withGenerate) {
