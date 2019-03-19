@@ -194,108 +194,79 @@ module ChapelReduce {
   record SumReduceScanOp {
     type accumType;
     inline proc init(type inputType) { accumType = chpl__sumType(inputType); }
-    inline proc init=(parentOp)      { accumType = parentOp.accumType; }
-    inline proc newAccumState()           { var x: accumType; return x; }
+    inline proc init=(parentOp)              { accumType = parentOp.accumType; }
+    inline proc newAccumState()              { var x: accumType; return x; }
     inline proc accumulate(ref state, input) { state += input; }
-    // no combine()
-    // no generate()
-
     forwarding var mylock: chpl_reduce_lock;
   }
 
   record ProductReduceScanOp {
     type accumType;
-    inline proc init(type inputType) { accumType = chpl__sumType(inputType); }
-    inline proc init=(parentOp)      { accumType = parentOp.accumType; }
-    inline proc newAccumState()           { return _prod_id(accumType); }
+    inline proc init(type inputType)         { accumType = inputType; }
+    inline proc init=(parentOp)              { accumType = parentOp.accumType; }
+    inline proc newAccumState()              { return _prod_id(accumType); }
     inline proc accumulate(ref state, input) { state *= input; }
-    // no combine()
-    // no generate()
-
     forwarding var mylock: chpl_reduce_lock;
   }
 
   record MaxReduceScanOp {
     type accumType;
-    inline proc init(type inputType) { accumType = chpl__sumType(inputType); }
-    inline proc init=(parentOp)      { accumType = parentOp.accumType; }
-    inline proc newAccumState()           { return min(accumType); }
+    inline proc init(type inputType)         { accumType = inputType; }
+    inline proc init=(parentOp)              { accumType = parentOp.accumType; }
+    inline proc newAccumState()              { return min(accumType); }
     inline proc accumulate(ref state, input) { state = max(state, input); }
-    // no combine()
-    // no generate()
-
     forwarding var mylock: chpl_reduce_lock;
   }
 
   record MinReduceScanOp {
     type accumType;
-    inline proc init(type inputType) { accumType = chpl__sumType(inputType); }
-    inline proc init=(parentOp)      { accumType = parentOp.accumType; }
-    inline proc newAccumState()           { return max(accumType); }
+    inline proc init(type inputType)         { accumType = inputType; }
+    inline proc init=(parentOp)              { accumType = parentOp.accumType; }
+    inline proc newAccumState()              { return max(accumType); }
     inline proc accumulate(ref state, input) { state = min(state, input); }
-    // no combine()
-    // no generate()
-
     forwarding var mylock: chpl_reduce_lock;
   }
 
   record LogicalAndReduceScanOp {
-    type accumType;
-    inline proc init(type inputType)  { this.accumType = inputType; }
-    inline proc init=(parentOp)       { this.accumType = parentOp.accumType; }
-    inline proc newAccumState()           { return _land_id(accumType); }
+    inline proc init(type inputType)         { }
+    inline proc init=(parentOp)              { }
+    inline proc newAccumState()              { return _land_id(accumType); }
     inline proc accumulate(ref state, input) { state &&= input; }
-    // no combine()
-    // no generate()
-
     forwarding var mylock: chpl_reduce_lock;
   }
 
   record LogicalOrReduceScanOp {
-    type accumType;
-    inline proc init(type inputType)  { this.accumType = inputType; }
-    inline proc init=(parentOp)       { this.accumType = parentOp.accumType; }
-    inline proc newAccumState()           { return _lor_id(accumType); }
+    inline proc init(type inputType)         { }
+    inline proc init=(parentOp)              { }
+    inline proc newAccumState()              { return _lor_id(accumType); }
     inline proc accumulate(ref state, input) { state ||= input; }
-    // no combine()
-    // no generate()
-
     forwarding var mylock: chpl_reduce_lock;
   }
 
   record BitwiseAndReduceScanOp {
     type accumType;
-    inline proc init(type inputType)  { this.accumType = inputType; }
-    inline proc init=(parentOp)       { this.accumType = parentOp.accumType; }
-    inline proc newAccumState()           { return _band_id(accumType); }
+    inline proc init(type inputType)         { this.accumType = inputType; }
+    inline proc init=(parentOp)     { this.accumType = parentOp.accumType; }
+    inline proc newAccumState()              { return _band_id(accumType); }
     inline proc accumulate(ref state, input) { state &= input; }
-    // no combine()
-    // no generate()
-
     forwarding var mylock: chpl_reduce_lock;
   }
 
   record BitwiseOrReduceScanOp {
     type accumType;
-    inline proc init(type inputType)  { this.accumType = inputType; }
-    inline proc init=(parentOp)       { this.accumType = parentOp.accumType; }
-    inline proc newAccumState()           { return _bor_id(accumType); }
+    inline proc init(type inputType)         { this.accumType = inputType; }
+    inline proc init=(parentOp)     { this.accumType = parentOp.accumType; }
+    inline proc newAccumState()              { return _bor_id(accumType); }
     inline proc accumulate(ref state, input) { state |= input; }
-    // no combine()
-    // no generate()
-
     forwarding var mylock: chpl_reduce_lock;
   }
 
   record BitwiseXorReduceScanOp {
     type accumType;
-    inline proc init(type inputType)  { this.accumType = inputType; }
-    inline proc init=(parentOp)       { this.accumType = parentOp.accumType; }
-    inline proc newAccumState()           { return _bxor_id(accumType); }
+    inline proc init(type inputType)         { this.accumType = inputType; }
+    inline proc init=(parentOp)     { this.accumType = parentOp.accumType; }
+    inline proc newAccumState()              { return _bxor_id(accumType); }
     inline proc accumulate(ref state, input) { state ^= input; }
-    // no combine()
-    // no generate()
-
     forwarding var mylock: chpl_reduce_lock;
   }
 
@@ -306,7 +277,7 @@ module ChapelReduce {
     type accumType;
     inline proc init(type inputType)  { this.accumType = inputType; }
     inline proc init=(parentOp)       { this.accumType = parentOp.accumType; }
-    inline proc newAccumState()           { return _maxloc_id(accumType); }
+    inline proc newAccumState()       { return _maxloc_id(accumType); }
 
     inline proc accumulate(ref state, input) {
       if input(1) > state(1) ||
@@ -322,7 +293,7 @@ module ChapelReduce {
     type accumType;
     inline proc init(type inputType)  { this.accumType = inputType; }
     inline proc init=(parentOp)       { this.accumType = parentOp.accumType; }
-    inline proc newAccumState()           { return _minloc_id(accumType); }
+    inline proc newAccumState()       { return _minloc_id(accumType); }
 
     inline proc accumulate(ref state, input) {
       if input(1) < state(1) ||
