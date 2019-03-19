@@ -230,7 +230,7 @@ module ChapelReduce {
   record LogicalAndReduceScanOp {
     inline proc init(type inputType)         { }
     inline proc init=(parentOp)              { }
-    inline proc newAccumState()              { return _land_id(accumType); }
+    inline proc newAccumState()              { return true; }
     inline proc accumulate(ref state, input) { state &&= input; }
     forwarding var mylock: chpl_reduce_lock;
   }
@@ -238,7 +238,7 @@ module ChapelReduce {
   record LogicalOrReduceScanOp {
     inline proc init(type inputType)         { }
     inline proc init=(parentOp)              { }
-    inline proc newAccumState()              { return _lor_id(accumType); }
+    inline proc newAccumState()              { return false; }
     inline proc accumulate(ref state, input) { state ||= input; }
     forwarding var mylock: chpl_reduce_lock;
   }
