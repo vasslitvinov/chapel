@@ -492,8 +492,6 @@ void resolveFunction(FnSymbol* fn, CallExpr* forCall) {
     if (fn->hasFlag(FLAG_EXTERN) == true) {
       resolveBlockStmt(fn->body);
 
-      standardizeParamReturn(fn);
-
       resolveReturnType(fn);
 
     } else {
