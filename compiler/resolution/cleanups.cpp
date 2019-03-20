@@ -32,6 +32,39 @@
 #include "UnmanagedClassType.h"
 #include "wellknown.h"
 
+//=============================================================================
+// moved from functionResolution.cpp
+
+void resolveBlockStmt(BlockStmt* blockStmt) {
+  Expr* lastExpr = blockStmt;
+  Expr* currExpr = blockStmt->getFirstExpr();
+  Expr* resolveOutcome = NULL;
+
+  while (true) {
+    resolveOutcome = resolveExpr(currExpr);
+    INT_ASSERT(!tryFailure);
+
+    // The subtree rooted at 'resolveExpr' has been processed.
+    // Proceed to:
+    //   * resolveExpr->next, or
+    //   * the next thing under resolveOutcome->parent.
+
+    if (resolveOutcome == lastExpr)
+      break; // done
+
+    else if (Expr* rNext = resolveOutcome->next)
+      currExpr = rNext->getFirstExpr();
+
+    else if (Expr* rParent = resolveOutcome->parentExpr)
+      currExpr = rParent->getNextExpr(resolveOutcome);
+
+    else
+      break; // done
+  }
+}
+
+//=============================================================================
+
 static void clearDefaultInitFns(FnSymbol* unusedFn) {
   AggregateType* at = toAggregateType(unusedFn->retType);
   if (at) {
