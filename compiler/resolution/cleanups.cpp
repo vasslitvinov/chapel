@@ -33,7 +33,9 @@
 #include "wellknown.h"
 
 //=============================================================================
-// moved from functionResolution.cpp
+// wass moved from functionResolution.cpp
+
+static int fl2 = 0; //wass break before resolveExpr() for this expr
 
 void resolveBlockStmt(BlockStmt* blockStmt) {
   Expr* lastExpr = blockStmt;
@@ -41,6 +43,8 @@ void resolveBlockStmt(BlockStmt* blockStmt) {
   Expr* resolveOutcome = NULL;
 
   while (true) {
+    if (currExpr->id == fl2) gdbShouldBreakHere();
+
     resolveOutcome = resolveExpr(currExpr);
     INT_ASSERT(!tryFailure);
 

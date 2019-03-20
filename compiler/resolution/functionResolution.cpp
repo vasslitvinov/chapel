@@ -6296,7 +6296,8 @@ static Expr* resolveTypeOrParamExpr(Expr* expr) {
 *                                                                             *
 ************************************** | *************************************/
 
-// vass - moved to cleanups.cpp: void resolveBlockStmt(BlockStmt* blockStmt)
+//wass - moved to cleanups.cpp:
+// void resolveBlockStmt(BlockStmt* blockStmt)
 
 /************************************* | **************************************
 *                                                                             *
@@ -6336,9 +6337,15 @@ static Expr*       resolveExprHandleTryFailure(FnSymbol* fn);
 
 static void        resolveExprMaybeIssueError(CallExpr* call);
 
+static int fl1 = 0; //wass trace resolveExpr for each node under that Symbol
+
 Expr* resolveExpr(Expr* expr) {
   FnSymbol* fn     = toFnSymbol(expr->parentSymbol);
   Expr*     retval = NULL;
+
+  if (expr->parentSymbol->id == fl1)
+    printf("resolveExpr %7d %19s   %s\n",
+           expr->id, expr->astTagAsString(), debugLoc(expr));
 
   if (expr->id == breakOnResolveID)
     gdbShouldBreakHere();
