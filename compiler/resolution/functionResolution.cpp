@@ -6349,7 +6349,7 @@ Expr* resolveExpr(Expr* expr) {
     retval = expr;
 
   } else if (isParamResolved(fn, expr) == true) {
-    retval = expr;
+    retval = fn->body; // finish resolving 'fn'
 
   // This must be after isParamResolved
   } else if (BlockStmt* block = toBlockStmt(expr)) {
@@ -6434,13 +6434,7 @@ static bool isParamResolved(FnSymbol* fn, Expr* expr) {
     }
 
     if (paramMap.get(fn->getReturnSymbol())) {
-      CallExpr* call = toCallExpr(fn->body->body.tail);
-
-      INT_ASSERT(call);
-      INT_ASSERT(call->isPrimitive(PRIM_RETURN));
-
-      call->get(1)->replace(new SymExpr(paramMap.get(fn->getReturnSymbol())));
-
+      // see also standardizeParamReturn()
       retval = true;
     }
   }
