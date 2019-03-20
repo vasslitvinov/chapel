@@ -140,6 +140,10 @@ import re
 import shlex
 import datetime
 
+# current date-time string
+def CurrTimeStr():
+    return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+
 localdir = ''
 sub_test_start_time = time.time()
 def elapsed_sub_test_time():
@@ -153,7 +157,7 @@ def elapsed_sub_test_time():
         base_name = os.path.splitext(chpl_name)[0]
         test_name = os.path.join(test_name, base_name)
 
-    print('[Finished subtest "{0}" - {1:.3f} seconds]\n'.format(test_name, elapsed_sec))
+    print('[{2}] [Finished subtest "{0}" - {1:.3f} seconds]\n'.format(test_name, elapsed_sec,CurrTimeStr()))
 
 import atexit
 atexit.register(elapsed_sub_test_time)
@@ -1539,7 +1543,7 @@ for testname in testsrc:
         #
         comptimeout = 4*timeout
         cmd=ShellEscapeCommand(cmd);
-        sys.stdout.write('[Executing compiler %s'%(cmd))
+        sys.stdout.write('[%s] [Executing compiler %s'%(CurrTimeStr(),cmd))
         if args:
             sys.stdout.write(' %s'%(' '.join(args)))
         sys.stdout.write(' < %s]\n'%(compstdin))
@@ -1591,8 +1595,8 @@ for testname in testsrc:
         if compoptsnum != 0:
             test_name += ' (compopts: {0})'.format(compoptsnum)
 
-        print('[Elapsed compilation time for "{0}" - {1:.3f} '
-            'seconds]'.format(test_name, elapsedCompTime))
+#        print('[Elapsed compilation time for "{0}" - {1:.3f} '
+#            'seconds]'.format(test_name, elapsedCompTime))
 
         # remove some_file: output from C compilers
         if is_c_test:
@@ -1958,6 +1962,7 @@ for testname in testsrc:
             #
             # Run program (with timeout)
             #
+            sys.stdout.write('Executing %s trial(s), timeout %d\n'%(numTrials, timeout))
             skip_remaining_trials = False
             for count in range(numTrials):
                 if skip_remaining_trials:
@@ -1971,7 +1976,7 @@ for testname in testsrc:
                 with exec_limiter:
                     exectimeout = False  # 'exectimeout' is specific to one trial of one execopt setting
                     launcher_error = ''  # used to suppress output/timeout errors whose root cause is a launcher error
-                    sys.stdout.write('[Executing program %s %s'%(cmd, ' '.join(args)))
+                    sys.stdout.write('[%s] [Executing program %s %s'%(CurrTimeStr(), cmd, ' '.join(args)))
                     if redirectin:
                         sys.stdout.write(' < %s'%(redirectin))
                     sys.stdout.write(']\n')
@@ -2093,8 +2098,8 @@ for testname in testsrc:
                                 '{0}'.format(launchcmd_exec_time_file))
                     os.unlink(launchcmd_exec_time_file)
 
-                print('[Elapsed execution time for "{0}" - {1:.3f} '
-                    'seconds]'.format(test_name, elapsedExecTime))
+#                print('[Elapsed execution time for "{0}" - {1:.3f} '
+#                    'seconds]'.format(test_name, elapsedExecTime))
 
 
                 if execTimeWarnLimit and elapsedExecTime > execTimeWarnLimit:
@@ -2304,7 +2309,7 @@ for testname in testsrc:
 
     elapsedCurFileTestTime = time.time() - curFileTestStart
     test_name = os.path.join(localdir, test_filename)
-    printEndOfTestMsg(test_name, elapsedCurFileTestTime)
+#   printEndOfTestMsg(test_name, elapsedCurFileTestTime)
 
 
 sys.exit(0)

@@ -114,6 +114,14 @@ sub main {
         $ENV{$key} = $value;
     }
 
+    if ($ENV{"CHPL_COMM"} eq "gasnet") {
+       $ENV{"CHPL_TEST_TIMEOUT"} = "543";
+       $ENV{"QT_AFFINITY"} = "no";
+       $ENV{"CHPL_QTHREAD_ENABLE_OVERSUBSCRIPTION"} = "1";
+    }
+    $ENV{"CHPL_TEST_LIMIT_RUNNING_EXECUTABLES"} = "YES";
+    $ENV{"CHPL_VERIFY"} = "1";
+
     systemd ("$testcmd $testarg");
 
     sleep $publish_delay;

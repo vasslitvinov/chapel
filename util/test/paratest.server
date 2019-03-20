@@ -46,7 +46,7 @@ $node_para = 1;                        # the number of tasks to run on each node
 $valgrind = 0;
 $memleaks = "/dev/null";
 $memleaksflag = 0;
-$show_all_errors = 0;
+$show_all_errors = 1;
 $junit_xml = 0;
 $junit_xml_file = "";
 $junit_remove_prefix = "";
@@ -146,7 +146,7 @@ sub collect_logs {
     }
 
     systemd ("grep -a '^\\[Error' $fin_log >> $fin_log.summary");
-    systemd ("grep -a '^Future' $fin_log >> $fin_log.summary");
+    systemd ("grep -a '^Future' $fin_log | grep -av ') \\[Error' >> $fin_log.summary");
 
     # Count stuff
     $successes = `grep -a "^\\[Success matching" $fin_log | wc -l`;
@@ -163,7 +163,7 @@ sub collect_logs {
 
     systemd ("cat $fin_log.summary >> $fin_log");
 
-    print "\n[Summary: #Successes = $successes | #Failures = $failures | #Futures = $futures]\n";
+    print "[Summary: #Successes = $successes | #Failures = $failures | #Futures = $futures]\n";
 
 }
 
@@ -195,7 +195,7 @@ sub free_workers {
         }
     }
 
-    print (@readyids ? "," : ".");
+#   print (@readyids ? "," : ".");
     return @readyids;
 }
 
@@ -220,10 +220,10 @@ sub feed_nodes {
       systemd ("echo '$activate_venv_output' >> $fin_logfile");
     } else {
       @testdir_list = sort @testdir_list;
-      print $nodeCount; print " worker(s) (@node_list)\n";
+      print $nodeCount; print " worker(s)\n";
       print "timeout = $timeout\n" if $debug > 0;
       my $startCount = $#testdir_list + 1;
-      print $startCount; print " test(s) (@testdir_list)\n";
+      print $startCount; print " test(s)\n";
 
       my $startSecs = time();
       while (($#testdir_list >= 0) &&       # while still have work to do
@@ -232,7 +232,7 @@ sub feed_nodes {
           @readyidv = free_workers ();      # get IDs of nodes that are ready
 
           print @readyidv if $debug;
-          print "\n" if ($#readyidv >= 0);
+          #print "\n" if ($#readyidv >= 0);
           foreach $readyid (@readyidv) {    # for ready nodes
               next if ($#testdir_list < 0);
 
@@ -257,8 +257,8 @@ sub feed_nodes {
               }
               my ($endSec, $endMin, $endHour) = localtime(time() + $estSecsLeft);
 
-              print "$node <- $testdir ($#testdir_list left, ";
-              printf ("end ~%02d:%02d:%02d)\n", $endHour, $endMin, $endSec);
+              print "$node  $#testdir_list  $testdir\n";
+              #printf ("end ~%02d:%02d:%02d)\n", $endHour, $endMin, $endSec);
               $testdirname = $testdir;
               $testdirname =~ s/\//-/g;
               $logfile = "$logdir/$testdirname.$node.log";
@@ -289,9 +289,9 @@ sub feed_nodes {
                     : '/^\\[Error/{p;q;}';
                   $partial_errors = `sed -n '$pe_command' $logfile`;
                   if ($partial_errors) {
-                      print "\n:( $partial_errors";
+                      print "$partial_errors";
                   } else {
-                      print ":)";
+                      #print ":)";
                   }
                   exit (0);
               }
@@ -394,6 +394,7 @@ sub nodes_free {
     foreach $file (@dirv) {
         unlink "$synchdir/$file";
     }
+    print "done launching the workers\n";
 
     systemd ("rm -f $synchdir/*");
     # signal that all nodes are free

@@ -940,11 +940,16 @@ void fnsWithName(const char* name, Vec<FnSymbol*,VEC_INTEGRAL_SIZE>& fnVec) {
       countNonNull++;
       if (!strcmp(fn->name, name)) {
         count++;
-        printf("  %d  %s\n", fn->id, debugLoc(fn));
+        printf("  %d  %c%c  %s\n", fn->id,
+               fn->inTree() ? 't' : ' ',
+               // "g"eneric, "r"esolved, "G"eneric+resolved, " " - neither
+               fn->isResolved() ? (fn->hasFlag(FLAG_GENERIC) ? 'G' : 'r') :
+                                  (fn->hasFlag(FLAG_GENERIC) ? 'g' : ' ') ,
+               debugLoc(fn));
       }
     }
   }
-  printf("  %d function(s) of %d\n", count, countNonNull);
+  printf("  = %d function(s) of %d\n", count, countNonNull);
 }
 
 //
@@ -1064,7 +1069,7 @@ static void whocalls(int id, Symbol* sym) {
     }
   }
 
-  printf("  %d of %d calls", callMatch, callAll);
+  printf("  = %d of %d calls", callMatch, callAll);
   if (callNonTreeMatch) printf(", also %d not in tree", callNonTreeMatch);
   printf(".  %d of %d for-loops", forMatch+fItMatch, forAll+fItAll);
   int forNontree = forNonTreeMatch + fItNonTreeMatch;
