@@ -6356,7 +6356,9 @@ Expr* resolveExpr(Expr* expr) {
     retval = expr;
 
   } else if (isParamResolved(fn, expr) == true) {
-    retval = fn->body; // finish resolving 'fn'
+    INT_ASSERT(false); //wass - this is new
+    retval = expr;
+//wass or:    retval = fn->body; // finish resolving 'fn'
 
   // This must be after isParamResolved
   } else if (BlockStmt* block = toBlockStmt(expr)) {
@@ -6447,6 +6449,11 @@ static bool isParamResolved(FnSymbol* fn, Expr* expr) {
   }
 
   return retval;
+}
+
+bool isParamResolvedExtern(Expr* expr); //wass
+bool isParamResolvedExtern(Expr* expr) {
+  return isParamResolved(toFnSymbol(expr->parentSymbol), expr);
 }
 
 static Expr* resolveExprPhase2(Expr* origExpr, FnSymbol* fn, Expr* expr) {

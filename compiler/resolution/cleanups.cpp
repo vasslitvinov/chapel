@@ -45,6 +45,10 @@ void resolveBlockStmt(BlockStmt* blockStmt) {
   while (true) {
     if (currExpr->id == fl2) gdbShouldBreakHere();
 
+    bool isParamResolvedExtern(Expr* expr); //wass
+    if (isParamResolvedExtern(currExpr))
+      break; //wass formerly side-effect of isParamResolved()
+
     resolveOutcome = resolveExpr(currExpr);
     INT_ASSERT(!tryFailure);
 
