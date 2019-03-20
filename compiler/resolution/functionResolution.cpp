@@ -6296,19 +6296,7 @@ static Expr* resolveTypeOrParamExpr(Expr* expr) {
 *                                                                             *
 ************************************** | *************************************/
 
-void resolveBlockStmt(BlockStmt* blockStmt) {
-  for_exprs_postorder(expr, blockStmt) {
-    expr = resolveExpr(expr);
-
-    if (tryFailure == true) {
-      if (expr != NULL) {
-        tryFailure = false;
-      } else {
-        break;
-      }
-    }
-  }
-}
+// vass - moved to cleanups.cpp: void resolveBlockStmt(BlockStmt* blockStmt)
 
 /************************************* | **************************************
 *                                                                             *
