@@ -396,6 +396,20 @@ static void handleParamCNameFormal(FnSymbol* fn, ArgSymbol* formal) {
 *                                                                             *
 ************************************** | *************************************/
 
+// formerly part of isParamResolved()
+static void standardizeParamReturn(FnSymbol* fn) {
+  if (fn->retTag == RET_PARAM) {
+    if (paramMap.get(fn->getReturnSymbol())) {
+      CallExpr* call = toCallExpr(fn->body->body.tail);
+
+      INT_ASSERT(call);
+      INT_ASSERT(call->isPrimitive(PRIM_RETURN));
+
+      call->get(1)->replace(new SymExpr(paramMap.get(fn->getReturnSymbol())));
+    }
+  }
+}
+
 void resolveSpecifiedReturnType(FnSymbol* fn) {
   Type* retType = NULL;
 
@@ -478,6 +492,8 @@ void resolveFunction(FnSymbol* fn, CallExpr* forCall) {
     if (fn->hasFlag(FLAG_EXTERN) == true) {
       resolveBlockStmt(fn->body);
 
+      standardizeParamReturn(fn);
+
       resolveReturnType(fn);
 
     } else {
@@ -488,6 +504,8 @@ void resolveFunction(FnSymbol* fn, CallExpr* forCall) {
       insertFormalTemps(fn);
 
       resolveBlockStmt(fn->body);
+
+      standardizeParamReturn(fn);
 
       if (tryFailure == false) {
         insertUnrefForArrayOrTupleReturn(fn);
