@@ -86,6 +86,10 @@ static Expr* resolveSubtree(AList* listp, Expr* subtree) {
   return resolveOutcome;
 }
 
+Expr* Expr::resolveMe(bool& newIFC, AList* listp) {
+  return resolveSubtree(listp, this);
+}
+
 static int fl3 = 0; //wass break at resolveBlockStmt() top level for this expr
 
 void resolveBlockStmt(BlockStmt* blockStmt) {
@@ -94,31 +98,30 @@ void resolveBlockStmt(BlockStmt* blockStmt) {
   AList* listp    = &blockStmt->body;
   Expr*  currExpr = listp->head;
 
+  // Process, in turn, each AST on the list.
   while (currExpr != NULL) {
     INT_ASSERT(currExpr->list == listp);
-
-#if 1 // for now
     if (currExpr->id == fl3) gdbShouldBreakHere();
 
-    Expr* processed = resolveSubtree(listp, currExpr);
+    Expr* cachedNext = currExpr->next;
+    bool newIFC = false;
+
+    Expr* processed = currExpr->resolveMe(newIFC, listp);
+
+   if (newIFC) {
+    // new style: 'processed' is what should be done next
+    //wass should call it 'requestedNext'
+
+    currExpr = processed ? processed : cachedNext;
+
+   } else {
+    // old style: 'processed' is the last thing already handled
 
     if (processed == NULL)
       break; // isParamResolved() fired, finish processing
 
-    INT_ASSERT(processed->list == listp); // ensured by resolveSubtree
-
     currExpr = processed->next;
-
-#else //wass desired target
-    Expr* cachedNext = currExpr->next;
-    Expr* requestedNext = currExpr->resolveMe(); // real work happens here
-
-    if (requestedNext == NULL)
-      currExpr = cachedNext;
-    else
-      currExpr = requestedNext;
-#endif
-
+   }
   } // while
 
   // The following is the only thing that seems done on a BlockStmt

@@ -84,6 +84,8 @@ public:
 
   BlockStmt*      getScopeBlock();
 
+  virtual Expr*   resolveMe(bool& newIFC, AList* listp);
+
   Symbol*         parentSymbol;
   Expr*           parentExpr;
 
