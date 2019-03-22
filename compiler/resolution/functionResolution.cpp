@@ -6337,15 +6337,15 @@ static Expr*       resolveExprHandleTryFailure(FnSymbol* fn);
 
 static void        resolveExprMaybeIssueError(CallExpr* call);
 
-static int fl1 = 0; //wass trace resolveExpr for each node under that Symbol
+int fl1 = 0; //wass trace resolveExpr for each node under that Symbol
 
 Expr* resolveExpr(Expr* expr) {
   FnSymbol* fn     = toFnSymbol(expr->parentSymbol);
   Expr*     retval = NULL;
 
   if (expr->parentSymbol->id == fl1)
-    printf("resolveExpr %7d %19s   %s\n",
-           expr->id, expr->astTagAsString(), debugLoc(expr));
+    printf("  %7d    %-19s\n",
+           expr->id, expr->astTagAsString() /*, debugLoc(expr)*/);
 
   if (expr->id == breakOnResolveID)
     gdbShouldBreakHere();
@@ -6356,9 +6356,7 @@ Expr* resolveExpr(Expr* expr) {
     retval = expr;
 
   } else if (isParamResolved(fn, expr) == true) {
-    INT_ASSERT(false); //wass - this is new
-    retval = expr;
-//wass or:    retval = fn->body; // finish resolving 'fn'
+    retval = NULL;  // signal that we are done
 
   // This must be after isParamResolved
   } else if (BlockStmt* block = toBlockStmt(expr)) {

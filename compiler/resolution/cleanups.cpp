@@ -31,33 +31,46 @@
 #include "resolution.h"
 #include "UnmanagedClassType.h"
 #include "wellknown.h"
+#include "view.h" //wass
 
 //=============================================================================
-// wass moved from functionResolution.cpp
+//wass moved from functionResolution.cpp
 
+extern int fl1;     //wass trace resolveExpr for each node under that Symbol
 static int fl2 = 0; //wass break before resolveExpr() for this expr
 
-void resolveBlockStmt(BlockStmt* blockStmt) {
-  Expr* lastExpr = blockStmt;
-  Expr* currExpr = blockStmt->getFirstExpr();
+//
+// Resolve everything under 'subtree' including itself.
+// Use 'listp' to help decide when to return.
+// Return the result of the last call to resolveExpr().
+// The returned value has already been processed.
+//
+static Expr* resolveSubtree(AList* listp, Expr* subtree) {
+  if (subtree->parentSymbol->id == fl1)
+    printf("resolveSubtree  %7d    %-19s   %s\n",
+           subtree->id, subtree->astTagAsString(), debugLoc(subtree));
+
+  // NB currExpr is never NULL.
+  Expr* currExpr = subtree->getFirstExpr();
   Expr* resolveOutcome = NULL;
 
+  // Formerly the for_exprs_postorder() loop.
   while (true) {
     if (currExpr->id == fl2) gdbShouldBreakHere();
-
-    bool isParamResolvedExtern(Expr* expr); //wass
-    if (isParamResolvedExtern(currExpr))
-      break; //wass formerly side-effect of isParamResolved()
 
     resolveOutcome = resolveExpr(currExpr);
     INT_ASSERT(!tryFailure);
 
-    // The subtree rooted at 'resolveExpr' has been processed.
+    //wass formatting: connect to the following if-then chain
+    if (resolveOutcome == NULL)
+      break; // isParamResolved() fired, finish processing
+
+    // The subtree rooted at 'resolveOutcome' has been processed.
     // Proceed to:
-    //   * resolveExpr->next, or
+    //   * resolveOutcome->next, or
     //   * the next thing under resolveOutcome->parent.
 
-    if (resolveOutcome == lastExpr)
+    if (resolveOutcome->list == listp)
       break; // done
 
     else if (Expr* rNext = resolveOutcome->next)
@@ -67,7 +80,57 @@ void resolveBlockStmt(BlockStmt* blockStmt) {
       currExpr = rParent->getNextExpr(resolveOutcome);
 
     else
-      break; // done
+      INT_ASSERT(false); //wass was break; // done
+  }
+
+  return resolveOutcome;
+}
+
+static int fl3 = 0; //wass break at resolveBlockStmt() top level for this expr
+
+void resolveBlockStmt(BlockStmt* blockStmt) {
+  if (blockStmt->id == breakOnResolveID) gdbShouldBreakHere(); //wass
+
+  AList* listp    = &blockStmt->body;
+  Expr*  currExpr = listp->head;
+
+  while (currExpr != NULL) {
+    INT_ASSERT(currExpr->list == listp);
+
+#if 1 // for now
+    if (currExpr->id == fl3) gdbShouldBreakHere();
+
+    Expr* processed = resolveSubtree(listp, currExpr);
+
+    if (processed == NULL)
+      break; // isParamResolved() fired, finish processing
+
+    INT_ASSERT(processed->list == listp); // ensured by resolveSubtree
+
+    currExpr = processed->next;
+
+#else //wass desired target
+    Expr* cachedNext = currExpr->next;
+    Expr* requestedNext = currExpr->resolveMe(); // real work happens here
+
+    if (requestedNext == NULL)
+      currExpr = cachedNext;
+    else
+      currExpr = requestedNext;
+#endif
+
+  } // while
+
+  // The following is the only thing that seems done on a BlockStmt
+  // outside of things on its list - in resolveExpr().
+  // This may (or not) replace 'block' with a ForallStmt.
+  // Master, then, invokes foldTryCond(postFold(ForallStmt));
+  // I do not see how the for_exprs_postorder() loop
+  // terminates in this case. Perhaps it doesn't, and it's OK.
+  // So, we detect this case here and put it off for now.
+  if (ForLoop* forLoop = toForLoop(blockStmt)) {
+    Expr* repl = replaceForWithForallIfNeeded(forLoop);
+    INT_ASSERT(repl == forLoop); // not replaced; to be implemented, otherwise
   }
 }
 
