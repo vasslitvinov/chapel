@@ -70,6 +70,8 @@ bool ResolutionCandidate::isApplicable(CallInfo& info) {
     retval = isApplicableConcrete(info);
   } else {
     retval = isApplicableGeneric (info);
+    if (! retval && fn && ! fn->isResolved())
+      popInstantiationLimit(fn);
   }
 
   // Note: for generic instantiations, this code will be executed twice.

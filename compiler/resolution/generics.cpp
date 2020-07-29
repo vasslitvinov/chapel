@@ -382,6 +382,8 @@ FnSymbol* instantiateSignature(FnSymbol*  fn,
     if (FnSymbol* cached = checkCache(genericsCache, root, &allSubs)) {
       if (cached != (FnSymbol*) gVoid) {
         checkInfiniteWhereInstantiation(cached);
+        if (cached->isResolved() == false)
+          explainAndCheckInstantiation(cached, fn);
 
         return cached;
       } else {
