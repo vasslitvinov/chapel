@@ -3354,6 +3354,11 @@ static FnSymbol* resolveNormalCall(CallInfo& info, check_state_t checkState) {
                                    bestCref,
                                    bestVal);
 
+  forv_Vec(ResolutionCandidate*, candt, candidates) {
+    if (candt != bestRef && candt != bestCref && candt != bestVal)
+      popInstantiationLimit(candt->fn);
+  }
+
   // If no candidates were found and it's a method, try forwarding
   if (candidates.n                  == 0 &&
       info.call->numActuals()       >= 1 &&
