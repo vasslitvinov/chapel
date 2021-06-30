@@ -378,7 +378,8 @@ void resolveInterfaceSymbol(InterfaceSymbol* isym) {
 
   for_alist(stmt, isym->ifcBody->body)
    if (FnSymbol* fn = toFnSymbol(toDefExpr(stmt)->sym))
-     if (! fn->hasFlag(FLAG_IMPLEMENTS_WRAPPER))
+     if (! fn->hasFlag(FLAG_IMPLEMENTS_WRAPPER) &&
+         ! fn->hasFlag(FLAG_CG_REPRESENTATIVE))
        resolveISymRequiredFun(isym, fn);
 
   for_alist(stmt, isym->ifcBody->body)
@@ -1507,6 +1508,36 @@ static bool resolveOneRequiredFn(InterfaceSymbol* isym,  ImplementsStmt*  istm,
   return target != NULL;
 }
 
+static void buildWitnessMapHelper(std::vector<InterfaceReps*>& ifcReps,
+                                  std::vector<ImplementsStmt*>& conWits,
+                                  SymbolMap& witMap, int depth) {
+  // The recursion should finish due to isym's ifcReps.
+  // If it finishes due to istm's conWits, accept that as well for now.
+  int aconNum = std::min(ifcReps.size(), conWits.size());
+  if (aconNum > 0) {
+    depth++; INT_ASSERT(depth <= repsMaxDepth);
+  }
+
+  for (int aconIdx = 0; aconIdx < aconNum; aconIdx++) {
+    form_Map(SymbolMapElem, elem, ifcReps[aconIdx]->symReps)
+      witMap.put(elem->value,
+                 conWits[aconIdx]->witnesses.symWits.get(elem->key));
+
+    buildWitnessMapHelper(ifcReps[aconIdx]->conReps,
+                          conWits[aconIdx]->witnesses.conWits,
+                          witMap, depth);
+  }
+}
+
+static void buildWitnessMap(InterfaceSymbol* isym, ImplementsStmt* istm,
+                            SymbolMap&     witMap) {
+  // Start with istm's own witnesses.
+  witMap.copy(istm->witnesses.symWits);
+
+  // Descend into associated constraints.
+  buildWitnessMapHelper(isym->ifcReps, istm->witnesses.conWits, witMap, 0);
+}
+
 static bool resolveRequiredFns(InterfaceSymbol* isym,  ImplementsStmt* istm,
                                SymbolMap&    fml2act,
                                BlockStmt*     holder,  Expr*       addlSite,
@@ -1524,10 +1555,12 @@ static bool resolveRequiredFns(InterfaceSymbol* isym,  ImplementsStmt* istm,
   }
 
   if (rfSuccess) {
+    SymbolMap witMap;
+    buildWitnessMap(isym, istm, witMap);
     for(FnSymbol* iDflt: instantiatedDefaults)
       // Update references to now-instantiated required functions
       // within default implementations.
-      update_symbols(iDflt, &(istm->witnesses.symWits));
+      update_symbols(iDflt, &witMap);
   }
 
   return rfSuccess;
