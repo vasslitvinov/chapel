@@ -218,6 +218,8 @@ void recordCGInterimInstantiations(CallExpr* call, ResolutionCandidate* best1,
   recordOneInterim(parentFn, call, best3);
 }
 
+//wass todo: update the comment
+#if 0 //wass
 //
 // handleCallsToOtherCGfuns() invokes resolveNormalCall() on a call
 // that has been resolved already. So any out-intent formals of the target,
@@ -236,14 +238,45 @@ void recordCGInterimInstantiations(CallExpr* call, ResolutionCandidate* best1,
 //         already-existing _formal_tmp_out_myOutFormal)
 // which we convert to a MOVE.
 //
-static void adjustForOutIntents(Expr* nextStmt, CallExpr* call) {
-   for(Expr* curr = call->getStmtExpr(); curr != nextStmt; curr = curr->next)
+static void adjustForOutIntents(Expr* nextStmt, CallExpr* callToCG) {
+   for(Expr* curr = callToCG->getStmtExpr(); curr != nextStmt; curr = curr->next)
     if (CallExpr* call = toCallExpr(curr))
       if (UnresolvedSymExpr* utarget = toUnresolvedSymExpr(call->baseExpr))
-        if (utarget->unresolved == astrSassign)
-          gdbShouldBreakHere(),  //wass
-          resolveNormalCall(call);
+        if (utarget->unresolved == astrSassign) {
+          gdbShouldBreakHere();  //wass
+          //resolveNormalCall(call); //wass
+          return; //wass
+        }
 }
+#else //wass
+static SymExpr* otherUse(Symbol* temp, SymExpr* knownSE) {
+  for_SymbolSymExprs(se, temp)
+    if (se != knownSE)
+      return se;
+  return nullptr;
+}
+
+static void adjustOutIntents(CallExpr* reresolvedCall) {
+  for_formals_actuals(formal, actual, reresolvedCall) {
+    if (! (formal->intent & INTENT_FLAG_OUT)) continue;
+    SymExpr* actSE = toSymExpr(actual);
+    Symbol* temp = actSE->symbol();
+    printf("call %d  actSE %d  temp %s[%d]\n", reresolvedCall->id, actSE->id,
+           temp->name, temp->id);
+    nprint_view(reresolvedCall);
+    INT_ASSERT(temp->hasFlag(FLAG_TEMP));
+    SymExpr* otherSE = otherUse(temp, actSE);
+    CallExpr* assign = toCallExpr(otherSE->parentExpr);
+    UnresolvedSymExpr* assignU = toUnresolvedSymExpr(assign->baseExpr);
+    INT_ASSERT(assignU != nullptr && assignU->unresolved == astrSassign);
+    actSE->replace(assign->get(1)->remove());
+    assign->remove();
+    temp->defPoint->remove();
+    gdbShouldBreakHere(); //wass continue here
+    INT_ASSERT(temp->firstSymExpr() == nullptr); // no more references to it
+  }
+}
+#endif //wass
 
 void handleCallsToOtherCGfuns(FnSymbol* origFn, InterfaceInfo* ifcInfo,
                               SymbolMap& copyMap, FnSymbol* newFn)
@@ -270,9 +303,10 @@ void handleCallsToOtherCGfuns(FnSymbol* origFn, InterfaceInfo* ifcInfo,
         // and resolve it "from scratch".
 
         cgCalleeSE->replace(new SymExpr(origCGfun));
-        Expr* nextStmt = call->getStmtExpr()->next;
+//wass        Expr* nextStmt = call->getStmtExpr()->next;
         resolveNormalCall(call);
-        adjustForOutIntents(nextStmt, call);
+//wass        adjustForOutIntents(nextStmt, call);
+        adjustOutIntents(call);
         
       } else {
         // cgCallee was created for 'origFn'. It gets referenced in 'newFn'
