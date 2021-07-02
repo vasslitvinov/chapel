@@ -218,45 +218,31 @@ void recordCGInterimInstantiations(CallExpr* call, ResolutionCandidate* best1,
   recordOneInterim(parentFn, call, best3);
 }
 
-//wass todo: update the comment
-#if 0 //wass
 //
-// handleCallsToOtherCGfuns() invokes resolveNormalCall() on a call
-// that has been resolved already. So any out-intent formals of the target,
-// if any, have been handled already. Re-resolving 'call' will add
-// another formal temp for each out intent, with a call to '=' from the
-// new formal temp to the old formal temp. Convert such a call to PRIM_MOVE.
+// Re-resolving the call adds a second temp for each out/inout-intent formal
+// in the callee, on top of the first temp created upon when we resolved
+// this call for the first time. Things will look like:
 //
-// Ex. call f(myOutActual) is represented as:
-//  def _formal_tmp_out_myOutFormal
-//  call f(_formal_tmp_out_myOutFormal)
-//  // then one of:
-//  move(myOutActual, chpl__initCopy(_formal_tmp_out_myOutFormal))
-//  call =(myOutActual, _formal_tmp_out_myOutFormal)
-// Re-resolving adds, right after call f():
-//  call =(newly-added _formal_tmp_out_myOutFormal,
-//         already-existing _formal_tmp_out_myOutFormal)
-// which we convert to a MOVE.
+//   move firstTemp, chpl__initCopy(userActual)  // if the formal is inout
+//   move secondTemp, chpl__initCopy(firstTemp)  // ditto
+//   the call being re-resolved(...., secondTemp, ...)
+//   call = (firstTemp, secondTemp)
+//   move(userActual, call chpl__initCopy(firstTemp)) // if split-initializing
+//   call = (userActual, firstTemp)                   // otherwise
 //
-static void adjustForOutIntents(Expr* nextStmt, CallExpr* callToCG) {
-   for(Expr* curr = callToCG->getStmtExpr(); curr != nextStmt; curr = curr->next)
-    if (CallExpr* call = toCallExpr(curr))
-      if (UnresolvedSymExpr* utarget = toUnresolvedSymExpr(call->baseExpr))
-        if (utarget->unresolved == astrSassign) {
-          gdbShouldBreakHere();  //wass
-          //resolveNormalCall(call); //wass
-          return; //wass
-        }
-}
-#else //wass
+// Leaving things this way leads to extra deinits, so we can get uses
+// of already-deinitialized objects. To avoid this, restore things
+// to what they were before re-resolving. Namely, replace secondTemp
+// with firstTemp in the call being re-resolved and remove the statements
+// that mention secondTemp.
+//
+// TODO: avoid re-resolving, so we do not need to go through this.
+//
 static void adjustOutIntents(CallExpr* reresolvedCall) {
   for_formals_actuals(formal, actual, reresolvedCall) {
     if (! (formal->intent & INTENT_FLAG_OUT)) continue;
     SymExpr* actSE = toSymExpr(actual);
     Symbol* temp = actSE->symbol();
-//wass
-printf("call %d  actSE %d  temp %s[%d]\n", reresolvedCall->id, actSE->id,
-       temp->name, temp->id);
     INT_ASSERT(temp->hasFlag(FLAG_TEMP));
     for_SymbolSymExprs(se, temp) {
       if (se == actSE)
@@ -275,11 +261,9 @@ printf("call %d  actSE %d  temp %s[%d]\n", reresolvedCall->id, actSE->id,
       parent->remove();
     }
     temp->defPoint->remove();
-    gdbShouldBreakHere(); //wass continue here
     INT_ASSERT(temp->firstSymExpr() == nullptr); // no more references to it
   }
 }
-#endif //wass
 
 void handleCallsToOtherCGfuns(FnSymbol* origFn, InterfaceInfo* ifcInfo,
                               SymbolMap& copyMap, FnSymbol* newFn)
@@ -306,9 +290,7 @@ void handleCallsToOtherCGfuns(FnSymbol* origFn, InterfaceInfo* ifcInfo,
         // and resolve it "from scratch".
 
         cgCalleeSE->replace(new SymExpr(origCGfun));
-//wass        Expr* nextStmt = call->getStmtExpr()->next;
         resolveNormalCall(call);
-//wass        adjustForOutIntents(nextStmt, call);
         adjustOutIntents(call);
         
       } else {
@@ -614,81 +596,6 @@ static void undoRefTypesForRefFormals(FnSymbol* fn) {
         formal->type = ct;
 }
 
-#if 0 //wass
-static bool fnHasNoOutArgs(FnSymbol* fn) {
-  for_formals(formal, fn)
-    if (formal->intent & INTENT_FLAG_OUT)
-      return false;
-  return true;
-}
-
-// Determine the actual that the user supplied and remove the ASTs
-// that copy from the temp into the user actual and (for inout intent)
-// from the user actual to the temp.
-static Symbol* getUserActAndCleanupTemp(Symbol* temp, SymExpr* actSE, bool isInout) {
-  gdbShouldBreakHere(); //wass
-  INT_ASSERT(temp->hasFlag(FLAG_TEMP));
-  temp->defPoint->remove();
-  Symbol* userAct = nullptr;
-  for_SymbolSymExprs(se, temp) {
-    if (se == actSE) continue;
-    CallExpr* call = toCallExpr(se->parentExpr);
-    if (se == call->get(1) && call->isPrimitive(PRIM_MOVE)) {
-      // move(temp, chpl__initCopy(userAct))
-      INT_ASSERT(isInout);
-      call->remove();
-      continue;
-    }
-    INT_ASSERT(userAct == nullptr);
-    if (call->isNamedAstr(astr_initCopy)) {
-      // move(userAct, chpl__initCopy(temp))
-      CallExpr* move = toCallExpr(call->parentExpr);
-      INT_ASSERT(move->isPrimitive(PRIM_MOVE));
-      userAct = toSymExpr(move->get(1))->symbol();
-      move->remove();
-    } else {
-      INT_ASSERT(call->isNamedAstr(astrSassign));
-      userAct = toSymExpr(call->get(1))->symbol();
-      call->remove();
-    }
-  }
-  INT_ASSERT(userAct != nullptr);
-  return userAct;
-}
-
-static void undoOutCall(FnSymbol* fn, FnSymbol* cgCallee, SymExpr* calleeSE) {
-printf("  %8d  %s[%d]\n", calleeSE->id, //wass
-       calleeSE->parentSymbol->name, calleeSE->parentSymbol->id);
-  INT_ASSERT(calleeSE->parentSymbol == fn);
-  CallExpr* call = toCallExpr(calleeSE->parentExpr);
-  INT_ASSERT(calleeSE == call->baseExpr);
-  for_formals_actuals(formal, actual, call) {
-    if (formal->intent & INTENT_FLAG_OUT) {
-      SymExpr* actSE = toSymExpr(actual);
-      Symbol* actSym = actSE->symbol();
-      Symbol* userAct = getUserActAndCleanupTemp(actSym, actSE, formal->intent == INTENT_INOUT);
-      actSE->replace(new SymExpr(userAct));
-      INT_ASSERT(actSym->firstSymExpr() == nullptr); // no more references to it
-    }
-  }
-gdbShouldBreakHere(); //wass
-}
-
-// We will re-resolve the calls to CG functions - in handleCallsToOtherCGfuns.
-// Remove the temps created for out-intents. Otherwise re-resolving will
-// create duplicate temps, leading to unwanted deinits.
-// TODO: avoid re-resolving, so this is not needed.
-static void undoOutTempsForInvokedCGfns(FnSymbol* fn, InterfaceInfo* ifcInfo) {
-  for (FnSymbol* cgCallee: ifcInfo->invokedCGfns) {
-    if (fnHasNoOutArgs(cgCallee)) continue;
-printf("invokedCGfns  %s[%d]\n", cgCallee->name, cgCallee->id); //wass
-    for_SymbolSymExprs(cgCalleeSE, cgCallee)
-      undoOutCall(fn, cgCallee, cgCalleeSE);
-gdbShouldBreakHere(); //wass
-  }
-}
-#endif //wass
-
 static FnSymbol* makeRepForRequiredFn(Expr* anchor, SymbolMap &fml2act,
                                       FnSymbol* required) {
   for_formals(formal, required)
@@ -842,7 +749,6 @@ void resolveConstrainedGenericFun(FnSymbol* fn) {
   resolveSpecifiedReturnTypeIfNeeded(fn);
   resolveFunction(fn);
   undoRefTypesForRefFormals(fn);
-//wass  undoOutTempsForInvokedCGfns(fn, ifcInfo);
 
   // Now, set things up for resolving calls to this fn.
 
