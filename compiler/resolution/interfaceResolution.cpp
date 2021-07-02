@@ -249,28 +249,31 @@ static void adjustForOutIntents(Expr* nextStmt, CallExpr* callToCG) {
         }
 }
 #else //wass
-static SymExpr* otherUse(Symbol* temp, SymExpr* knownSE) {
-  for_SymbolSymExprs(se, temp)
-    if (se != knownSE)
-      return se;
-  return nullptr;
-}
-
 static void adjustOutIntents(CallExpr* reresolvedCall) {
   for_formals_actuals(formal, actual, reresolvedCall) {
     if (! (formal->intent & INTENT_FLAG_OUT)) continue;
     SymExpr* actSE = toSymExpr(actual);
     Symbol* temp = actSE->symbol();
-    printf("call %d  actSE %d  temp %s[%d]\n", reresolvedCall->id, actSE->id,
-           temp->name, temp->id);
-    nprint_view(reresolvedCall);
+//wass
+printf("call %d  actSE %d  temp %s[%d]\n", reresolvedCall->id, actSE->id,
+       temp->name, temp->id);
     INT_ASSERT(temp->hasFlag(FLAG_TEMP));
-    SymExpr* otherSE = otherUse(temp, actSE);
-    CallExpr* assign = toCallExpr(otherSE->parentExpr);
-    UnresolvedSymExpr* assignU = toUnresolvedSymExpr(assign->baseExpr);
-    INT_ASSERT(assignU != nullptr && assignU->unresolved == astrSassign);
-    actSE->replace(assign->get(1)->remove());
-    assign->remove();
+    for_SymbolSymExprs(se, temp) {
+      if (se == actSE)
+        continue;
+      CallExpr* parent = toCallExpr(se->parentExpr);
+      if (parent->isPrimitive(PRIM_MOVE)) {
+        // move(temp, chpl__initCopy(userAct))
+        INT_ASSERT(formal->intent == INTENT_INOUT);
+        parent->remove();
+        continue;
+      }
+      // call("=", original temp, this temp)
+      UnresolvedSymExpr* BE = toUnresolvedSymExpr(parent->baseExpr);
+      INT_ASSERT(BE->unresolved == astrSassign);
+      actSE->replace(parent->get(1)->remove());
+      parent->remove();
+    }
     temp->defPoint->remove();
     gdbShouldBreakHere(); //wass continue here
     INT_ASSERT(temp->firstSymExpr() == nullptr); // no more references to it
