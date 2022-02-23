@@ -2488,4 +2488,49 @@ module ChapelDomain {
 
   }  // record _domain
 
+  /////////////////////////////////
+
+  private use ChapelRange only range;
+
+  private proc dns(param oper: string, a, b) {
+    compilerError("operator ", oper,
+     " is currently not supported on domains and ranges;",
+     " here it is invoked on '", a.type:string,"' and '", b.type:string, "'");
+  }
+
+  operator <(a: domain, b         ) { dns("<", a, b); }
+  operator <(a,         b: domain ) { dns("<", a, b); }
+  operator <(a: range,  b         ) { dns("<", a, b); }
+  operator <(a,         b: range  ) { dns("<", a, b); }
+  operator <(a: domain, b: domain ) { dns("<", a, b); }
+  operator <(a: domain, b: range  ) { dns("<", a, b); }
+  operator <(a: range,  b: domain ) { dns("<", a, b); }
+  operator <(a: range,  b: range  ) { dns("<", a, b); }
+
+  operator >(a: domain, b         ) { dns(">", a, b); }
+  operator >(a,         b: domain ) { dns(">", a, b); }
+  operator >(a: range,  b         ) { dns(">", a, b); }
+  operator >(a,         b: range  ) { dns(">", a, b); }
+  operator >(a: domain, b: domain ) { dns(">", a, b); }
+  operator >(a: domain, b: range  ) { dns(">", a, b); }
+  operator >(a: range,  b: domain ) { dns(">", a, b); }
+  operator >(a: range,  b: range  ) { dns(">", a, b); }
+
+  operator <=(a: domain, b         ) { dns("<=", a, b); }
+  operator <=(a,         b: domain ) { dns("<=", a, b); }
+  operator <=(a: range,  b         ) { dns("<=", a, b); }
+  operator <=(a,         b: range  ) { dns("<=", a, b); }
+  operator <=(a: domain, b: domain ) { dns("<=", a, b); }
+  operator <=(a: domain, b: range  ) { dns("<=", a, b); }
+  operator <=(a: range,  b: domain ) { dns("<=", a, b); }
+  operator <=(a: range,  b: range  ) { dns("<=", a, b); }
+
+  operator >=(a: domain, b         ) { dns(">=", a, b); }
+  operator >=(a,         b: domain ) { dns(">=", a, b); }
+  operator >=(a: range,  b         ) { dns(">=", a, b); }
+  operator >=(a,         b: range  ) { dns(">=", a, b); }
+  operator >=(a: domain, b: domain ) { dns(">=", a, b); }
+  operator >=(a: domain, b: range  ) { dns(">=", a, b); }
+  operator >=(a: range,  b: domain ) { dns(">=", a, b); }
+  operator >=(a: range,  b: range  ) { dns(">=", a, b); }
 }
