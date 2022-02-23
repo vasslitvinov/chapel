@@ -501,6 +501,7 @@ module ChapelDomain {
         a.remove(e);
   }
 
+/*VASS
   operator |(a :domain, b: domain) where (a.type == b.type) &&
     a.isAssociative() {
     return a + b;
@@ -519,6 +520,7 @@ module ChapelDomain {
   operator |=(a :domain, b: domain) where a.isRectangular() {
     compilerError("cannot invoke '|=' on a rectangular domain");
   }
+*/
 
   operator +=(ref a :domain, b: domain) where (a.type == b.type) &&
     a.isAssociative() {
@@ -530,6 +532,7 @@ module ChapelDomain {
      they exist. If an element in the RHS is not present in the LHS, no error
      occurs.
   */
+/*VASS
   operator &(a :domain, b: domain) where (a.type == b.type) &&
     a.isAssociative() {
     var newDom : a.type;
@@ -593,6 +596,7 @@ module ChapelDomain {
   operator ^=(a :domain, b: domain) where a.isRectangular() {
     compilerError("cannot invoke '^=' on a rectangular domain");
   }
+*/
 
   //
   // BaseSparseDom operator overloads
@@ -2488,4 +2492,79 @@ module ChapelDomain {
 
   }  // record _domain
 
+  /////////////////////////////////
+
+  private use ChapelRange only range;
+
+  proc dns(param oper: string, a, b) {
+    compilerError("operator ", oper,
+     " is currently not supported on domains and ranges;",
+     " here it is invoked on '", a.type:string,"' and '", b.type:string, "'");
+  }
+
+  operator &(a: domain, b         ) { dns("&", a, b); }
+  operator &(a,         b: domain ) { dns("&", a, b); }
+  operator &(a: range,  b         ) { dns("&", a, b); }
+  operator &(a,         b: range  ) { dns("&", a, b); }
+  operator &(a: domain, b: domain ) { dns("&", a, b); }
+  operator &(a: domain, b: range  ) { dns("&", a, b); }
+  operator &(a: range,  b: domain ) { dns("&", a, b); }
+  operator &(a: range,  b: range  ) { dns("&", a, b); }
+  operator &=(a: domain, b        ) { dns("&=", a, b); }
+  operator &=(a: range,  b        ) { dns("&=", a, b); }
+
+  operator |(a: domain, b         ) { dns("|", a, b); }
+  operator |(a,         b: domain ) { dns("|", a, b); }
+  operator |(a: range,  b         ) { dns("|", a, b); }
+  operator |(a,         b: range  ) { dns("|", a, b); }
+  operator |(a: domain, b: domain ) { dns("|", a, b); }
+  operator |(a: domain, b: range  ) { dns("|", a, b); }
+  operator |(a: range,  b: domain ) { dns("|", a, b); }
+  operator |(a: range,  b: range  ) { dns("|", a, b); }
+  operator |=(a: domain, b        ) { dns("|=", a, b); }
+  operator |=(a: range,  b        ) { dns("|=", a, b); }
+
+  operator ^(a: domain, b         ) { dns("^", a, b); }
+  operator ^(a,         b: domain ) { dns("^", a, b); }
+  operator ^(a: range,  b         ) { dns("^", a, b); }
+  operator ^(a,         b: range  ) { dns("^", a, b); }
+  operator ^(a: domain, b: domain ) { dns("^", a, b); }
+  operator ^(a: domain, b: range  ) { dns("^", a, b); }
+  operator ^(a: range,  b: domain ) { dns("^", a, b); }
+  operator ^(a: range,  b: range  ) { dns("^", a, b); }
+  operator ^=(a: domain, b        ) { dns("^=", a, b); }
+  operator ^=(a: range,  b        ) { dns("^=", a, b); }
+
+  operator *(a: domain, b         ) { dns("*", a, b); }
+  operator *(a,         b: domain ) { dns("*", a, b); }
+  operator *(a: range,  b         ) { dns("*", a, b); }
+  operator *(a,         b: range  ) { dns("*", a, b); }
+  operator *(a: domain, b: domain ) { dns("*", a, b); }
+  operator *(a: domain, b: range  ) { dns("*", a, b); }
+  operator *(a: range,  b: domain ) { dns("*", a, b); }
+  operator *(a: range,  b: range  ) { dns("*", a, b); }
+  operator *=(a: domain, b        ) { dns("*=", a, b); }
+  operator *=(a: range,  b        ) { dns("*=", a, b); }
+
+  operator /(a: domain, b         ) { dns("/", a, b); }
+  operator /(a,         b: domain ) { dns("/", a, b); }
+  operator /(a: range,  b         ) { dns("/", a, b); }
+  operator /(a,         b: range  ) { dns("/", a, b); }
+  operator /(a: domain, b: domain ) { dns("/", a, b); }
+  operator /(a: domain, b: range  ) { dns("/", a, b); }
+  operator /(a: range,  b: domain ) { dns("/", a, b); }
+  operator /(a: range,  b: range  ) { dns("/", a, b); }
+  operator /=(a: domain, b        ) { dns("/=", a, b); }
+  operator /=(a: range,  b        ) { dns("/=", a, b); }
+
+  operator %(a: domain, b         ) { dns("%", a, b); }
+  operator %(a,         b: domain ) { dns("%", a, b); }
+  operator %(a: range,  b         ) { dns("%", a, b); }
+  operator %(a,         b: range  ) { dns("%", a, b); }
+  operator %(a: domain, b: domain ) { dns("%", a, b); }
+  operator %(a: domain, b: range  ) { dns("%", a, b); }
+  operator %(a: range,  b: domain ) { dns("%", a, b); }
+  operator %(a: range,  b: range  ) { dns("%", a, b); }
+  operator %=(a: domain, b        ) { dns("%=", a, b); }
+  operator %=(a: range,  b        ) { dns("%=", a, b); }
 }
