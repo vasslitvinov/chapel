@@ -360,7 +360,7 @@ module ChapelArray {
                       + " but is of type " + elemValType:string);
       }
 
-      D += elemKey;
+      D.add(elemKey);
       A[elemKey] = elemVal;
     }
 
