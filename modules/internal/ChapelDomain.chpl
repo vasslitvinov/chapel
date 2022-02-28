@@ -338,6 +338,36 @@ module ChapelDomain {
     return arr[arr.domain#counts];
   }
 
+  /////////////////////////////////
+
+  private use ChapelRange only range;
+
+  private proc dns(param oper: string, a, b) {
+    compilerError("operator ", oper,
+     " is currently not supported on domains and ranges;",
+     " here it is invoked on '", a.type:string,"' and '", b.type:string, "'");
+  }
+
+  operator +=(a: domain, b) { dns("+=", a, b); }
+  operator -=(a: domain, b) { dns("-=", a, b); }
+  operator |=(a: domain, b) { dns("|=", a, b); }
+  operator &=(a: domain, b) { dns("&=", a, b); }
+  operator ^=(a: domain, b) { dns("^=", a, b); }
+  operator *=(a: domain, b) { dns("*=", a, b); }
+  operator /=(a: domain, b) { dns("/=", a, b); }
+  operator %=(a: domain, b) { dns("%=", a, b); }
+
+  operator +=(a: range, b) { dns("+=", a, b); }
+  operator -=(a: range, b) { dns("-=", a, b); }
+  operator |=(a: range, b) { dns("|=", a, b); }
+  operator &=(a: range, b) { dns("&=", a, b); }
+  operator ^=(a: range, b) { dns("^=", a, b); }
+  operator *=(a: range, b) { dns("*=", a, b); }
+  operator /=(a: range, b) { dns("/=", a, b); }
+  operator %=(a: range, b) { dns("%=", a, b); }
+
+  /////////////////////////////////
+
   operator +(d: domain, i: index(d)) {
     if d.isRectangular() then
       compilerError("Cannot add indices to a rectangular domain");
@@ -378,8 +408,10 @@ module ChapelDomain {
       compilerError("Cannot add indices to this domain type");
   }
 
+/*
   inline operator +=(ref D: domain, idx) { D.add(idx); }
   inline operator +=(ref D: domain, param idx) { D.add(idx); }
+*/
 
   operator -(d: domain, i: index(d)) {
     if d.isRectangular() then
@@ -408,8 +440,10 @@ module ChapelDomain {
       compilerError("Cannot remove indices from this domain type");
   }
 
+/*
   inline operator -=(ref D: domain, idx) { D.remove(idx); }
   inline operator -=(ref D: domain, param idx) { D.remove(idx); }
+*/
 
   inline operator ==(d1: domain, d2: domain) where d1.isRectangular() &&
                                                    d2.isRectangular() {
@@ -494,12 +528,14 @@ module ChapelDomain {
      they exist. If an element in the RHS is not present in the LHS, no error
      occurs.
   */
+/*
   operator -=(ref a :domain, b :domain) where (a.type == b.type) &&
     a.isAssociative() {
     for e in b do
       if a.contains(e) then
         a.remove(e);
   }
+*/
 
   operator |(a :domain, b: domain) where (a.type == b.type) &&
     a.isAssociative() {
@@ -510,6 +546,7 @@ module ChapelDomain {
   operator |(a :domain, b: domain) where a.isRectangular() && b.isRectangular()
     return forall (aa, bb) in zip(a, b) do aa|bb;
 
+/*
   operator |=(ref a :domain, b: domain) where (a.type == b.type) &&
     a.isAssociative() {
     for e in b do
@@ -524,6 +561,7 @@ module ChapelDomain {
     a.isAssociative() {
     a |= b;
   }
+*/
 
   /*
      We remove elements in the RHS domain from those in the LHS domain only if
@@ -544,6 +582,7 @@ module ChapelDomain {
   operator &(a :domain, b: domain) where a.isRectangular() && b.isRectangular()
     return forall (aa, bb) in zip(a, b) do aa&bb;
 
+/*
   operator &=(ref a :domain, b: domain) where (a.type == b.type) &&
     a.isAssociative() {
     var removeSet: domain(a.idxType);
@@ -557,6 +596,7 @@ module ChapelDomain {
   operator &=(a :domain, b: domain) where a.isRectangular() {
     compilerError("cannot invoke '&=' on a rectangular domain");
   }
+*/
 
   operator ^(a :domain, b: domain) where (a.type == b.type) &&
     a.isAssociative() {
@@ -581,6 +621,7 @@ module ChapelDomain {
      they exist. If an element in the RHS is not present in the LHS, it is
      added to the LHS.
   */
+/*
   operator ^=(ref a :domain, b: domain) where (a.type == b.type) &&
     a.isAssociative() {
     for e in b do
@@ -633,6 +674,7 @@ module ChapelDomain {
     for ind in d do
       sd -= ind;
   }
+*/
 
   //
   // Assignment of domains
