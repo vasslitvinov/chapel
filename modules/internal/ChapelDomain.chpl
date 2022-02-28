@@ -199,7 +199,7 @@ module ChapelDomain {
     D.requestCapacity(count);
 
     for param i in 0..count-1 do
-      D += keys(i);
+      D.add(keys(i));
 
     return D;
   }
