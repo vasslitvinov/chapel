@@ -33,6 +33,7 @@
 #include "symbol.h"
 #include "TryStmt.h"
 #include "wellknown.h"
+#include "view.h" //wass
 
 #include "global-ast-vecs.h"
 
@@ -337,6 +338,20 @@ void ErrorHandlingVisitor::lowerCatches(const TryInfo& info) {
   info.tryStmt->replace(tryBody);
 }
 
+static bool insideIterator(Expr* node) {
+  if (FnSymbol* parentFn = toFnSymbol(node->parentSymbol))
+  {
+    if (parentFn->hasFlag(FLAG_ITERATOR_FN)              ||
+        parentFn->hasFlag(FLAG_TASK_FN_FROM_ITERATOR_FN) )
+      return true;
+  }
+  return false;
+}
+
+//wass
+#define VVC(CASE) (vvv ? printf(#CASE "  call %d %s  %s\n", node->id, debugLoc(node), calledFn->name) : 1)
+
+
 bool ErrorHandlingVisitor::enterCallExpr(CallExpr* node) {
   bool insideTry = !tryStack.empty();
 
@@ -351,11 +366,16 @@ bool ErrorHandlingVisitor::enterCallExpr(CallExpr* node) {
       BlockStmt* errorPolicy = new BlockStmt();
       Expr*      insert      = node->getStmtExpr();
 
+bool vvv = (node->getModule()->modTag == MOD_USER); //wass
+//if (vvv) gdbShouldBreakHere(); //wass
+
       if (insideTry && node->tryTag != TRY_TAG_IN_TRYBANG) {
         TryInfo info = tryStack.top();
         errorVar = info.errorVar;
 
+        // (a) an enclosing try/try!
         errorPolicy->insertAtTail(gotoHandler());
+        VVC(K);
       } else {
         // without try, need an error variable
         errorVar = newTemp("error", dtErrorNilable());
@@ -363,10 +383,30 @@ bool ErrorHandlingVisitor::enterCallExpr(CallExpr* node) {
         insert->insertBefore(new DefExpr(errorVar));
         insert->insertBefore(new CallExpr(PRIM_MOVE, errorVar, gNil));
 
-        if (outError != NULL && node->tryTag != TRY_TAG_IN_TRYBANG && deferDepth == 0)
+        if (outError != NULL && node->tryTag != TRY_TAG_IN_TRYBANG &&
+            deferDepth == 0 && ! node->parentSymbol->hasFlag(FLAG_OUTSIDE_TRY))
+        {
+          // (b) throw from the enclosing function
           errorPolicy->insertAtTail(setOutGotoEpilogue(errorVar));
-        else
-          errorPolicy->insertAtTail(haltExpr(errorVar, false));
+          VVC(L);
+        }
+        else if (calledFn->hasFlag(FLAG_TASK_JOIN_IMPL_FN)) {
+          if (insideIterator(node))
+            // (c) coforall or similar in a non-throwing iterator
+            // ==> we will propagate the error when the iterator is inlined
+            VVC(M),
+            errorPolicy->insertAtTail(haltExpr(errorVar, false));
+          else
+            // (d) coforall or similar in a non-throwing procedure
+            // ==> halt right away
+            VVC(N),
+            errorPolicy->insertAtTail(haltExpr(errorVar, true));
+        }
+        else {
+          // (e) a throwing call in a non-throwing function ==> halt right away
+          errorPolicy->insertAtTail(haltExpr(errorVar, true));
+          VVC(P);
+        }
       }
 
       node->insertAtTail(errorVar); // adding error argument to call
@@ -377,6 +417,7 @@ bool ErrorHandlingVisitor::enterCallExpr(CallExpr* node) {
       if (calledFn->hasFlag(FLAG_NON_BLOCKING) ||
           calledFn->hasFlag(FLAG_BEGIN) ||
           calledFn->hasFlag(FLAG_COBEGIN_OR_COFORALL)) {
+        VVC(QQQ);
         // Don't add errorPolicy block or conditional.
       } else {
         // Regular operation
@@ -856,6 +897,9 @@ public:
   bool enterCallExpr(CallExpr*  node) override;
   void exitDeferStmt(DeferStmt* node) override;
 
+  bool vvm; //wass
+  bool createImplicitTryBang;
+
 private:
   int  tryDepth;
   bool fnCanThrow;
@@ -876,6 +920,8 @@ ErrorCheckingVisitor::ErrorCheckingVisitor(bool inThrowingFn,
   mode = inMode;
   taskFunctionDepth = 0;
   reasons = inReasons;
+  vvm = false;
+  createImplicitTryBang = false;
 }
 
 bool ErrorCheckingVisitor::enterTryStmt(TryStmt* node) {
@@ -902,6 +948,7 @@ void ErrorCheckingVisitor::exitTryStmt(TryStmt* node) {
 }
 
 void ErrorCheckingVisitor::checkCatches(TryStmt* tryStmt) {
+if (vvm) printf("checkCatches %d %s\n", tryStmt->id, debugLoc(tryStmt));
 
   bool hasCatchAll = false;
 
@@ -933,6 +980,35 @@ static void issueThrowingFnError(FnSymbol* calledFn,
   printReason(node, reasons);
 }
 
+/*
+If this is a call to a task function TF:
+* The call itself is (correctly) not checked for errors.
+* If TF is not implicitly-throwing
+  (which happens when all errors inside it, if any, are handled):
+  - no error checking inside TF is performed here;
+  - error checking inside TF is done by checkErrorHandling(TF),
+    at which point TF is treated as a non-throwing function;
+    however the only errors it can generate are an improper catchall
+    or "throwing call without try or try! (strict mode)",
+    if there were any other offenders, it would have been marked
+    implicitly-throwing.
+* If TF is implicitly-throwing:
+  - TF is checked recursively here if its enclosing non-task function
+    is non-throwing, including the case where taskFunctionDepth > 0,
+    which can occur only under this same condition;
+    TODO: simplify this check to 'if (!fnCanThrow)'
+  - TF is checked again by checkErrorHandling(TF),
+    at which point TF is treated as a throwing function; for this reason
+    the only errors it can generate are again an improper catchall
+    or "throwing call without try or try! (strict mode)", all other
+    conditions are acceptable within a throwing function.
+TODO: simplify this logic and do not descend into TF here.
+Instead check inside a TF only in checkErrorHandling(). Use FLAG_OUTSIDE_TRY
+to determine whether the enclosing function is non-throwing.
+*/
+
+//wass
+#define VVM(CASE) if (vvm) printf(#CASE "  call %d %s  thr%d  dep%d  %s\n", node->id, debugLoc(node), (int)inThrowingFunction, taskFunctionDepth, calledFn->name)
 
 bool ErrorCheckingVisitor::enterCallExpr(CallExpr* node) {
   bool insideTry = (tryDepth > 0);
@@ -945,23 +1021,41 @@ bool ErrorCheckingVisitor::enterCallExpr(CallExpr* node) {
         inThrowingFunction = parentFn->throwsError();
 
         if (!inThrowingFunction && isTaskFun(calledFn)) {
+          VVM(A);
           taskFunctionDepth++;
+//if (vvm) printf("{ accept2 %s[%d]  %s\n", calledFn->name, calledFn->id, debugLoc(calledFn));
           calledFn->body->accept(this);
 
           taskFunctionDepth--;
           return true;
         } else if (taskFunctionDepth > 0) {
           if (isTaskFun(calledFn)) {
+            VVM(B);
             taskFunctionDepth++;
             calledFn->body->accept(this);
 
             taskFunctionDepth--;
             return true;
           } else {
+            VVM(C);
+            // The above logic never descends into a task function - therefore
+            // never gets to this point - unless the top-most non-task parentFn
+            // is non-throwing. Cf. at this point we are in a throwing task fn.
+            // So, adjust 'inThrowingFunction' to correspond to the top-most
+            // non-task parentFn. This will make it equivalent to 'fnCanThrow'.
             inThrowingFunction = false;
           }
+        } else if (isTaskFun(calledFn)) {
+          VVM(D);
+          // One way or another, we should not be going further
+          // if it is a task function.
+          return true;
+        } else {
+          VVM(E);
         }
       }
+      INT_ASSERT(inThrowingFunction == fnCanThrow);
+//if (vvm) gdbShouldBreakHere(); //wass
 
       if (insideTry || node->tryTag == TRY_TAG_IN_TRYBANG) {
 
@@ -984,6 +1078,10 @@ bool ErrorCheckingVisitor::enterCallExpr(CallExpr* node) {
             issueThrowingFnError(calledFn, node, reasons,
                                  "without throws, try, or try! (relaxed mode)");
           }
+        }
+        if (!inThrowingFunction) {
+          // This of course will be unused if we have reported an error above.
+          createImplicitTryBang = true;
         }
       }
     }
@@ -1084,6 +1182,37 @@ canBlockStmtThrow(BlockStmt* block)
   return visit.throws();
 }
 
+static void doCreateImplicitTryBang(FnSymbol* fn) {
+  if (fn == chpl_gen_main) return; // do not modify chpl_gen_main()
+  BlockStmt* fnBody = fn->body;
+  SET_LINENO(fnBody);
+  BlockStmt* tryBody = new BlockStmt();
+  TryStmt*   tryStmt = new TryStmt(true, tryBody, NULL, false, true);
+bool vvv = fn->getModule()->modTag == MOD_USER; //wass
+if (vvv) printf("implicit try-bang  %s[%d]   %s\n",
+                fn->name, fn->id, debugLoc(fnBody)); //wass
+  DefExpr* retDef = fn->getReturnSymbol()->defPoint;
+  if (retDef->parentExpr == fnBody)
+{//wass
+if (vvv) printf("  will move retSymbol %s: %s\n", retDef->sym->name, retDef->sym->type->symbol->name); //wass
+    retDef->remove();
+}
+  else
+    retDef = nullptr;
+
+  // we could do without forcing an epilogue label, it'd be more complex
+  Expr* epilogueDef = fn->getOrCreateEpilogueLabel()->defPoint;
+  // move almost everything from fnBody into tryBody
+  while (true) {
+    Expr* bodyStmt = fnBody->body.head;
+    if (bodyStmt == epilogueDef) break; // finished
+    tryBody->insertAtTail(bodyStmt->remove());
+  }
+  if (retDef != nullptr)
+    epilogueDef->insertBefore(retDef);
+  epilogueDef->insertBefore(tryStmt);
+}
+
 // Compute the error handling mode to use
 //
 // Go up symbols, starting with fn, looking for flag
@@ -1138,8 +1267,14 @@ static void checkErrorHandling(FnSymbol* fn, implicitThrowsReasons_t* reasons)
   INT_ASSERT(mode != ERROR_MODE_UNKNOWN);
 
   ErrorCheckingVisitor visit(fn->throwsError(), mode, reasons);
+//if (!strcmp(fn->name, "main") || !strcmp(fn->name, "coforall_fn")) visit.vvm = true; //wass
+if (fn->getModule()->modTag == MOD_USER) visit.vvm = true; //wass
 
+if (visit.vvm) printf("{ accept1 %s[%d]  %s\n", fn->name, fn->id, debugLoc(fn));
   fn->body->accept(&visit);
+  if (visit.createImplicitTryBang)
+    doCreateImplicitTryBang(fn);
+if (visit.vvm) printf("} accept1 %s[%d]  %s\n\n", fn->name, fn->id, debugLoc(fn));
 }
 
 
@@ -1263,6 +1398,7 @@ void lowerErrorHandling() {
   forv_Vec(FnSymbol, fn, gFnSymbols) {
     lowerErrorHandling(fn);
   }
+gdbShouldBreakHere(); //wass
 
   // Note, PRIM_CHECK_ERROR will be lowered when a later
   // pass calls lowerCheckErrorPrimitive().

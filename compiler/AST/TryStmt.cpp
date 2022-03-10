@@ -47,10 +47,11 @@ BlockStmt* TryStmt::buildChplStmt(Expr* expr) {
 
 // catches are stored in a BlockStmt for convenient parsing
 TryStmt::TryStmt(bool tryBang, BlockStmt* body, BlockStmt* catches,
-                 bool isSyncTry) : Stmt(E_TryStmt) {
+                 bool isSyncTry, bool isImplicit) : Stmt(E_TryStmt) {
   _tryBang = tryBang;
   _body    = body;
   _isSyncTry = isSyncTry;
+  _implicit  = isImplicit;
 
   _catches.parent = this;
   if (catches) {

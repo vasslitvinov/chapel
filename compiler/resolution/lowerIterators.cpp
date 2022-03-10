@@ -1801,12 +1801,16 @@ findFollowingCheckErrorBlock(SymExpr* se, LabelSymbol*& outHandlerLabel,
 }
 
 void handleChplPropagateErrorCall(CallExpr* call) {
+bool vvv = (call->getModule()->modTag == MOD_USER); //wass
+if (vvv) gdbShouldBreakHere(); //wass
   SymExpr* errSe = toSymExpr(call->get(1));
   INT_ASSERT(errSe && errSe->typeInfo() == dtError);
   LabelSymbol* label = NULL;
   Symbol* error = NULL;
   CallExpr *endCountFree = NULL;
   if (findFollowingCheckErrorBlock(errSe, label, error, endCountFree)) {
+if (FnSymbol* parentFn = toFnSymbol(call->parentSymbol)) //wass temp
+INT_ASSERT(!isTaskFun(parentFn));
     errSe->remove();
     if (endCountFree != NULL) {
       call->insertBefore(endCountFree->copy());

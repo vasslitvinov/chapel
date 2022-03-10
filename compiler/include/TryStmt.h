@@ -34,12 +34,13 @@ public:
   static BlockStmt*   buildWithCatchall(BlockStmt* body, BlockStmt* onErr);
 
   TryStmt(bool tryBang, BlockStmt* body, BlockStmt* catches,
-          bool isSyncTry = false);
+          bool isSyncTry = false, bool isImplicit = false);
  ~TryStmt() override = default;
 
   BlockStmt*          body() const;
   bool                tryBang() const;
   bool                isSyncTry() const;
+  bool                isImplicit() const;
 
   void                accept(AstVisitor* visitor) override;
   void                replaceChild(Expr* old_ast, Expr* new_ast) override;
@@ -58,10 +59,13 @@ public:
 private:
   bool                _tryBang;
   bool                _isSyncTry;
+  bool                _implicit;
 
   static BlockStmt*   buildChplStmt(Expr* expr);
                       TryStmt();
 
 };
+
+inline bool TryStmt::isImplicit() const { return _implicit; }
 
 #endif
