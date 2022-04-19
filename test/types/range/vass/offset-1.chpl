@@ -2,8 +2,8 @@ proc writeme(r:range(?)) where isBoundedRange(r) {
   write(r.low, "..", r.high);
   if r.stridable {
     write(" by ", r.stride);
-    if r.aligned then write(" align ", r.alignment);
-    else              write(" align ?");
+    if r.isAligned() then write(" align ", r.alignment);
+    else                  write(" align ?");
   }
 }
 
@@ -13,7 +13,7 @@ proc test(r:range(?), offs:r.idxType) {
   write("  offs ", offs, "  ");
   writeme(res);
   const offs2 = if r.stridable then offs else 0;
-  if !res.aligned || res.alignment != r.first + offs2 then
+  if !res.isAligned() || res.alignment != r.first + offs2 then
     write(" ***ERROR***");
   writeln();
 }

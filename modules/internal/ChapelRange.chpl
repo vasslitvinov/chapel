@@ -336,9 +336,13 @@ module ChapelRange {
     this.init(idxType, boundedType, stridable,
               other._low, other._high,
               str,
-              chpl__idxToInt(other.alignment),
-              other.aligned);
+              alignmentHelper(other),
+              other.isAligned());
   }
+
+  private proc alignmentHelper(r)
+    return if r.stridable then chpl__idxToInt(r.alignment)
+           else 0: chpl__idxTypeToIntIdxType(r.idxType);
 
   /////////////////////////////////
   // for debugging
@@ -346,7 +350,7 @@ module ChapelRange {
   proc range.displayRepresentation(msg: string = ""): void {
     chpl_debug_writeln(msg, "(", idxType:string, ",", boundedType, ",", stridable,
                        " : ", low, ",", high, ",", stride, ",",
-                       if aligned then alignment:string else "?", ")");
+                       if isAligned() then alignment:string else "?", ")");
   }
 
   //////////////////////////////////////////////////////////////////////////////////
@@ -615,24 +619,27 @@ module ChapelRange {
   pragma "no doc"
   proc range.stride param where !stridable return 1 : strType;
 
-  /* Returns the alignment of the range */
+  /* Returns the alignment of the range.
+     If the alignment is ambiguous, the behavior is undefined. */
   inline proc range.alignment where stridable return chpl_intToIdx(_alignment);
   pragma "no doc"
-  proc range.alignment where !stridable && hasLowBound() return low;
-  pragma "no doc"
-  proc range.alignment return chpl_intToIdx(0);
+  proc range.alignment where !stridable {
+    compilerError("the alignment of an unstridable range is ambiguous");
+  }
 
-  /* Returns true if the range is aligned */
-  inline proc range.aligned where stridable return _aligned;
+  /* Returns true if the range is (unambiguously) aligned.
+
+       .. note::
+
+          Unstridable ranges have ambiguous alignment, see
+          :proc:`range.alignment`, however they are (unambiguously) aligned.
+  */
+  inline proc range.isAligned() where stridable
+    return _aligned || _stride == 1 || _stride == -1;
 
   pragma "no doc"
-  proc range.aligned param where !stridable &&
-                                 (boundedType == BoundedRangeType.bounded ||
-                                  boundedType == BoundedRangeType.boundedLow)
+  proc range.isAligned() param where !stridable
     return true;
-  pragma "no doc"
-  proc range.aligned param /* !stridable && (boundedHigh || boundedNone) */
-    return false;
 
   /* Return the first element in the sequence the range represents */
   inline proc range.first {
@@ -738,7 +745,7 @@ module ChapelRange {
    */
   inline proc range.isEmpty() {
     if boundsChecking && isAmbiguous() then
-      HaltWrappers.boundsCheckHalt("isEmpty() is invoked on an ambiguously-aligned range");
+      HaltWrappers.boundsCheckHalt("isEmpty() is invoked on an ambiguously aligned range");
     else
       return isBoundedRange(this) && this.alignedLowAsInt > this.alignedHighAsInt;
   }
@@ -816,20 +823,6 @@ module ChapelRange {
   }
 
   pragma "no doc"
-  inline proc range.isNaturallyAligned() param
-    where !stridable && this.boundedType == BoundedRangeType.bounded
-  {
-    return true;
-  }
-
-  pragma "no doc"
-  inline proc range.isNaturallyAligned()
-    where !stridable && this.boundedType == BoundedRangeType.boundedLow
-  {
-    return this.alignedLowAsInt == _low;
-  }
-
-  pragma "no doc"
   inline proc range.isNaturallyAligned()
     where stridable && this.boundedType == BoundedRangeType.boundedLow
   {
@@ -838,8 +831,7 @@ module ChapelRange {
 
   pragma "no doc"
   inline proc range.isNaturallyAligned() param
-    where this.boundedType == BoundedRangeType.boundedNone ||
-          !stridable && this.boundedType == BoundedRangeType.boundedHigh
+    where stridable && this.boundedType == BoundedRangeType.boundedNone
   {
     return false;
   }
@@ -851,13 +843,21 @@ module ChapelRange {
     return stride < 0 && this.alignedHighAsInt == _high;
   }
 
-  /* Returns true if the range is ambiguously aligned, false otherwise */
+  pragma "no doc"
+  inline proc range.isNaturallyAligned() param
+    where !stridable
+  {
+    return true;
+  }
+
+  /* Returns true if the range is ambiguously aligned.
+     This is the opposite of :proc:`range.isAligned()`. */
   proc range.isAmbiguous() param where !stridable
     return false;
 
   pragma "no doc"
   proc range.isAmbiguous()       where stridable
-    return !aligned && (stride > 1 || stride < -1);
+    return !isAligned();
 
   /* Returns true if ``ind`` is in this range, false otherwise */
   inline proc range.contains(ind: idxType)
@@ -1004,8 +1004,8 @@ proc range.safeCast(type t: range(?)) {
 
   if tmp.stridable {
     tmp._stride = this.stride.safeCast(tmp.strType);
-    tmp._alignment = chpl__idxToInt(this.alignment).safeCast(tmp.intIdxType);
-    tmp._aligned = this.aligned;
+    tmp._alignment = alignmentHelper(this).safeCast(tmp.intIdxType);
+    tmp._aligned = this.isAligned();
   } else if this.stride != 1 {
     HaltWrappers.safeCastCheckHalt("illegal safeCast from non-unit stride range to unstridable range");
   }
@@ -1031,7 +1031,7 @@ operator :(r: range(?), type t: range(?)) {
   if tmp.stridable {
     tmp._stride = r.stride: tmp._stride.type;
     tmp._alignment = r.alignment: tmp.intIdxType;
-    tmp._aligned = r.aligned;
+    tmp._aligned = r.isAligned();
   }
 
   tmp._low = (if r.hasLowBound() then r.low else r._low): tmp.intIdxType;
@@ -1067,7 +1067,7 @@ operator :(r: range(?), type t: range(?)) {
                           if other.hasLowBound() then other._low else _low,
                           if other.hasHighBound() then other._high else _high,
                           other.stride,
-                          chpl__idxToInt(other.alignment),
+                          alignmentHelper(other),
                           true);
 
     return (boundedOther.sizeAs(uint) == 0) || contains(boundedOther);
@@ -1086,7 +1086,7 @@ operator :(r: range(?), type t: range(?)) {
   /* private */ proc ref range.alignLow()
   {
     if boundsChecking && this.isAmbiguous() then
-      HaltWrappers.boundsCheckHalt("alignLow -- Cannot be applied to a range with ambiguous alignment.");
+      HaltWrappers.boundsCheckHalt("alignLow() cannot be applied to an ambiguously aligned range");
 
     if stridable then _low = this.alignedLowAsInt;
     return this;
@@ -1097,7 +1097,7 @@ operator :(r: range(?), type t: range(?)) {
   /* private */ proc ref range.alignHigh()
   {
     if boundsChecking && this.isAmbiguous() then
-      HaltWrappers.boundsCheckHalt("alignHigh -- Cannot be applied to a range with ambiguous alignment.");
+      HaltWrappers.boundsCheckHalt("alignHigh() cannot be applied to an ambiguously aligned range");
 
     if stridable then _high = this.alignedHighAsInt;
     return this;
@@ -1124,7 +1124,7 @@ operator :(r: range(?), type t: range(?)) {
   proc range.indexOrder(ind: idxType)
   {
     if boundsChecking && this.isAmbiguous() then
-      HaltWrappers.boundsCheckHalt("indexOrder -- Undefined on a range with ambiguous alignment.");
+      HaltWrappers.boundsCheckHalt("indexOrder() is not defined on an ambiguously aligned range");
 
     if ! contains(ind) then return (-1):intIdxType;
     if ! stridable {
@@ -1178,6 +1178,9 @@ operator :(r: range(?), type t: range(?)) {
   //
   // REVIEW: hilde
   // Should member functions normally return new objects?
+  //
+  // TODO: merge with the descriptions from the spec, which specify the
+  // behavior when the alignment is ambiguous.
   //
   // NOTE: The casts below assume that the value will fit into
   // idxType.  Handling errors when (down) casting is something
@@ -1251,14 +1254,14 @@ operator :(r: range(?), type t: range(?)) {
     if i < 0 then
       return new range(idxType, boundedType, stridable,
                        _low, _low - 1 - i, stride,
-                       _effAlmt(), aligned);
+                       _effAlmt(), isAligned());
     if i > 0 then
       return new range(idxType, boundedType, stridable,
                        _high + 1 - i, _high, stride,
-                       _effAlmt(), aligned);
+                       _effAlmt(), isAligned());
     // if i == 0 then
     return new range(idxType, boundedType, stridable,
-                     _low, _high, stride, _effAlmt(), aligned);
+                     _low, _high, stride, _effAlmt(), isAligned());
   }
 
   pragma "no doc"
@@ -1288,15 +1291,15 @@ operator :(r: range(?), type t: range(?)) {
       return new range(idxType, boundedType, stridable,
                        _low + i,
                        _low - 1,
-                       stride, _effAlmt(), aligned);
+                       stride, _effAlmt(), isAligned());
     if i > 0 then
       return new range(idxType, boundedType, stridable,
                        _high + 1,
                        _high + i,
-                       stride, _effAlmt(), aligned);
+                       stride, _effAlmt(), isAligned());
     // if i == 0 then
     return new range(idxType, boundedType, stridable,
-                     _low, _high, stride, _effAlmt(), aligned);
+                     _low, _high, stride, _effAlmt(), isAligned());
   }
 
   pragma "no doc"
@@ -1331,7 +1334,7 @@ operator :(r: range(?), type t: range(?)) {
     return new range(idxType, boundedType, stridable,
                      _low-i,
                      _high+i,
-                     stride, _alignment, aligned);
+                     stride, _alignment, isAligned());
   }
 
   pragma "no doc"
@@ -1363,8 +1366,8 @@ operator :(r: range(?), type t: range(?)) {
     r1._high = r2._high;
 
     if s1 {
-      r1._alignment = chpl__idxToInt(r2.alignment);
-      r1._aligned = r2.aligned;
+      r1._alignment = alignmentHelper(r2);
+      r1._aligned = r2.isAligned();
     }
   }
 
@@ -1384,8 +1387,8 @@ operator :(r: range(?), type t: range(?)) {
                      r._low + i,
                      r._high + i,
                      r.stride : strType,
-                     chpl__idxToInt(r.alignment)+i,
-                     r.aligned);
+                     alignmentHelper(r)+i,
+                     r.isAligned());
   }
 
   inline operator +(i:integral, r: range(?e,?b,?s))
@@ -1399,8 +1402,8 @@ operator :(r: range(?), type t: range(?)) {
                      r._low - i,
                      r._high - i,
                      r.stride : strType,
-                     chpl__idxToInt(r.alignment)-i,
-                     r.aligned);
+                     alignmentHelper(r)-i,
+                     r.isAligned());
   }
 
   inline proc chpl_check_step_integral(step) {
@@ -1467,7 +1470,7 @@ operator :(r: range(?), type t: range(?)) {
         if      r.hasLowBound()  && st > 0 then (true, r.alignedLowAsInt)
         else if r.hasHighBound() && st < 0 then (true, r.alignedHighAsInt)
         else
-          if r.stridable then (r.aligned, r._alignment)
+          if r.stridable then (r.isAligned(), r._alignment)
                          else (false, 0:r.intIdxType);
 
     return new range(i, b, true,  lw, hh, st, alt, ald);
@@ -1689,11 +1692,11 @@ operator :(r: range(?), type t: range(?)) {
                            newhi,
                            newStride,
                            0:intIdxType,
-                           !ambig && (this.aligned || other.aligned));
+                           !ambig && (this.isAligned() || other.isAligned()));
 
     if result.stridable {
-      var al1 = (chpl__idxToInt(this.alignment) % st1:intIdxType):int;
-      var al2 = (chpl__idxToInt(other.alignment) % st2:other.intIdxType):int;
+      var al1 = (alignmentHelper(this) % st1:intIdxType):int;
+      var al2 = (alignmentHelper(other) % st2:other.intIdxType):int;
 
       if (al2 - al1) % g != 0 then
       {
@@ -1764,7 +1767,7 @@ operator :(r: range(?), type t: range(?)) {
                          _high = r._low - absSameType(r.stride),
                          _stride = r.stride,
                          _alignment = r._alignment,
-                         _aligned = r.aligned);
+                         _aligned = r.isAligned());
       } else if (r.hasHighBound()) {
         return new range(idxType = r.idxType,
                          boundedType = BoundedRangeType.bounded,
@@ -1773,7 +1776,7 @@ operator :(r: range(?), type t: range(?)) {
                          _high = r._high,
                          _stride = r.stride,
                          _alignment = r._alignment,
-                         _aligned = r.aligned);
+                         _aligned = r.isAligned());
       } else {
         halt("Internal error: Unexpected case in chpl_count_help");
       }
@@ -1830,7 +1833,7 @@ operator :(r: range(?), type t: range(?)) {
                      _high = hi,
                      _stride = if r.stridable then r.stride: strType else none,
                      _alignment = if r.stridable then r._alignment else none,
-                     _aligned = r.aligned);
+                     _aligned = r.isAligned());
   }
 
   operator #(r:range(?i), count:chpl__rangeStrideType(i)) {
@@ -2164,7 +2167,7 @@ operator :(r: range(?), type t: range(?)) {
         HaltWrappers.boundsCheckHalt("iteration over range that has no first index");
 
       if this.isAmbiguous() then
-        HaltWrappers.boundsCheckHalt("these -- Attempt to iterate over a range with ambiguous alignment.");
+        HaltWrappers.boundsCheckHalt("iteration over an ambiguously aligned range");
     }
 
     // This iterator could be split into different cases depending on the
@@ -2191,7 +2194,7 @@ operator :(r: range(?), type t: range(?)) {
       if boundsChecking {
         checkIfIterWillOverflow();
         if this.isAmbiguous() then
-          HaltWrappers.boundsCheckHalt("these -- Attempt to iterate over a range with ambiguous alignment.");
+          HaltWrappers.boundsCheckHalt("iteration over an ambiguously aligned range");
       }
 
       // must use first/last since we have no knowledge of stride
@@ -2257,7 +2260,7 @@ operator :(r: range(?), type t: range(?)) {
   pragma "order independent yielding loops"
   iter range.generalIterator() {
     if boundsChecking && this.isAmbiguous() then
-      HaltWrappers.boundsCheckHalt("these -- Attempt to iterate over a range with ambiguous alignment.");
+      HaltWrappers.boundsCheckHalt("iteration over an ambiguously aligned range");
 
     var i: intIdxType;
     const start = this.first;
@@ -2284,7 +2287,7 @@ operator :(r: range(?), type t: range(?)) {
       compilerError("parallel iteration is not supported over unbounded ranges");
     }
     if boundsChecking && this.isAmbiguous() {
-      HaltWrappers.boundsCheckHalt("these -- Attempt to iterate over a range with ambiguous alignment.");
+      HaltWrappers.boundsCheckHalt("iteration over an ambiguously aligned range");
     }
     if debugChapelRange {
       chpl_debug_writeln("*** In range standalone iterator:");
@@ -2327,7 +2330,7 @@ operator :(r: range(?), type t: range(?)) {
       compilerError("parallel iteration is not supported over unbounded ranges");
 
     if boundsChecking && this.isAmbiguous() then
-      HaltWrappers.boundsCheckHalt("these -- Attempt to iterate over a range with ambiguous alignment.");
+      HaltWrappers.boundsCheckHalt("iteration over an ambiguously aligned range");
 
     if debugChapelRange then
       chpl_debug_writeln("*** In range leader:"); // ", this);
@@ -2417,7 +2420,7 @@ operator :(r: range(?), type t: range(?)) {
   iter range.these(param tag: iterKind, followThis) where tag == iterKind.follower
   {
     if boundsChecking && this.isAmbiguous() then
-      HaltWrappers.boundsCheckHalt("these -- Attempt to iterate over a range with ambiguous alignment.");
+      HaltWrappers.boundsCheckHalt("iteration over an ambiguously aligned range");
 
     if boundedType == BoundedRangeType.boundedNone then
       compilerError("iteration over a range with no bounds");
@@ -2558,7 +2561,7 @@ operator :(r: range(?), type t: range(?)) {
       // Write out the alignment only if it differs from natural alignment.
       // We take alignment modulo the stride for consistency.
       if !(alignCheckRange.isNaturallyAligned()) then
-        ret += " align " + chpl__mod(chpl__idxToInt(x.alignment), x.stride):string;
+        ret += " align " + chpl__mod(alignmentHelper(x), x.stride):string;
     }
     return ret;
   }
@@ -2566,7 +2569,7 @@ operator :(r: range(?), type t: range(?)) {
   pragma "no doc"
   proc ref range.normalizeAlignment()
   {
-    if stridable && !aligned {
+    if stridable && !isAligned() {
       _alignment =
         if isBoundedRange(this) then
           (if stride > 0 then _low else _high)

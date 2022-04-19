@@ -718,7 +718,7 @@ module ChapelIO {
 
     // Write out the alignment only if it differs from natural alignment.
     // We take alignment modulo the stride for consistency.
-    if ! alignCheckRange.isNaturallyAligned() && aligned then
+    if ! alignCheckRange.isNaturallyAligned() && isAligned() then
       f <~> new ioLiteral(" align ") <~> chpl_intToIdx(chpl__mod(chpl__idxToInt(alignment), stride));
   }
 

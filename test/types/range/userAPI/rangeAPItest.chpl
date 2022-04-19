@@ -13,8 +13,8 @@ proc testRangeAPI(lbl, r: range(?), idx, subr, offset=3, count=2) {
   writeln("hasLowBound()    = ", r.hasLowBound());
   writeln("hasHighBound()   = ", r.hasHighBound());
   writeln("stride           = ", r.stride);
-  writeln("alignment        = ", r.alignment);
-  writeln("aligned          = ", r.aligned);
+  if r.stridable then writeln("alignment        = ", r.alignment);
+  writeln("aligned          = ", r.isAligned());
   writeln("first            = ", if r.hasFirst() then r.first:string else "undefined");
   writeln("last             = ", if r.hasLast() then r.last:string else "undefined");
   writeln("low              = ", if r.hasLowBound() then r.low else "undefined");

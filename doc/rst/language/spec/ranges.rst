@@ -200,6 +200,9 @@ The parameters ``idxType``, ``boundedType``, and ``stridable`` affect
 all values of the corresponding range type. For example, the range’s low
 bound is -:math:`\infty` if and only if the ``boundedType`` of that
 range’s type is either ``boundedHigh`` or ``boundedNone``.
+If a range is not stridable, it is not ambiguously aligned,
+while its alignment is ambiguous.
+
 
    *Rationale*.
 
@@ -997,10 +1000,11 @@ can be examined, for example, by iterating over the range in a for loop
 
 
 
-.. function:: proc range.aligned : bool
+.. function:: proc range.isAligned() : bool
 
-   Reports whether the range’s alignment is unambiguous.
-
+   Reports whether the range has (unambiguous) alignment.
+   This is always true for unstridable ranges, even though
+   their alignment is ambiguous.
 
 
 .. function:: proc range.alignedHigh : idxType
@@ -1035,7 +1039,7 @@ can be examined, for example, by iterating over the range in a for loop
 .. function:: proc range.alignment : idxType
 
    Returns the range’s alignment. If the alignment is ambiguous, the
-   behavior is undefined. See also ``aligned``.
+   behavior is undefined. See also ``isAligned()``.
 
 
 
@@ -1080,6 +1084,7 @@ can be examined, for example, by iterating over the range in a for loop
 .. function:: proc range.isAmbiguous(): bool
 
    Reports whether the range is ambiguously aligned.
+   This is the opposite of ``isAligned``.
 
 
 
@@ -1121,14 +1126,6 @@ Other Queries
    Returns ``false`` if either range is ambiguously aligned. Returns
    ``true`` if range ``r2`` lies entirely within this range and ``false``
    otherwise.
-
-
-
-.. function:: proc ident(r1: range(?), r2: range(?)): bool
-
-   Returns ``true`` if the two ranges are the same in every respect: i.e.
-   the two ranges have the same ``idxType``, ``boundedType``,
-   ``stridable``, ``low``, ``high``, ``stride`` and ``alignment`` values.
 
 
 
@@ -1253,5 +1250,5 @@ Range Transformations
 .. function:: proc range.translate(i: integral)
 
    Returns a new range with its ``low``, ``high`` and ``alignment`` values
-   adjusted by :math:`i`. The ``stride`` value is preserved. If the range’s
-   alignment is ambiguous, the behavior is undefined.
+   adjusted by :math:`i`. The ``stride`` value is preserved.
+   If the operand range is ambiguously aligned, then so is the resulting range.
