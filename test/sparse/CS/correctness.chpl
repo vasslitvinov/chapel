@@ -364,7 +364,7 @@ proc writeDSI(D) {
   writeln("low:\t\t",D.low);
   writeln("high:\t\t",D.high);
   writeln("stride:\t\t",D.stride);
-  writeln("alignment:\t",D.alignment);
+  if D.stridable then writeln("alignment:\t",D.alignment);
   writeln("first:\t\t",D.first);
   writeln("last:\t\t",D.last);
   writeln("alignedLow:\t",D.alignedLow);

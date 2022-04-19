@@ -5,7 +5,7 @@ proc test(dom) {
   writeln(dom.low);
   writeln(dom.high);
   writeln(dom.stride);
-  writeln(dom.alignment);
+  if dom.stridable then writeln(dom.alignment);
   writeln(dom.first);
   writeln(dom.last);
   writeln(dom.alignedLow);

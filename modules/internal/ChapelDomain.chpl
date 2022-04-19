@@ -1957,22 +1957,37 @@ module ChapelDomain {
       return size: t;
     }
 
-
-    /* return the lowest index in this domain */
+    /* Returns the lowest index in this domain.
+       For a multi-dimensional domain, returns a tuple
+       containing the lowest indices for each dimension. */
     proc low return _value.dsiLow;
-    /* Return the highest index in this domain */
+    /* Returns the highest index in this domain.
+       For a multi-dimensional domain, returns a tuple
+       containing the highest indices for each dimension. */
     proc high return _value.dsiHigh;
-    /* Return the stride of the indices in this domain */
+    /* Returns the stride of the indices in this domain.
+       For a multi-dimensional domain, returns a tuple
+       containing the strides for each dimension. */
     proc stride return _value.dsiStride;
-    /* Return the alignment of the indices in this domain */
+    /* Returns the alignment of the indices in this domain.
+       For a multi-dimensional domain, returns a tuple
+       containing the alignments for each dimension. */
     proc alignment return _value.dsiAlignment;
-    /* Return the first index in this domain */
+    /* Returns the first index in this domain.
+       For a multi-dimensional domain, returns a tuple
+       containing the first indices for each dimension. */
     proc first return _value.dsiFirst;
-    /* Return the last index in this domain */
+    /* Returns the last index in this domain.
+       For a multi-dimensional domain, returns a tuple
+       containing the last indices for each dimension. */
     proc last return _value.dsiLast;
-    /* Return the low index in this domain factoring in alignment */
+    /* Returns the domain's aligned low bound.
+       For a multi-dimensional domain, returns a tuple
+       containing the aligned low bounds for each dimension. */
     proc alignedLow return _value.dsiAlignedLow;
-    /* Return the high index in this domain factoring in alignment */
+    /* Returns the domain's aligned high bound.
+       For a multi-dimensional domain, returns a tuple
+       containing the aligned high bounds for each dimension. */
     proc alignedHigh return _value.dsiAlignedHigh;
 
     /* This error overload is here because without it, the domain's

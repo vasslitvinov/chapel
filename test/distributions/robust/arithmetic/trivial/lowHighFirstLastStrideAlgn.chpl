@@ -50,8 +50,10 @@ writeln(Dom4D.stride);
 writeln(Dom2D32.stride);
 
 writeln("--- alignment ---");
-writeln(Dom1D.alignment);
-writeln(Dom2D.alignment);
-writeln(Dom3D.alignment);
-writeln(Dom4D.alignment);
-writeln(Dom2D32.alignment);
+// The domains Dom1D et al. are not stridable, so have ambiguous alignment.
+// Instead we print the (well-defined) alignment after applying 'by'.
+writeln((Dom1D by 2).alignment);
+writeln((Dom2D by 2).alignment);
+writeln((Dom3D by 2).alignment);
+writeln((Dom4D by 2).alignment);
+writeln((Dom2D32 by 2:int(32)).alignment);

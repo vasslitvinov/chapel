@@ -1,5 +1,5 @@
 var r = 1..10;
-writeln(r.alignment);
+// ambiguous alignment: writeln(r.alignment);
 
 var r1 = r by 1;
 writeln(r1.alignment);
@@ -29,13 +29,13 @@ var r9 = r align 3 by 2;
 writeln(r9.alignment);
 
 var r10 = ..;
-writeln(r10.alignment);
+// ambiguous alignment: writeln(r10.alignment);
 
 var r11 = 1..;
-writeln(r11.alignment);
+// ambiguous alignment: writeln(r11.alignment);
 
 var r12 = ..10;
-writeln(r12.alignment);
+// ambiguous alignment: writeln(r12.alignment);
 
 var r13 = .. align 1 by 2;
 writeln(r13.alignment);
