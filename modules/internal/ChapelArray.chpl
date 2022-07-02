@@ -2842,7 +2842,7 @@ module ChapelArray {
   proc chpl__coerceCopy(type dstType:_array, rhs:_array, definedConst: bool) {
 
     type eltType = chpl__eltTypeFromArrayRuntimeType(dstType);
-    const ref dom = chpl__domainFromArrayRuntimeType(dstType);
+    const ref dom = rhs.domain; //wass was: chpl__domainFromArrayRuntimeType(dstType);
 
     pragma "no copy" // avoid error about recursion for initCopy
     pragma "unsafe" // when eltType is non-nilable
@@ -2880,7 +2880,7 @@ module ChapelArray {
                         definedConst: bool) {
 
     type eltType = chpl__eltTypeFromArrayRuntimeType(dstType);
-    const ref dom = chpl__domainFromArrayRuntimeType(dstType);
+    const ref dom = rhs.domain; //wass was: chpl__domainFromArrayRuntimeType(dstType);
 
     // type mismatch important because RHS could be a slice, e.g.
     param typeMismatch = rhs._instance.type !=
