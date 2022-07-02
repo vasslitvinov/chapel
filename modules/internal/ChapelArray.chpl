@@ -2837,6 +2837,12 @@ module ChapelArray {
     }
   }
 
+  //wass
+  proc chpl__domainRankFromArrayRTT(type dstType:_array) param {
+    const ref dom = chpl__domainFromArrayRuntimeType(dstType);
+    return dom.rank;
+  }
+
   pragma "find user line"
   pragma "coerce fn"
   proc chpl__coerceCopy(type dstType:_array, rhs:_array, definedConst: bool) {
@@ -2848,7 +2854,8 @@ module ChapelArray {
     pragma "unsafe" // when eltType is non-nilable
     var lhs = dom.buildArray(eltType, initElts=false);
 
-    if lhs.rank != rhs.rank then
+//wass was:    if lhs.rank != rhs.rank then
+    if chpl__domainRankFromArrayRTT(dstType) != rhs.rank then
       compilerError("rank mismatch in array assignment");
     if !isCopyableOrSyncSingle(eltType) then
       compilerError("Cannot copy-initialize array because element type '",
@@ -2899,7 +2906,8 @@ module ChapelArray {
     pragma "unsafe" // when eltType is non-nilable
     var lhs = dom.buildArray(eltType, initElts=false);
 
-    if lhs.rank != rhs.rank then
+//wass was:    if lhs.rank != rhs.rank then
+    if chpl__domainRankFromArrayRTT(dstType) != rhs.rank then
       compilerError("rank mismatch in array assignment");
 
     if rhs._value == nil {
