@@ -2325,6 +2325,38 @@ static Expr* unrollHetTupleLoop(CallExpr* call, Expr* tupExpr, Type* iterType) {
   return noop;
 }
 
+static bool callIsInArrayInitCopy(CallExpr* call) {
+  if (FnSymbol* fn = toFnSymbol(call->parentSymbol))
+    if (fn->hasFlag(FLAG_INIT_COPY_FN))
+      if (fn->numFormals() >= 1)
+        if (ArgSymbol* rhs = fn->getFormal(1))
+          if (rhs->getValType()->symbol->hasFlag(FLAG_ARRAY))
+            return true;
+  return false;
+}
+
+// Returns true if the first arg to this call is an array (type)
+// that is not produced by chpl__buildArrayRuntimeType().
+// We make certain assumptions specifically about calls to
+// chpl__coerceCopy/chpl__coerceMove, ex. 1st arg is a type.
+static bool callHasArrayArgNotFromBuildArrRTT(CallExpr* call) {
+  if (call->numActuals() < 2) return false; // we expect 2+ args here
+  Symbol* dstTypeSym = toSymExpr(call->get(1))->symbol();
+  INT_ASSERT(dstTypeSym->hasFlag(FLAG_TYPE_VARIABLE));
+  Type* dstType = dstTypeSym->getValType();
+  if (! dstType->symbol->hasFlag(FLAG_ARRAY)) return false;
+
+  // We got an array argument. Check its origin.
+  if (SymExpr* temp = dstTypeSym->getSingleDef())
+    if (CallExpr* move = toCallExpr(temp->parentExpr))
+      if (move->isPrimitive(PRIM_MOVE) || move->isPrimitive(PRIM_ASSIGN))
+        if (CallExpr* call = toCallExpr(move->get(2)))
+          if (call->isNamed("chpl__buildArrayRuntimeType"))
+            return false;
+
+  // `dstType` is an array not from chpl__buildArrayRuntimeType().
+  return true;
+}
 
 static bool isMethodCall(CallExpr* call) {
   // The first argument could be DefExpr for a query expr, see
@@ -2644,6 +2676,17 @@ static Expr* preFoldNamed(CallExpr* call) {
 
       retval = unrollHetTupleLoop(call, tupExpr, iterType);
     }
+
+  } else if (call->isNamed("chpl__coerceCopy")  ||
+             call->isNamed("chpl__coerceMove")  ) {
+    // If the actual for `dstType` is an array type, ensure that it comes
+    // from chpl__buildArrayRuntimeType(). This way, we can obtain the domain
+    // without using runtime types. Exclude the call in chpl__initCopy(rhs:[]).
+    if (! call->isResolved() &&
+        ! callIsInArrayInitCopy(call) &&
+        callHasArrayArgNotFromBuildArrRTT(call)
+        )
+      USR_FATAL_CONT(call, "RTT is used");
 
   } else if (call->numActuals() == 1) {
     // Implement the common case of a boolean argument here,
