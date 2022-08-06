@@ -2325,6 +2325,7 @@ static Expr* unrollHetTupleLoop(CallExpr* call, Expr* tupExpr, Type* iterType) {
   return noop;
 }
 
+#if 0 //wass
 static bool callIsInArrayInitCopy(CallExpr* call) {
   if (FnSymbol* fn = toFnSymbol(call->parentSymbol))
     if (fn->hasFlag(FLAG_INIT_COPY_FN))
@@ -2334,27 +2335,33 @@ static bool callIsInArrayInitCopy(CallExpr* call) {
             return true;
   return false;
 }
+#endif
 
 // Returns true if the first arg to this call is an array (type)
-// that is not produced by chpl__buildArrayRuntimeType().
+// for which we cannot obtain the domain and element type
+// without relying on runtime types.
 // We make certain assumptions specifically about calls to
 // chpl__coerceCopy/chpl__coerceMove, ex. 1st arg is a type.
-static bool callHasArrayArgNotFromBuildArrRTT(CallExpr* call) {
+static bool callHasUnacceptableArrayArg(CallExpr* call) {
   if (call->numActuals() < 2) return false; // we expect 2+ args here
   Symbol* dstTypeSym = toSymExpr(call->get(1))->symbol();
   INT_ASSERT(dstTypeSym->hasFlag(FLAG_TYPE_VARIABLE));
   Type* dstType = dstTypeSym->getValType();
-  if (! dstType->symbol->hasFlag(FLAG_ARRAY)) return false;
+  if (! dstType->symbol->hasFlag(FLAG_ARRAY)) return false; // not an array
 
   // We got an array argument. Check its origin.
-  if (SymExpr* temp = dstTypeSym->getSingleDef())
-    if (CallExpr* move = toCallExpr(temp->parentExpr))
-      if (move->isPrimitive(PRIM_MOVE) || move->isPrimitive(PRIM_ASSIGN))
-        if (CallExpr* call = toCallExpr(move->get(2)))
-          if (call->isNamed("chpl__buildArrayRuntimeType"))
-            return false;
+  SymExpr* typeDefSE = dstTypeSym->getSingleDef();
+  if (typeDefSE == NULL) return false; // not analyzing for now
 
-  // `dstType` is an array not from chpl__buildArrayRuntimeType().
+  if (CallExpr* move = toCallExpr(typeDefSE->parentExpr))
+    if (move->isPrimitive(PRIM_MOVE) || move->isPrimitive(PRIM_ASSIGN))
+      if (CallExpr* call = toCallExpr(move->get(2)))
+        // ok cases: (1) explicit array type [D] eltType or (2) anArray.type
+        if (call->isNamed("chpl__buildArrayRuntimeType")    ||
+            call->isNamed("chpl__convertValueToRuntimeType") )
+          return false;
+
+  // `dstType` is an unacceptable array type
   return true;
 }
 
@@ -2679,13 +2686,10 @@ static Expr* preFoldNamed(CallExpr* call) {
 
   } else if (call->isNamed("chpl__coerceCopy")  ||
              call->isNamed("chpl__coerceMove")  ) {
-    // If the actual for `dstType` is an array type, ensure that it comes
-    // from chpl__buildArrayRuntimeType(). This way, we can obtain the domain
-    // without using runtime types. Exclude the call in chpl__initCopy(rhs:[]).
+    // If the actual for `dstType` is an array type, ensure that we can obtain
+    // its domain and element type without relying on runtime types.
     if (! call->isResolved() &&
-        ! callIsInArrayInitCopy(call) &&
-        callHasArrayArgNotFromBuildArrRTT(call)
-        )
+        callHasUnacceptableArrayArg(call))
       USR_FATAL_CONT(call, "RTT is used");
 
   } else if (call->numActuals() == 1) {
