@@ -2385,6 +2385,17 @@ static bool callHasUnacceptableArrayArg(CallExpr* call) {
   return true;
 }
 
+static bool isInFixRuntimeType(Expr* expr) {
+  ModuleSymbol* mod = expr->getModule();
+  Symbol* parentSym = expr->parentSymbol;
+  
+  if (mod->modTag == MOD_INTERNAL               &&
+      !strcmp(parentSym->name, "fixRuntimeType") )
+    return true;
+
+  return false;
+}
+
 static bool isMethodCall(CallExpr* call) {
   // The first argument could be DefExpr for a query expr, see
   //   test/arrays/formals/queryArrOfArr2.chpl
@@ -2708,8 +2719,9 @@ static Expr* preFoldNamed(CallExpr* call) {
              call->isNamed("chpl__coerceMove")  ) {
     // If the actual for `dstType` is an array type, ensure that we can obtain
     // its domain and element type without relying on runtime types.
-    if (! call->isResolved() &&
-        callHasUnacceptableArrayArg(call))
+    if (! call->isResolved()              &&
+        callHasUnacceptableArrayArg(call) &&
+        ! isInFixRuntimeType(call)        )
       USR_FATAL_CONT(call, "RTT is used");
 
   } else if (call->numActuals() == 1) {
