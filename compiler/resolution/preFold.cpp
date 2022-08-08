@@ -2337,6 +2337,24 @@ static bool callIsInArrayInitCopy(CallExpr* call) {
 }
 #endif
 
+// Return NULL if we do not find the defining call.
+static CallExpr* definingCall(Symbol* sym) {
+  do {
+    if (SymExpr* symDefSE = sym->getSingleDef())
+      if (CallExpr* move = toCallExpr(symDefSE->parentExpr))
+        if (move->isPrimitive(PRIM_MOVE) || move->isPrimitive(PRIM_ASSIGN))
+          {
+            if (CallExpr* call = toCallExpr(move->get(2)))
+              return call; // yes, found it!
+            if (SymExpr* se2 = toSymExpr(move->get(2))) {
+              sym = se2->symbol();
+              continue; // check this symbol next
+            }
+          }
+    return nullptr; // did not find it
+  } while (true);
+}
+
 // Returns true if the first arg to this call is an array (type)
 // for which we cannot obtain the domain and element type
 // without relying on runtime types.
@@ -2349,17 +2367,19 @@ static bool callHasUnacceptableArrayArg(CallExpr* call) {
   Type* dstType = dstTypeSym->getValType();
   if (! dstType->symbol->hasFlag(FLAG_ARRAY)) return false; // not an array
 
+#if 0 //wass - no longer used
   // We got an array argument. Check its origin.
   SymExpr* typeDefSE = dstTypeSym->getSingleDef();
   if (typeDefSE == NULL) return false; // not analyzing for now
+#endif
 
-  if (CallExpr* move = toCallExpr(typeDefSE->parentExpr))
-    if (move->isPrimitive(PRIM_MOVE) || move->isPrimitive(PRIM_ASSIGN))
-      if (CallExpr* call = toCallExpr(move->get(2)))
-        // ok cases: (1) explicit array type [D] eltType or (2) anArray.type
-        if (call->isNamed("chpl__buildArrayRuntimeType")    ||
-            call->isNamed("chpl__convertValueToRuntimeType") )
-          return false;
+  if (call->id == breakOnRemoveID) gdbShouldBreakHere(); //wass
+  if (CallExpr* defCall = definingCall(dstTypeSym)) {
+    // ok cases: (1) explicit array type [D] eltType or (2) anArray.type
+    if (defCall->isNamed("chpl__buildArrayRuntimeType")    ||
+        defCall->isNamed("chpl__convertValueToRuntimeType") )
+      return false;
+  }
 
   // `dstType` is an unacceptable array type
   return true;
