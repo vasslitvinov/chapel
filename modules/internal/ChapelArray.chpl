@@ -2590,6 +2590,7 @@ module ChapelArray {
       }
   }
   private proc initArrFromTuple(ref a: [], b: _tuple, param kind:_tElt) {
+compilerError("VASS: initArrFromTuple");
     var j: a.rank*a.domain.idxType;
     helpInitArrFromTuple(j, a.rank, a, b, kind);
   }
