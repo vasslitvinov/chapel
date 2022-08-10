@@ -1,0 +1,1 @@
+RTT: type ArrType1 = [init1dom] int; const init1arr: ArrType1 = 11011;
