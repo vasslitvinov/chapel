@@ -31,8 +31,8 @@ proc test3a() {
   var B:[0..1] real = [1.0, 2.0];
   var BB: [1..2][0..1] real = [ B, B ];
   var AA: [1..2][1..2] real = BB; // check not copy eliding
-  writeln(AA[1].domain); // this should be {1..2}
-  writeln(AA[2].domain); // this should be {1..2}
+  writeln(AA[1].domain); // this should be {1..2}  //RTT: .good is incorrect
+  writeln(AA[2].domain); // this should be {1..2}  //RTT: .good is incorrect
   BB; // not copy eliding
 }
 test3a();

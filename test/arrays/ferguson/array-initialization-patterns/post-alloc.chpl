@@ -84,7 +84,7 @@ test7t();
 
 proc test8() {
   writeln("alloc int test7");
-  var A:[1..2] int = (1,2);
+  var A:[1..2] int = [1,2]; //RTT
 }
 test8();
 

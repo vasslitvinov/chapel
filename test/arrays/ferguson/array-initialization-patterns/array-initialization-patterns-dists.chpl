@@ -151,7 +151,7 @@ test7();
 
 proc test8() {
   writeln("test8");
-  var B:[A.domain] int = (1,);
+  var B:[A.domain] int = [1]; // RTT
   writeln(B);
 }
 A = 0;
@@ -222,7 +222,7 @@ proc makeTuple() {
   writeln("in makeTuple");
   var fullTuple;
   {
-    fullTuple = (new R(1),);
+    fullTuple = [new R(1)]; // RTT
   }
   writeln("done makeTuple");
   return fullTuple;

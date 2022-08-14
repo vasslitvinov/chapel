@@ -1,3 +1,6 @@
+$CHPL_HOME/modules/internal/ChapelArray.chpl:2802: warning: aa: domain(1,int(64),false)
+$CHPL_HOME/modules/internal/ChapelArray.chpl:2808: warning: aa: [domain(1,int(64),false)] int(64)
+$CHPL_HOME/modules/internal/ChapelArray.chpl:2808: warning: aa: [domain(1,int(64),false)] R
 initial array is 0
 -
 test0
@@ -43,8 +46,6 @@ deinit 1 1
 testr3
 in makeTuple
 init 1 1
-init= 1 1
-deinit 1 1
 done makeTuple
 init= 1 1
 (x = 1, ptr = {xx = 1})

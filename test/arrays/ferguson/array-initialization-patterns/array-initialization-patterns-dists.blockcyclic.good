@@ -69,8 +69,6 @@ deinit 0 0
 testr3
 in makeTuple
 init 1 1
-init= 1 1
-deinit 1 1
 done makeTuple
 init (default)
 init (default)

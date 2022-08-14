@@ -119,7 +119,7 @@ test7();
 
 proc test8() {
   writeln("test8");
-  var B:[A.domain] int = (1,);
+  var B:[A.domain] int = [1]; // RTT
   writeln(B);
 }
 A = 0;
