@@ -2385,13 +2385,19 @@ static bool callHasUnacceptableArrayArg(CallExpr* call) {
   return true;
 }
 
-static bool isInFixRuntimeType(Expr* expr) {
+static bool isInKnownFunction(Expr* expr) {
   ModuleSymbol* mod = expr->getModule();
   Symbol* parentSym = expr->parentSymbol;
   
-  if (mod->modTag == MOD_INTERNAL               &&
-      !strcmp(parentSym->name, "fixRuntimeType") )
+  if (mod->modTag == MOD_INTERNAL) {
+#if 1 //wass -- 'clearSlot' is not needed
+    if(!strcmp(parentSym->name, "fixRuntimeType"))
+#else
+    if(!strcmp(parentSym->name, "fixRuntimeType") ||
+       !strcmp(parentSym->name, "clearSlot")       )
+#endif
     return true;
+  }
 
   return false;
 }
@@ -2721,8 +2727,9 @@ static Expr* preFoldNamed(CallExpr* call) {
     // its domain and element type without relying on runtime types.
     if (! call->isResolved()              &&
         callHasUnacceptableArrayArg(call) &&
-        ! isInFixRuntimeType(call)        )
+        ! isInKnownFunction(call)          )
       USR_FATAL_CONT(call, "RTT is used");
+//wass: USR_PRINT(call, "RTT is used");
 
   } else if (call->numActuals() == 1) {
     // Implement the common case of a boolean argument here,

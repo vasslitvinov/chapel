@@ -264,7 +264,7 @@ module DefaultAssociative {
         for slot in table.allSlots() {
           ref aSlot = table.table[slot];
           if aSlot.isFull() {
-            var tmpKey: idxType;
+            var tmpKey; //RTT
             var tmpVal: nothing;
             table.clearSlot(aSlot, tmpKey, tmpVal);
             // deinit any array entries
@@ -353,7 +353,7 @@ module DefaultAssociative {
 
         const (foundSlot, slotNum) = table.findFullSlot(idx);
         if foundSlot {
-          var tmpIdx: idxType;
+          var tmpIdx;  //RTT
           var tmpVal: nothing;
           table.clearSlot(slotNum, tmpIdx, tmpVal);
           numEntries.sub(1);

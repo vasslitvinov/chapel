@@ -468,7 +468,9 @@ module ChapelHashtable {
     // (Should not be called on empty/deleted slots)
     // Returns the key and value that were removed in the out arguments
     proc clearSlot(ref tableEntry: chpl_TableEntry(keyType, valType),
-                   out key: keyType, out val: valType) {
+                   out key, out val: valType)
+      where valType == nothing   //RTT
+    {
       use Memory.Initialization;
 
       // move the table entry into the key/val variables to be returned
@@ -482,7 +484,33 @@ module ChapelHashtable {
       tableNumFullSlots -= 1;
       tableNumDeletedSlots += 1;
     }
-    proc clearSlot(slotNum: int, out key: keyType, out val: valType) {
+    proc clearSlot(ref tableEntry: chpl_TableEntry(keyType, valType),
+                   out key, out val)
+      where valType != nothing   //RTT
+    {
+      use Memory.Initialization;
+
+      // move the table entry into the key/val variables to be returned
+      key = moveToValue(tableEntry.key);
+      val = moveToValue(tableEntry.val);
+
+      // set the slot status to deleted
+      tableEntry.status = chpl__hash_status.deleted;
+
+      // update the table counts
+      tableNumFullSlots -= 1;
+      tableNumDeletedSlots += 1;
+    }
+    proc clearSlot(slotNum: int, out key, out val: valType)
+      where valType == nothing   //RTT
+    {
+      // move the table entry into the key/val variables to be returned
+      ref tableEntry = table[slotNum];
+      clearSlot(tableEntry, key, val);
+    }
+    proc clearSlot(slotNum: int, out key, out val)
+      where valType != nothing   //RTT
+    {
       // move the table entry into the key/val variables to be returned
       ref tableEntry = table[slotNum];
       clearSlot(tableEntry, key, val);
