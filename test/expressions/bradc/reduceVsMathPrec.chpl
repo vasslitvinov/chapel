@@ -10,8 +10,8 @@
 // as one of their two operands.
 //
 
-var A: [1..3] int = (1, 5, 9);
-var B: [1..3] int = (1, 2, 3);
+var A: [1..3] int = [1, 5, 9];
+var B: [1..3] int = [1, 2, 3];
 
 writeln(+ reduce A + max reduce B);
 writeln(+ reduce (A + max reduce B));

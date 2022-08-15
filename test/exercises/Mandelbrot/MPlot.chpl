@@ -41,7 +41,7 @@ proc plot(NumSteps:[]) where NumSteps.rank == 2 {
   //
   // An array mapping from the image type enum to file extensions.
   //
-  const extensions: [imageType.bw..imageType.color] string = ("pbm", "pgm", "ppm");
+  const extensions: [imageType.bw..imageType.color] string = ["pbm", "pgm", "ppm"];
 
   if format == "pbm" || format == "pgm" || format == "ppm" {
     format = extensions(imgType);

@@ -22,7 +22,7 @@ proc minFn(x:?T, y:T) : T where implements LessThan(T) {
 
 implements LessThan( [1..3] int) ;
 
-var a:[1..3] int = (1,2,3);
-var b:[1..3] int = (1,0,4);
+var a:[1..3] int = [1,2,3];
+var b:[1..3] int = [1,0,4];
 
 writeln(minFn(a,b));
