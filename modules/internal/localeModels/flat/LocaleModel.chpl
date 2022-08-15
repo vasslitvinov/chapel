@@ -52,7 +52,7 @@ module LocaleModel {
     return execution_subloc;  // no info needed from full sublocale
   }
 
-  const chpl_emptyLocaleSpace: domain(1) = {1..0};
+  const chpl_emptyLocaleSpace = {1..0}; //RTT
   pragma "unsafe"
   const chpl_emptyLocales: [chpl_emptyLocaleSpace] locale;
 
@@ -143,7 +143,7 @@ module LocaleModel {
   //
   class RootLocale : AbstractRootLocale {
 
-    const myLocaleSpace: domain(1) = {0..numLocales-1};
+    const myLocaleSpace = {0..numLocales-1}; //RTT
     pragma "unsafe"
     var myLocales: [myLocaleSpace] locale;
 
