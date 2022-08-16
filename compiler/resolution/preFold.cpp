@@ -2355,25 +2355,20 @@ static CallExpr* definingCall(Symbol* sym) {
   } while (true);
 }
 
-// Returns true if the first arg to this call is an array (type)
+// Returns true if 'typeSE' points to an array (type)
 // for which we cannot obtain the domain and element type
 // without relying on runtime types.
-// We make certain assumptions specifically about calls to
-// chpl__coerceCopy/chpl__coerceMove, ex. 1st arg is a type.
-static bool callHasUnacceptableArrayArg(CallExpr* call) {
-  if (call->numActuals() < 2) return false; // we expect 2+ args here
-  Symbol* dstTypeSym = toSymExpr(call->get(1))->symbol();
+bool isUnacceptableArrayType(Expr* ref, SymExpr* typeSE); //wass to header
+bool isUnacceptableArrayType(Expr* ref, Symbol* dstTypeSym) {
+  if (ref->id == breakOnRemoveID) gdbShouldBreakHere(); //wass
+
   INT_ASSERT(dstTypeSym->hasFlag(FLAG_TYPE_VARIABLE));
   Type* dstType = dstTypeSym->getValType();
   if (! dstType->symbol->hasFlag(FLAG_ARRAY)) return false; // not an array
 
-#if 0 //wass - no longer used
-  // We got an array argument. Check its origin.
-  SymExpr* typeDefSE = dstTypeSym->getSingleDef();
-  if (typeDefSE == NULL) return false; // not analyzing for now
-#endif
+  if (isArgSymbol(dstTypeSym))
+      return true; // a formal is not acceptable
 
-  if (call->id == breakOnRemoveID) gdbShouldBreakHere(); //wass
   if (CallExpr* defCall = definingCall(dstTypeSym)) {
     // ok cases: (1) explicit array type [D] eltType or (2) anArray.type
     if (defCall->isNamed("chpl__buildArrayRuntimeType")    ||
@@ -2383,6 +2378,13 @@ static bool callHasUnacceptableArrayArg(CallExpr* call) {
 
   // `dstType` is an unacceptable array type
   return true;
+}
+
+// We make certain assumptions specifically about calls to
+// chpl__coerceCopy/chpl__coerceMove, ex. 1st arg is a type.
+static bool callHasUnacceptableArrayArg(CallExpr* call) {
+  if (call->numActuals() < 2) return false; // we expect 2+ args here
+  return isUnacceptableArrayType(call, toSymExpr(call->get(1))->symbol());
 }
 
 static bool isInKnownFunction(Expr* expr) {
@@ -2728,8 +2730,7 @@ static Expr* preFoldNamed(CallExpr* call) {
     if (! call->isResolved()              &&
         callHasUnacceptableArrayArg(call) &&
         ! isInKnownFunction(call)          )
-      USR_FATAL_CONT(call, "RTT is used");
-//wass: USR_PRINT(call, "RTT is used");
+      USR_PRINT(call, "RTT is used");
 
   } else if (call->numActuals() == 1) {
     // Implement the common case of a boolean argument here,
