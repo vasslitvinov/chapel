@@ -2838,6 +2838,33 @@ compilerError("VASS: initArrFromTuple");
     }
   }
 
+  proc verifyArrayArg(type dstType, rhs, param fnName) {
+    if dstType != rhs.type {
+      compilerWarning(fnName, " -- dstType: '", dstType:string,
+                      "' DIFFERS FROM rhs: ", rhs.type:string);
+    } else {
+      if chpl__domainFromArrayRuntimeType(dstType)._value
+         != rhs.domain._value then
+        chpl_debug_writeln("RTT ", fnName, ": different _value");
+    }
+  }
+
+  proc chpl__coerceCopy_ext(type dstType: _array, args...) {
+    if isArray(args(0)) then
+      verifyArrayArg(dstType, args(0), "chpl__coerceCopy_ext");
+    else
+      compilerWarning("chpl__coerceCopy_ext rhs: ", args(0).type:string);
+    return chpl__coerceCopy(dstType, (...args));
+  }
+
+  proc chpl__coerceMove_ext(type dstType: _array, args...) {
+    if isArray(args(0)) then
+      verifyArrayArg(dstType, args(0), "chpl__coerceMove_ext");
+    else
+      compilerWarning("chpl__coerceMove_ext rhs: ", args(0).type:string);
+    return chpl__coerceMove(dstType, (...args));
+  }
+
   pragma "find user line"
   pragma "coerce fn"
   proc chpl__coerceCopy(type dstType:_array, rhs:_array, definedConst: bool) {

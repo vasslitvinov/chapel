@@ -2358,7 +2358,7 @@ static CallExpr* definingCall(Symbol* sym) {
 // Returns true if 'typeSE' points to an array (type)
 // for which we cannot obtain the domain and element type
 // without relying on runtime types.
-bool isUnacceptableArrayType(Expr* ref, SymExpr* typeSE); //wass to header
+bool isUnacceptableArrayType(Expr* ref, Symbol* dstTypeSym); //wass to header
 bool isUnacceptableArrayType(Expr* ref, Symbol* dstTypeSym) {
   if (ref->id == breakOnRemoveID) gdbShouldBreakHere(); //wass
 
@@ -2392,12 +2392,9 @@ static bool isInKnownFunction(Expr* expr) {
   Symbol* parentSym = expr->parentSymbol;
   
   if (mod->modTag == MOD_INTERNAL) {
-#if 1 //wass -- 'clearSlot' is not needed
-    if(!strcmp(parentSym->name, "fixRuntimeType"))
-#else
-    if(!strcmp(parentSym->name, "fixRuntimeType") ||
-       !strcmp(parentSym->name, "clearSlot")       )
-#endif
+    if(!strcmp(parentSym->name, "fixRuntimeType")        ||
+       !strcmp(parentSym->name, "chpl__coerceCopy_ext")  ||
+       !strcmp(parentSym->name, "chpl__coerceMove_ext")   )
     return true;
   }
 
@@ -2729,8 +2726,12 @@ static Expr* preFoldNamed(CallExpr* call) {
     // its domain and element type without relying on runtime types.
     if (! call->isResolved()              &&
         callHasUnacceptableArrayArg(call) &&
-        ! isInKnownFunction(call)          )
-      USR_PRINT(call, "RTT is used");
+        ! isInKnownFunction(call)          ){
+      if (UnresolvedSymExpr* use = toUnresolvedSymExpr(call->baseExpr))
+        use->unresolved = astr(use->unresolved, "_ext");
+      else
+        USR_PRINT(call, "RTT is used in chpl__coerceCopy/chpl__coerceMove");
+    }
 
   } else if (call->numActuals() == 1) {
     // Implement the common case of a boolean argument here,

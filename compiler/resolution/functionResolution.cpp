@@ -11109,7 +11109,7 @@ static void lowerRuntimeTypeInit(CallExpr* call,
   } else {
 bool isUnacceptableArrayType(Expr* ref, Symbol* dstTypeSym); //wass in header
     if (isUnacceptableArrayType(call, typeSym))
-      USR_PRINT(call, "RTT is used");
+      USR_PRINT(call, "RTT is used in initializer for %s", toString(at));
   }
 
   // Get the runtime type
