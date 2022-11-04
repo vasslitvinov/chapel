@@ -1888,6 +1888,15 @@ static void checkInterfaceFunctionRetType(FnSymbol* fn, Type* retType,
   USR_PRINT(fn, "a non-void return type must be declared explicitly");
 }
 
+// wass todo comments:
+// return intent is [const] ref
+// return type is an array slice
+static void convertReturnSliceByRefIfNeeded(FnSymbol* fn, Symbol* retSym) {
+  if (fn->retTag != RET_REF && fn->retTag != RET_CONST_REF) return;
+
+  gdbShouldBreakHere(); //wass
+}
+
 // Resolves an inferred return type.
 // resolveSpecifiedReturnType handles the case that the type is
 // specified explicitly.
@@ -1999,6 +2008,8 @@ void resolveReturnTypeAndYieldedType(FnSymbol* fn, Type** yieldedType) {
     }
 
     fn->retType = retType;
+
+    convertReturnSliceByRefIfNeeded(fn, ret);
 
   } else {
 
