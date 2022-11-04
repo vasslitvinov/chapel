@@ -79,7 +79,7 @@ endif
 # Flags for compiler, runtime, and generated code
 #
 COMP_CFLAGS = $(C_STD) $(CPPFLAGS) $(FLAGS)
-COMP_CXXFLAGS = $(CXX14_STD) $(CPPFLAGS) $(CXXFLAGS)
+COMP_CXXFLAGS = $(CXX14_STD) $(CPPFLAGS) $(CXXFLAGS) -Wno-deprecated-declarations
 COMP_CXXFLAGS_NONCHPL = -Wno-error
 RUNTIME_CFLAGS = $(C_STD) $(CPPFLAGS) $(CFLAGS)
 RUNTIME_CXXFLAGS = $(CXX_STD) $(CPPFLAGS) $(CXXFLAGS)
