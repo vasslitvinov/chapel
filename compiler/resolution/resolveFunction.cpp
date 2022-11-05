@@ -1888,13 +1888,43 @@ static void checkInterfaceFunctionRetType(FnSymbol* fn, Type* retType,
   USR_PRINT(fn, "a non-void return type must be declared explicitly");
 }
 
+// wass todo: hashset of converted functions
+
 // wass todo comments:
 // return intent is [const] ref
 // return type is an array slice
 static void convertReturnSliceByRefIfNeeded(FnSymbol* fn, Symbol* retSym) {
   if (fn->retTag != RET_REF && fn->retTag != RET_CONST_REF) return;
+  Type* retValType = retSym->getValType();
+  if (! isAliasingArrayType(retValType)) return;
+
+  //debugSummary(fn);
+  list_view(fn);
+  INT_ASSERT(fn, fn->retType == retSym->type);  // my expectations
+  INT_ASSERT(fn, retSym->hasFlag(FLAG_RVV));
+  INT_ASSERT(fn, isReferenceType(retSym->type));
+
+  // Instead of returning 'retSym', return its deref.
+  VarSymbol* newRet = newTemp("retVal", retValType);
+  retSym->removeFlag(FLAG_RVV);
+  newRet->addFlag(FLAG_RVV);
+  retSym->defPoint->insertBefore(new DefExpr(newRet));
+
+  // newRet <- deref(retSym)
+  CallExpr* retCall = toCallExpr(fn->body->body.last());
+  SymExpr*  oldSE   = toSymExpr(retCall->get(1));
+  INT_ASSERT(fn, oldSE->symbol() == retSym);
+  oldSE->replace(new SymExpr(newRet));
+  retCall->insertBefore("'move'(%S, 'deref'(%S))", newRet, retSym);
 
   gdbShouldBreakHere(); //wass
+
+  // Update some fields of 'fn'
+  fn->retType = retValType;
+  if (fn->retSymbol != nullptr) {
+    INT_ASSERT(fn, fn->retSymbol == retSym);
+    fn->retSymbol = newRet;
+  }
 }
 
 // Resolves an inferred return type.
