@@ -1908,7 +1908,7 @@ static void convertReturnSliceByRefIfNeeded(FnSymbol* fn, Symbol* retSym) {
   VarSymbol* newRet = newTemp("retVal", retValType);
   retSym->removeFlag(FLAG_RVV);
   newRet->addFlag(FLAG_RVV);
-  newRet->addFlag(FLAG_NO_COPY);
+  newRet->addFlag(FLAG_NO_COPY); //not useful: fn->addFlag(FLAG_NO_COPY_RETURN)
   retSym->defPoint->insertBefore(new DefExpr(newRet));
 
   // newRet <- deref(retSym)
