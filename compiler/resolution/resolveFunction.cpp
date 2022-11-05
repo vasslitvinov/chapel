@@ -1889,6 +1889,7 @@ static void checkInterfaceFunctionRetType(FnSymbol* fn, Type* retType,
 }
 
 // wass todo: hashset of converted functions
+// to disable return intent overloading
 
 // wass todo comments:
 // return intent is [const] ref
@@ -1898,16 +1899,16 @@ static void convertReturnSliceByRefIfNeeded(FnSymbol* fn, Symbol* retSym) {
   Type* retValType = retSym->getValType();
   if (! isAliasingArrayType(retValType)) return;
 
-  //debugSummary(fn);
-  list_view(fn);
+  list_view(fn); //wass
   INT_ASSERT(fn, fn->retType == retSym->type);  // my expectations
   INT_ASSERT(fn, retSym->hasFlag(FLAG_RVV));
   INT_ASSERT(fn, isReferenceType(retSym->type));
 
-  // Instead of returning 'retSym', return its deref.
+  // instead of returning 'retSym', return its deref
   VarSymbol* newRet = newTemp("retVal", retValType);
   retSym->removeFlag(FLAG_RVV);
   newRet->addFlag(FLAG_RVV);
+  newRet->addFlag(FLAG_NO_COPY);
   retSym->defPoint->insertBefore(new DefExpr(newRet));
 
   // newRet <- deref(retSym)
@@ -1917,14 +1918,16 @@ static void convertReturnSliceByRefIfNeeded(FnSymbol* fn, Symbol* retSym) {
   oldSE->replace(new SymExpr(newRet));
   retCall->insertBefore("'move'(%S, 'deref'(%S))", newRet, retSym);
 
-  gdbShouldBreakHere(); //wass
-
-  // Update some fields of 'fn'
+  // update some fields of 'fn'
+  fn->retTag = RET_VALUE;
   fn->retType = retValType;
   if (fn->retSymbol != nullptr) {
     INT_ASSERT(fn, fn->retSymbol == retSym);
     fn->retSymbol = newRet;
   }
+
+  list_view(fn); //wass
+  gdbShouldBreakHere(); //wass
 }
 
 // Resolves an inferred return type.
