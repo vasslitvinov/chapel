@@ -49,6 +49,7 @@
 #include "view.h"
 #include "WhileStmt.h"
 #include "llvm/ADT/DenseSet.h"
+#include <llvm/ADT/SmallVector.h>
 
 #include <set>
 
@@ -1888,6 +1889,25 @@ static void checkInterfaceFunctionRetType(FnSymbol* fn, Type* retType,
   USR_PRINT(fn, "a non-void return type must be declared explicitly");
 }
 
+// Return true if all defs of 'retSym' are of the form 'addrOf(...)'
+// and gather them in 'addresOf'.
+static bool collectAndCheckRetDefs(Symbol* retSym,
+                                   llvm::SmallVectorImpl<CallExpr*>& addrsOf) {
+  for_SymbolDefs(se, retSym) {
+    bool handled = false;
+    if (CallExpr* move = toCallExpr(se->parentExpr))
+     if (move->isPrimitive(PRIM_MOVE)) 
+      if (CallExpr* addrOf = toCallExpr(move->get(2)))
+       if (addrOf->isPrimitive(PRIM_ADDR_OF))
+         addrsOf.push_back(addrOf),
+         handled = true;
+
+    if (!handled) return false;
+  }
+
+  return true;
+}
+
 // wass todo: hashset of converted functions
 // to disable return intent overloading
 
@@ -1904,6 +1924,35 @@ static void convertReturnSliceByRefIfNeeded(FnSymbol* fn, Symbol* retSym) {
   INT_ASSERT(fn, retSym->hasFlag(FLAG_RVV));
   INT_ASSERT(fn, isReferenceType(retSym->type));
 
+#if 1 //wass
+
+  llvm::SmallVector<CallExpr*, 8> addrsOf;
+  if (collectAndCheckRetDefs(retSym, addrsOf)) {
+    // replace each move(retSym, addOf(src)) --> move(retSym, src)
+    for (CallExpr* addrOf: addrsOf) {
+      addrOf->replace(addrOf->get(1)->remove());
+    }
+
+    // convert 'fn'
+    retSym->type = retValType;
+    retSym->addFlag(FLAG_NO_COPY);
+    fn->retTag = RET_VALUE;
+    fn->retType = retValType;
+
+    list_view(fn); //wass
+    gdbShouldBreakHere(); //wass
+
+  } else {
+    USR_WARN(fn, "could not convert %s to returning the slice by value",
+             fn->name);
+    gdbShouldBreakHere(); //wass
+    // wass for debugging if desired
+    llvm::SmallVector<CallExpr*, 8> addrsOf2;
+    bool check2 = collectAndCheckRetDefs(retSym, addrsOf2);
+    printf("check2 %s\n", check2 ? "pass" : "FAIL");
+  }
+         
+#else //wass
   // instead of returning 'retSym', return its deref
   VarSymbol* newRet = newTemp("retVal", retValType);
   retSym->removeFlag(FLAG_RVV);
@@ -1928,6 +1977,7 @@ static void convertReturnSliceByRefIfNeeded(FnSymbol* fn, Symbol* retSym) {
 
   list_view(fn); //wass
   gdbShouldBreakHere(); //wass
+#endif //wass
 }
 
 // Resolves an inferred return type.

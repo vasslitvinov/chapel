@@ -1,6 +1,6 @@
 
 config const flag = true;
-var AA: [1..9] int = 5;
+var AA: [1..9] int;
 ref BB = AA[1..4];
 /*
 record R { var x: int; }
@@ -8,16 +8,35 @@ record R { var x: int; }
 proc sli0() {
   return new R();
 }
-*/
+
 proc sli1() /*ref*/ {
+  // return BB;
+  if flag {
+    return AA;
+  } else {
+    var CC: [1..9] int;
+    return CC;
+  }
+}
+*/
+
+proc sli1() ref {
   return BB;
 }
 
 proc sli2() ref {
+/*
   ref r1 = AA[1..3];
   ref r2 = r1;
   return r2;
-//  return AA[1..3];
+*/
+  return AA[1..3];
+}
+
+proc sli3() ref {
+  ref r1 = AA[1..3];
+  ref r2 = r1;
+  return r2;
 }
 
 /*
@@ -31,10 +50,12 @@ proc sli3() ref {
 }
 */
 
-//ref r0 = sli0();
-ref r1 = sli1();
-ref r2 = sli2();
-//ref r3 = sli3();
+proc main {
+  //ref r0 = sli0();
+  ref r1 = sli1();
+  ref r2 = sli2();
+  ref r3 = sli3();
+}
 
 /*
 var AA: [1..9] int = 5;
