@@ -293,7 +293,6 @@ module BytesStringCommon {
 
   proc initWithBorrowedBuffer(ref x: ?t, other: bufferType, length:int, size:int) {
     assertArgType(t, "initWithBorrowedBuffer");
-     chk(x);
 
     x.isOwned = false;
 
@@ -302,11 +301,12 @@ module BytesStringCommon {
     x.buff = other;
     x.buffSize = size;
     x.buffLen = length;
+     chk(x);
   }
 
   inline proc initWithOwnedBuffer(ref x: ?t, other: bufferType, length:int, size:int) {
     assertArgType(t, "initWithOwnedBuffer");
-     chk(x);
+     //wass:chk(x);
 
     x.isOwned = true;
 
@@ -315,11 +315,12 @@ module BytesStringCommon {
     x.buff = other;
     x.buffSize = size;
     x.buffLen = length;
+     chk(x);
   }
 
   inline proc initWithNewBuffer(ref x: ?t, other: t) {
     assertArgType(t, "initWithNewBuffer");
-     chk(x);
+     chk(other);
 
     const otherRemote = other.locale_id != chpl_nodeID;
     const otherLen = other.numBytes;
@@ -342,11 +343,11 @@ module BytesStringCommon {
         x.buffSize = allocSize;
       }
     }
+     chk(x);
   }
 
   proc initWithNewBuffer(ref x: ?t, other: bufferType, length:int, size:int) {
     assertArgType(t, "initWithNewBuffer");
-     chk(x);
 
     const otherLen = length;
     x.isOwned = true;
@@ -359,6 +360,7 @@ module BytesStringCommon {
       x.buff[x.buffLen] = 0;
       x.buffSize = allocSize;
     }
+     chk(x);
   }
 
   // Checks to see if r is inside the bounds of this and returns a finite
