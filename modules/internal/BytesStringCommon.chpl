@@ -264,7 +264,8 @@ module BytesStringCommon {
 
   proc initWithBorrowedBuffer(ref x: ?t, other: t) {
     assertArgType(t, "initWithBorrowedBuffer");
-     chk(x);
+     //wass:chk(x);
+     chk(other);
 
     x.isOwned = false;
     if t == string then x.hasEscapes = other.hasEscapes;
