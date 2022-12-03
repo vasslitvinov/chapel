@@ -53,6 +53,18 @@ module String {
 
   use NVStringFactory;
 
+public proc chk(arg) {
+  on __primitive("chpl_on_locale_num",
+                 chpl_buildLocaleID(arg.locale_id, c_sublocid_any)) {
+    if arg.buff == nil {
+      assert(arg.size == 0);
+    } else {
+      assert(arg.buffLen < arg.buffSize);
+      assert(arg.buff[arg.buffLen] == 0);
+    }
+  }
+}
+
   pragma "fn synchronization free"
   private extern proc qio_decode_char_buf(ref chr:int(32),
                                           ref nbytes:c_int,
@@ -630,6 +642,7 @@ module String {
       var ret: string;
       initWithNewBuffer(ret, x, length, size);
       ret.cachedNumCodepoints = numCodepoints;
+     chk(ret);
       return ret;
     }
 
@@ -644,6 +657,7 @@ module String {
       var ret: string;
       initWithBorrowedBuffer(ret, x, length, size);
       ret.cachedNumCodepoints = numCodepoints;
+     chk(ret);
       return ret;
     }
 
@@ -654,6 +668,7 @@ module String {
       var ret: string;
       initWithOwnedBuffer(ret, x, length, size);
       ret.cachedNumCodepoints = numCodepoints;
+     chk(ret);
       return ret;
     }
   }
@@ -686,9 +701,11 @@ module String {
     proc init=(s: string) {
       this.complete();
       initWithNewBuffer(this, s);
+     chk(this);
     }
 
     proc ref deinit() {
+     chk(this);
       // Checking for size here isn't sufficient. A string may have been
       // initialized from a c_string allocated from memory but beginning with
       // a null-terminator.
@@ -776,6 +793,7 @@ module String {
       but the string is correctly encoded UTF-8.
     */
     iter _cpIndexLen(start = 0:byteIndex) {
+     chk(this);
       const localThis = this.localize();
       var i = _findStartOfNextCodepointFromByte(localThis, start);
       while i < localThis.buffLen {
@@ -791,6 +809,7 @@ module String {
       but the string is correctly encoded UTF-8.
     */
     iter _indexLen(start = 0:byteIndex) {
+     chk(this);
       var localThis: string = this.localize();
 
       var i = start:int;
@@ -827,6 +846,7 @@ module String {
     proc doSplitWSUTF8Help(maxsplit: int, ref i: int,
                            const splitCount: int, const noSplits: bool,
                            const limitSplits: bool, const iEnd: byteIndex) {
+     chk(this);
       if boundsChecking {
         if !_local && this.locale_id != chpl_nodeID {
           halt("internal error -- method requires localized string");
@@ -904,6 +924,7 @@ module String {
     }
 
     iter doSplitWSUTF8(maxsplit: int) {
+     chk(this);
       if !this.isEmpty() {
         const localThis = this.localize();
         var splitCount = 0;
@@ -935,6 +956,7 @@ module String {
       var ret: int = -1;
       on __primitive("chpl_on_locale_num",
                      chpl_buildLocaleID(this.locale_id, c_sublocid_any)) {
+     chk(this);
         // any value >= 0 means we have a solution
         // used because we cant break out of an on-clause early
         var localRet: int = -2;
@@ -1036,6 +1058,7 @@ module String {
                 Uncased characters are copied with no changes.
     */
     proc capitalize() : string {
+     chk(this);
       var result: string = this.toLower();
       if result.isEmpty() then return result;
       const (decodeRet, cp, nBytes) = decodeHelp(buff=result.buff,
@@ -1091,6 +1114,7 @@ module String {
                current locale, otherwise a deep copy is performed.
   */
   inline proc string.localize() : string {
+     chk(this);
     if _local || this.locale_id == chpl_nodeID {
       return createStringWithBorrowedBuffer(this);
     } else {
@@ -1139,6 +1163,7 @@ module String {
     :returns: :type:`~Bytes.bytes`
   */
   proc string.encode(policy=encodePolicy.pass) : bytes {
+     chk(this);
     var localThis: string = this.localize();
 
     if policy == encodePolicy.pass || this.isASCII() {  // just copy
@@ -1198,6 +1223,7 @@ module String {
       d
    */
   iter string.items() : string {
+     chk(this);
     var localThis: string = this.localize();
 
     if localThis.isASCII() {
@@ -1251,6 +1277,7 @@ module String {
     Iterates over the string byte by byte.
   */
   iter string.chpl_bytes() : uint(8) {
+     chk(this);
     var localThis: string = this.localize();
 
     foreach i in 0..#localThis.buffLen {
@@ -1262,6 +1289,7 @@ module String {
     Iterates over the string Unicode character by Unicode character.
   */
   iter string.codepoints() : int(32) {
+     chk(this);
     const localThis = this.localize();
     var i = 0;
     while i < localThis.buffLen {
@@ -1468,6 +1496,7 @@ module String {
               * `false` -- otherwise
    */
   inline proc string.isEmpty() : bool {
+     chk(this);
     return this.buffLen == 0; // this should be enough of a check
   }
 
@@ -1503,6 +1532,7 @@ module String {
 
   inline proc string.find(pattern: string,
                           indices: range(?) = this.byteIndices:range(byteIndex)) : byteIndex {
+     chk(this);
     if this.isASCII() then
       return doSearchNoEnc(this, pattern, indices, count=false): byteIndex;
     else
@@ -1520,6 +1550,7 @@ module String {
    */
   inline proc string.rfind(pattern: string,
                            indices: range(?) = this.byteIndices:range(byteIndex)) : byteIndex {
+     chk(this);
     if this.isASCII() then
       return doSearchNoEnc(this, pattern, indices,
                            count=false, fromLeft=false): byteIndex;
@@ -1538,6 +1569,7 @@ module String {
    */
   inline proc string.count(pattern: string,
                            indices: range(?) = this.indices) : int {
+     chk(this);
     if this.isASCII() then
       return doSearchNoEnc(this, pattern, indices, count=true);
     else
@@ -1555,6 +1587,7 @@ module String {
    */
   inline proc string.replace(pattern: string, replacement: string,
                              count: int = -1) : string {
+     chk(this);
     return doReplace(this, pattern, replacement, count);
   }
 
@@ -1572,6 +1605,7 @@ module String {
    */
   iter string.split(sep: string, maxsplit: int = -1,
                     ignoreEmpty: bool = false) : string {
+     chk(this);
     // TODO: specifying return type leads to un-inited string?
     for s in doSplit(this, sep, maxsplit, ignoreEmpty) do yield s;
   }
@@ -1583,6 +1617,7 @@ module String {
                    indicate no limit.
    */
   iter string.split(maxsplit: int = -1) : string {
+     chk(this);
     // TODO: specifying return type leads to un-inited string?
     if this.isASCII() {
       for s in doSplitWSNoEnc(this, maxsplit) do yield s;
@@ -1649,6 +1684,7 @@ module String {
   */
   proc string.strip(chars: string = " \t\r\n", leading=true,
                     trailing=true) : string {
+     chk(this);
     if this.isASCII() {
       return doStripNoEnc(this, chars, leading, trailing);
     } else {
@@ -1948,6 +1984,7 @@ module String {
       cases take different number of bytes to represent in Unicode mapping.
   */
   proc string.toLower() : string {
+     chk(this);
     var result: string = this;
     if result.isEmpty() then return result;
 
@@ -1972,6 +2009,7 @@ module String {
       cases take different number of bytes to represent in Unicode mapping.
   */
   proc string.toUpper() : string {
+     chk(this);
     var result: string = this;
     if result.isEmpty() then return result;
 
@@ -1997,6 +2035,7 @@ module String {
       cases take different number of bytes to represent in Unicode mapping.
    */
   proc string.toTitle() : string {
+     chk(this);
     var result: string = this;
     if result.isEmpty() then return result;
 
@@ -2061,6 +2100,8 @@ module String {
      Copies the string `rhs` into the string `lhs`.
   */
   operator =(ref lhs: string, rhs: string) : void {
+     chk(lhs);
+     chk(rhs);
     doAssign(lhs, rhs);
   }
 
@@ -2071,6 +2112,8 @@ module String {
      :returns: A new string which is the result of concatenating `s0` and `s1`
   */
   operator string.+(s0: string, s1: string) : string {
+     chk(s0);
+     chk(s1);
     return doConcat(s0, s1);
   }
 
@@ -2386,6 +2429,8 @@ module String {
 
   pragma "no doc"
   operator string.<=>(ref x: string, ref y: string) {
+     chk(x);
+     chk(y);
     if (x.locale_id != y.locale_id) {
       // TODO: could we just change locale_id?
       var tmp = x;

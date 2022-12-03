@@ -88,6 +88,7 @@ module BytesStringCommon {
   // issue (#448 chapel-private)
   inline proc getCStr(const ref x: ?t): c_string {
     assertArgType(t, "getCStr");
+     chk(x);
     if _local == false && x.locale_id != chpl_nodeID then
       halt("Cannot call .c_str() on a remote " + t:string);
 

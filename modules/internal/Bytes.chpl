@@ -51,6 +51,7 @@ module Bytes {
   inline proc createBytesWithBorrowedBuffer(x: bytes) : bytes {
     var ret: bytes;
     initWithBorrowedBuffer(ret, x);
+     chk(ret);
     return ret;
   }
 
@@ -112,6 +113,7 @@ module Bytes {
     }
     var ret: bytes;
     initWithBorrowedBuffer(ret, x:bufferType, length, size);
+     chk(ret);
     return ret;
   }
 
@@ -159,6 +161,7 @@ module Bytes {
     }
     var ret: bytes;
     initWithOwnedBuffer(ret, x, length, size);
+     chk(ret);
     return ret;
   }
 
@@ -173,6 +176,7 @@ module Bytes {
   inline proc createBytesWithNewBuffer(x: bytes) : bytes {
     var ret: bytes;
     initWithNewBuffer(ret, x);
+     chk(ret);
     return ret;
   }
 
@@ -211,6 +215,7 @@ module Bytes {
     }
     var ret: bytes;
     initWithNewBuffer(ret, x, length, size);
+     chk(ret);
     return ret;
   }
 
@@ -230,6 +235,7 @@ module Bytes {
     }
 
     proc ref deinit() {
+     chk(this);
       if isOwned && this.buff != nil {
         on __primitive("chpl_on_locale_num",
                        chpl_buildLocaleID(this.locale_id, c_sublocid_any)) {
@@ -276,17 +282,20 @@ module Bytes {
     proc init=(b: bytes) {
       this.complete();
       initWithNewBuffer(this, b);
+     chk(this);
     }
 
     proc init=(b: string) {
       this.complete();
       initWithNewBuffer(this, b.buff, length=b.numBytes, size=b.numBytes+1);
+     chk(this);
     }
 
     proc init=(b: c_string) {
       this.complete();
       var length = b.size;
       initWithNewBuffer(this, b: bufferType, length=length, size=length+1);
+     chk(this);
     }
 
     inline proc byteIndices return 0..<size;
@@ -381,6 +390,7 @@ module Bytes {
       return createBytesWithBorrowedBuffer(this);
     } else {
       const x:bytes = this; // assignment makes it local
+     chk(x);
       return x;
     }
   }
@@ -489,6 +499,7 @@ module Bytes {
     :yields: uint(8)
   */
   iter bytes.chpl_bytes(): uint(8) {
+     chk(this);
     foreach i in this.indices do
       yield this.byte(i);
   }
@@ -517,6 +528,7 @@ module Bytes {
               * `false` -- otherwise
    */
   inline proc bytes.isEmpty() : bool {
+     chk(this);
     return this.buffLen == 0;
   }
 
@@ -992,6 +1004,7 @@ module Bytes {
               characters remain untouched.
   */
   proc bytes.toLower() : bytes {
+     chk(this);
     var result: bytes = this;
     if result.isEmpty() then return result;
     for (b,i) in zip(result.bytes(), 0..) {
@@ -1009,6 +1022,7 @@ module Bytes {
               characters remain untouched.
   */
   proc bytes.toUpper() : bytes {
+     chk(this);
     var result: bytes = this;
     if result.isEmpty() then return result;
     for (b,i) in zip(result.bytes(), 0..) {
@@ -1027,6 +1041,7 @@ module Bytes {
               lowercase.
     */
   proc bytes.toTitle() : bytes {
+     chk(this);
     var result: bytes = this;
     if result.isEmpty() then return result;
 
@@ -1194,6 +1209,8 @@ module Bytes {
 
   pragma "no doc"
   operator bytes.<=>(ref x: bytes, ref y: bytes) {
+     chk(x);
+     chk(y);
     if (x.locale_id != y.locale_id) {
       // TODO: could we just change locale_id?
       var tmp = x;

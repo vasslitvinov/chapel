@@ -84,6 +84,7 @@ module StringCasts {
   }
 
   operator :(x: string, type t:integral) throws {
+     chk(x);
     //TODO: switch to using qio's readf somehow
     pragma "fn synchronization free"
     pragma "insert line file info"
@@ -180,6 +181,7 @@ module StringCasts {
   }
 
   operator :(x: string, type t:chpl_anyreal) throws {
+     chk(x);
     pragma "fn synchronization free"
     pragma "insert line file info"
     extern proc c_string_to_real32(x: c_string, ref err: bool) : real(32);
@@ -210,6 +212,7 @@ module StringCasts {
   }
 
   operator :(x: string, type t:chpl_anyimag) throws {
+     chk(x);
     pragma "fn synchronization free"
     pragma "insert line file info"
     extern proc c_string_to_imag32(x: c_string, ref err: bool) : imag(32);
@@ -244,6 +247,7 @@ module StringCasts {
   // complex
   //
   operator :(x: chpl_anycomplex, type t:string) {
+     chk(x);
     if isnan(x.re) || isnan(x.im) then
       return "nan";
     var re = (x.re):string;
@@ -267,6 +271,7 @@ module StringCasts {
 
 
 operator :(x: string, type t:chpl_anycomplex) throws {
+     chk(x);
     pragma "fn synchronization free"
     pragma "insert line file info"
     extern proc c_string_to_complex64(x:c_string, ref err: bool) : complex(64);

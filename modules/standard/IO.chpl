@@ -1712,6 +1712,7 @@ proc file._abspath: string throws {
     chpl_free_c_string(tmp);
   }
   if err then try ioerror(err, "in file.path");
+     chk(ret);
   return ret;
 }
 
@@ -1745,6 +1746,7 @@ private proc fileRelPathHelper(f: file): string throws {
     chpl_free_c_string(tmp2);
   }
   if err then try ioerror(err, "in file.path");
+     chk(ret);
   return ret;
 }
 
@@ -1790,6 +1792,7 @@ proc _modestring(mode:iomode) {
 @unstable "open with a style argument is unstable"
 proc open(path:string, mode:iomode, hints=ioHintSet.empty,
           style:iostyle): file throws {
+     chk(path);
   return openHelper(path, mode, hints, style:iostyleInternal);
 }
 
@@ -1815,12 +1818,14 @@ to create a channel to actually perform I/O operations
 :throws SystemError: Thrown if the file could not be opened.
 */
 proc open(path:string, mode:iomode, hints=ioHintSet.empty): file throws {
+     chk(path);
   return openHelper(path, mode, hints);
 }
 
 private proc openHelper(path:string, mode:iomode, hints=ioHintSet.empty,
                         style:iostyleInternal = defaultIOStyleInternal()): file throws {
 
+     chk(path);
   var local_style = style;
   var error: errorCode = 0;
   var ret: file;
@@ -2442,6 +2447,7 @@ record ioLiteral {
 
 pragma "no doc"
 inline operator :(x: ioLiteral, type t:string) {
+     chk(x.val);
   return x.val;
 }
 
@@ -2495,6 +2501,7 @@ inline proc EFORMAT return chpl_macro_int_EFORMAT():c_int;
 
 pragma "no doc"
 proc _channel._ch_ioerror(error:errorCode, msg:string) throws {
+     chk(msg);
   var path:string = "unknown";
   var offset:int(64) = -1;
   on this._home {
@@ -2517,6 +2524,7 @@ proc _channel._ch_ioerror(error:errorCode, msg:string) throws {
 
 pragma "no doc"
 proc _channel._ch_ioerror(errstr:string, msg:string) throws {
+     chk(msg);
   var path:string = "unknown";
   var offset:int(64) = -1;
   on this._home {
@@ -3003,6 +3011,7 @@ private proc openreaderHelper(path:string,
                               style:iostyleInternal = defaultIOStyleInternal())
   : fileReader(kind, locking) throws {
 
+     chk(path);
   var fl:file = try open(path, iomode.r);
   return try fl.readerHelper(kind, locking, region, hints, style,
                              fromOpenReader=true);
@@ -3060,6 +3069,7 @@ private proc openwriterHelper(path:string,
                               style:iostyleInternal = defaultIOStyleInternal())
   : fileWriter(kind, locking) throws {
 
+     chk(path);
   var fl:file = try open(path, iomode.cw);
   return try fl.writerHelper(kind, locking, start..end, hints, style);
 }
@@ -3467,18 +3477,22 @@ private proc _read_text_internal(_channel_internal:qio_channel_ptr_t,
     x = (re, im):t; // cast tuple to complex to get complex num.
     return err;
   } else if t == string {
+     chk(x);
     // handle c_string and string
     var len:int(64);
     var tx: c_string;
     var ret = qio_channel_scan_string(false, _channel_internal, tx, len, -1);
     x = try! createStringWithOwnedBuffer(tx, length=len);
+     chk(x);
     return ret;
   } else if t == bytes {
     // handle _bytes
+     chk(x);
     var len:int(64);
     var tx: c_string;
     var ret = qio_channel_scan_bytes(false, _channel_internal, tx, len, -1);
     x = createBytesWithOwnedBuffer(tx, length=len);
+     chk(x);
     return ret;
   } else if isEnumType(t) {
     var err:errorCode = 0;
@@ -3536,6 +3550,7 @@ private proc _write_text_internal(_channel_internal:qio_channel_ptr_t, x:?t):err
     return qio_channel_print_complex(false, _channel_internal, re, im, numBytes(re.type));
   } else if t == string {
     // handle string
+     chk(x);
     const local_x = x.localize();
     // check if the string has escapes
     if local_x.hasEscapes {
@@ -3544,6 +3559,7 @@ private proc _write_text_internal(_channel_internal:qio_channel_ptr_t, x:?t):err
     return qio_channel_print_string(false, _channel_internal, local_x.c_str(), local_x.numBytes:c_ssize_t);
   } else if t == bytes {
     // handle bytes
+     chk(x);
     const local_x = x.localize();
     return qio_channel_print_bytes(false, _channel_internal, local_x.c_str(), local_x.numBytes:c_ssize_t);
   } else if isEnumType(t) {
@@ -3630,6 +3646,7 @@ private proc _read_binary_internal(_channel_internal:qio_channel_ptr_t, param by
     return err;
   } else if t == string {
     // handle string
+     chk(x);
     var len:int(64);
     var tx: c_string;
     var ret = qio_channel_read_string(false, byteorder:c_int,
@@ -3638,6 +3655,7 @@ private proc _read_binary_internal(_channel_internal:qio_channel_ptr_t, param by
     x = try! createStringWithOwnedBuffer(tx, length=len);
     return ret;
   } else if t == bytes {
+     chk(x);
     // handle _bytes (nothing special for bytes vs string in this case)
     var len:int(64);
     var tx: c_string;
