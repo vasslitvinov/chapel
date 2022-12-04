@@ -53,18 +53,6 @@ module String {
 
   use NVStringFactory;
 
-public proc chk(arg) {
-  on __primitive("chpl_on_locale_num",
-                 chpl_buildLocaleID(arg.locale_id, c_sublocid_any)) {
-    if arg.buff == nil {
-      assert(arg.size == 0);
-    } else {
-      assert(arg.buffLen < arg.buffSize);
-      assert(arg.buff[arg.buffLen] == 0);
-    }
-  }
-}
-
   pragma "fn synchronization free"
   private extern proc qio_decode_char_buf(ref chr:int(32),
                                           ref nbytes:c_int,
@@ -2444,6 +2432,20 @@ public proc chk(arg) {
       x.isOwned <=> y.isOwned;
       x.hasEscapes <=> y.hasEscapes;
       x.locale_id <=> y.locale_id;
+    }
+  }
+
+  //vass
+  public proc chk(arg) {
+    on __primitive("chpl_on_locale_num",
+                   chpl_buildLocaleID(arg.locale_id, c_sublocid_any)) {
+      if arg.buff == nil {
+        if useCachedNumCodepoints then assert(arg.size == 0);
+        else                           assert(arg.buffLen == 0);
+      } else {
+        assert(arg.buffLen < arg.buffSize);
+        assert(arg.buff[arg.buffLen] == 0);
+      }
     }
   }
 }
