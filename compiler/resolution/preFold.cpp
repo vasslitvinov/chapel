@@ -2331,9 +2331,87 @@ static bool isMethodCall(CallExpr* call) {
 }
 
 
+static Expr* replaceBuildART(CallExpr* callBART) { //vass
+  if (callBART->id == breakOnResolveID) gdbShouldBreakHere(); //wass
+#if 0 //wass: we are simply redirecting it to newRayDI(),
+      //which will check the arguments
+  // must have two arguments: a domain and a type
+  INT_ASSERT(callBART->numActuals() == 2);
+  Expr* act1 = callBART->get(1);
+  Expr* act2 = callBart->get(2);
+#endif
+  if (CallExpr* move = toCallExpr(callBART->parentExpr))
+   if (SymExpr* calltemp = toSymExpr(move->get(1)))
+    if (SymExpr* ctUse = calltemp->symbol()->getSingleUse())
+     {
+
+      /////////// the use is in a call ///////////
+      if (CallExpr* useCall = toCallExpr(ctUse->parentExpr)) {
+       if (useCall->isPrimitive(PRIM_DEFAULT_INIT_VAR)) {
+/* move( call_tmp call( chpl__buildArrayRuntimeType call_tmp2 type int ) ) 
+   default init var( AA[183894] call_tmp ) 
+-->
+   move( call_tmp call( newRayDI call_tmp2 type int ) ) 
+   move( AA, call_tmp ) */
+         Expr*    calltempUse = useCall->get(2)->remove();
+         SymExpr* initVarSE   = toSymExpr(useCall->get(1)->remove());
+         Symbol*  initVar     = initVarSE->symbol();
+         INT_ASSERT(initVar->type == dtUnknown); // need to handle, otherwise
+         callBART->baseExpr->replace(new UnresolvedSymExpr("newRayDI"));
+         useCall->replace("'move'(%E,%E)", initVarSE, calltempUse);
+         if (callBART->id == breakOnResolveID) gdbShouldBreakHere(); //wass
+         return callBART;
+       }
+
+      /////////// the use is in a block ///////////
+      } else if (BlockStmt* useBlock = toBlockStmt(ctUse->parentExpr)) {
+       if (DefExpr* def = toDefExpr(useBlock->parentExpr))
+        if (useBlock == def->exprType) {
+          INT_ASSERT(ctUse == useBlock->body.tail);
+          INT_ASSERT(def->init == nullptr); // wass need to handle this case
+/* def x: {useBlock}; --> def x: {useBlock; ctUse.type} = {useBlock.copy()};
+   chpl__buildArrayRuntimeType() --> newRayDI()
+I first tried def x: {useBlock}; --> def x = {useBlock};
+however sometimes the enclosing code relies on def.exprType non-nil
+when resolving it, ex. resolveFieldTypeExpr()
+*/
+          callBART->baseExpr->replace(new UnresolvedSymExpr("newRayDI"));
+          def->init = useBlock->copy();
+          parent_insert_help(def, def->init);
+          // ctUse --> typeof(ctUse)
+          VarSymbol* typeTmp = newTemp("arrTypeTemp");
+          typeTmp->addFlag(FLAG_TYPE_VARIABLE);
+          ctUse->insertBefore(new DefExpr(typeTmp));
+          ctUse->insertAfter(new SymExpr(typeTmp));
+          typeTmp->defPoint->insertAfter("'move'(%S,'typeof'(%E))",
+                                         typeTmp, ctUse->remove());
+          //if (callBART->id == breakOnResolveID)
+          gdbShouldBreakHere(); //wass
+         return callBART;
+        }
+      }
+/*wass remove:
+
+        if (def->parentExpr == nullptr)
+         if (TypeSymbol* TS = toTypeSymbol(def->parentSymbol))
+
+
+          INT_ASSERT(isAggregateType(TS->type));
+        gdbShouldBreakHere(); //wass
+*/
+     }
+  // wass if this remains here, replace some of the ifs above with just decls
+  INT_FATAL(callBART, "unknown case with chpl__buildArrayRuntimeType()");
+  return nullptr; // dummy
+}
+
+
 static Expr* preFoldNamed(CallExpr* call) {
   Expr* retval = NULL;
 
+  if (call->isNamed("chpl__buildArrayRuntimeType")) { //vass
+    retval = replaceBuildART(call);
+  } else
   if (call->isNamedAstr(astrThis)) {
     SymExpr* base = toSymExpr(call->get(2));
 

@@ -231,6 +231,17 @@ module ChapelArray {
     return dom.buildArray(eltType, !isNoInit);
   }
 
+///////////
+// create and return a new array of the type `[dom2] eltType2`
+// default-initialize the elements
+///////////
+// a clone of the above chpl__convertRuntimeTypeToValue()
+//wass todo add overloads for user-friendly errors in error cases?
+pragma "no copy returns owned" // workaround for order of resolution issue
+proc newRayDI(dom2: domain, type eltType2) { //vass
+  return dom2.buildArray(eltType2, true);
+}
+
   proc chpl__convertValueToRuntimeType(arr: []) type {
     return chpl__buildArrayRuntimeType(arr.domain, arr.eltType);
   }
@@ -830,7 +841,7 @@ module ChapelArray {
 
   // Array wrapper record
   pragma "array"
-  pragma "has runtime type"
+//vass  pragma "has runtime type"
   pragma "ignore noinit"
   pragma "default intent is ref if modified"
   // this has always been true, but hard-coded into the compiler; here
