@@ -26,6 +26,7 @@
 #include "parser.h"
 #include "passes.h"
 #include "PhaseTracker.h"
+#include "AstDumpToNode.h"
 
 #include <cstdio>
 #include <sys/time.h>
@@ -157,6 +158,11 @@ void runPasses(PhaseTracker& tracker) {
   size_t passListSize = sizeof(sPassList) / sizeof(sPassList[0]);
 
   setupLogfiles();
+  //vass - here because I am patching this file already
+  AstDumpToNode::compact = true;
+  AstDumpToNode::delimitEnter = "(";
+  AstDumpToNode::delimitExit  = ")";
+
 
   if (printPasses == true || printPassesFile != 0) {
     tracker.ReportPass();
@@ -210,6 +216,10 @@ static void runPass(PhaseTracker& tracker, size_t passIndex) {
 
   if (fPrintStatistics[0] != '\0' && passIndex > 0)
     printStatistics("clean");
+  if (::getenv("CHPL_VASS_gdb")) {
+    // announce the pass, with some info
+    printf("%9d  %s\n", lastNodeIDUsed(), info->name);
+  }
 
   (*(info->passFunction))();
 
