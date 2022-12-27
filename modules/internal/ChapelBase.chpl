@@ -1285,7 +1285,7 @@ module ChapelBase {
         this.i.sub(value, order);
     }
 
-    inline proc waitFor(value: int, param order: memoryOrder) {
+    proc waitFor(value: int, param order: memoryOrder) {
       manage new endCountDiagsManager() do
         this.i.waitFor(value, order);
     }

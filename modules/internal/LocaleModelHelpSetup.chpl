@@ -75,6 +75,8 @@ module LocaleModelHelpSetup {
     var root_accum:chpl_root_locale_accum;
 
     forall locIdx in dst.chpl_initOnLocales() with (ref root_accum) {
+use ChapelDebugPrint;
+chpl_debug_writeln("w1 helpSetupRootLocaleFlat");
       const node = new locale(new unmanaged LocaleModel(new locale(dst)));
       dst.myLocales[locIdx] = node;
       root_accum.accum(node);
