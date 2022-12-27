@@ -589,12 +589,14 @@ proc newRayDI(dom2: domain, type eltType2) { //vass
     return eltType;
   }
 
-  pragma "ignore runtime type"
-  proc chpl__instanceTypeFromArrayRuntimeType(type rtt) type {
+//vass  pragma "ignore runtime type"
+  proc chpl__instanceTypeFromArrayRuntimeType(dom: domain, type eltType) type {
     // this function is compile-time only and should not be run
     __primitive("chpl_warning",
                 "chpl__instanceTypeFromArrayRuntimeType should not be run");
-    return __primitive("static field type", rtt, "_instance");
+    //vass
+    var A = newRayDI(dom, eltType);
+    return A._instance.type;
   }
 
   pragma "ignore runtime type"
@@ -2653,10 +2655,12 @@ proc newRayDI(dom2: domain, type eltType2) { //vass
     return t;
   }
 
+/*vass
   private proc desyncEltType(type t:_array) type {
     type eltType = chpl__eltTypeFromArrayRuntimeType(t);
     return _desync(eltType);
   }
+*/
 
   pragma "no doc"
   operator =(ref a: [], b: _desync(a.eltType)) {
@@ -2876,10 +2880,8 @@ proc newRayDI(dom2: domain, type eltType2) { //vass
 
   pragma "find user line"
   pragma "coerce fn"
-  proc chpl__coerceCopy(type dstType:_array, rhs:_array, definedConst: bool) {
-
-    type eltType = chpl__eltTypeFromArrayRuntimeType(dstType);
-    const ref dom = chpl__domainFromArrayRuntimeType(dstType);
+  proc chpl__coerceCopy(dom: domain, type eltType, //vass
+                        rhs:_array, definedConst: bool) {
 
     pragma "no copy" // avoid error about recursion for initCopy
     pragma "unsafe" // when eltType is non-nilable
@@ -2912,16 +2914,13 @@ proc newRayDI(dom2: domain, type eltType2) { //vass
   }
   pragma "find user line"
   pragma "coerce fn"
-  proc chpl__coerceMove(type dstType:_array,
+  proc chpl__coerceMove(dom: domain, type eltType, //vass
                         pragma "no auto destroy" in rhs:_array,
                         definedConst: bool) {
 
-    type eltType = chpl__eltTypeFromArrayRuntimeType(dstType);
-    const ref dom = chpl__domainFromArrayRuntimeType(dstType);
-
     // type mismatch important because RHS could be a slice, e.g.
     param typeMismatch = rhs._instance.type !=
-                         chpl__instanceTypeFromArrayRuntimeType(dstType);
+                         chpl__instanceTypeFromArrayRuntimeType(dom, eltType);
 
     param moveElts = !typeMismatch;
 
@@ -2966,10 +2965,8 @@ proc newRayDI(dom2: domain, type eltType2) { //vass
 
   pragma "find user line"
   pragma "coerce fn"
-  proc chpl__coerceCopy(type dstType:_array, rhs:_domain, definedConst: bool) {
-    type eltType = chpl__eltTypeFromArrayRuntimeType(dstType);
-    const ref dom = chpl__domainFromArrayRuntimeType(dstType);
-
+  proc chpl__coerceCopy(dom: domain, type eltType, //vass
+                        rhs:_domain, definedConst: bool) {
     pragma "no copy" // avoid error about recursion for initCopy
     var lhs = dom.buildArray(eltType, initElts=false);
 
@@ -2988,10 +2985,8 @@ proc newRayDI(dom2: domain, type eltType2) { //vass
   }
   pragma "find user line"
   pragma "coerce fn"
-  proc chpl__coerceMove(type dstType:_array, in rhs:_domain, definedConst: bool) {
-    type eltType = chpl__eltTypeFromArrayRuntimeType(dstType);
-    const ref dom = chpl__domainFromArrayRuntimeType(dstType);
-
+  proc chpl__coerceMove(dom: domain, type eltType, //vass
+                        in rhs:_domain, definedConst: bool) {
     pragma "no copy" // avoid error about recursion for initCopy
     var lhs = dom.buildArray(eltType, initElts=false);
 
@@ -3011,10 +3006,8 @@ proc newRayDI(dom2: domain, type eltType2) { //vass
 
   pragma "find user line"
   pragma "coerce fn"
-  proc chpl__coerceCopy(type dstType:_array, rhs:range(?), definedConst: bool) {
-    type eltType = chpl__eltTypeFromArrayRuntimeType(dstType);
-    const ref dom = chpl__domainFromArrayRuntimeType(dstType);
-
+  proc chpl__coerceCopy(dom: domain, type eltType, //vass
+                        rhs:range(?), definedConst: bool) {
     pragma "no copy" // avoid error about recursion for initCopy
     var lhs = dom.buildArray(eltType, initElts=false);
 
@@ -3029,10 +3022,8 @@ proc newRayDI(dom2: domain, type eltType2) { //vass
   }
   pragma "find user line"
   pragma "coerce fn"
-  proc chpl__coerceMove(type dstType:_array, in rhs:range(?), definedConst: bool) {
-    type eltType = chpl__eltTypeFromArrayRuntimeType(dstType);
-    const ref dom = chpl__domainFromArrayRuntimeType(dstType);
-
+  proc chpl__coerceMove(dom: domain, type eltType, //vass
+                        in rhs:range(?), definedConst: bool) {
     pragma "no copy" // avoid error about recursion for initCopy
     var lhs = dom.buildArray(eltType, initElts=false);
 
@@ -3048,10 +3039,8 @@ proc newRayDI(dom2: domain, type eltType2) { //vass
 
   pragma "find user line"
   pragma "coerce fn"
-  proc chpl__coerceCopy(type dstType:_array, rhs:_tuple, definedConst: bool) {
-
-    type eltType = chpl__eltTypeFromArrayRuntimeType(dstType);
-    const ref dom = chpl__domainFromArrayRuntimeType(dstType);
+  proc chpl__coerceCopy(dom: domain, type eltType, //vass
+                        rhs:_tuple, definedConst: bool) {
 
     pragma "no copy" // avoid error about recursion for initCopy
     pragma "unsafe" // when eltType is non-nilable
@@ -3068,12 +3057,9 @@ proc newRayDI(dom2: domain, type eltType2) { //vass
   }
   pragma "find user line"
   pragma "coerce fn"
-  proc chpl__coerceMove(type dstType:_array,
+  proc chpl__coerceMove(dom: domain, type eltType, //vass
                         pragma "no auto destroy" in rhs:_tuple,
                         definedConst: bool) {
-
-    type eltType = chpl__eltTypeFromArrayRuntimeType(dstType);
-    const ref dom = chpl__domainFromArrayRuntimeType(dstType);
 
     pragma "no copy" // avoid error about recursion for initCopy
     pragma "unsafe" // when eltType is non-nilable
@@ -3091,11 +3077,9 @@ proc newRayDI(dom2: domain, type eltType2) { //vass
 
   pragma "find user line"
   pragma "coerce fn"
-  proc chpl__coerceCopy(type dstType:_array, rhs:desyncEltType(dstType),
+  proc chpl__coerceCopy(dom: domain, type eltType, //vass
+                        rhs:_desync(eltType),
                         definedConst: bool) {
-    type eltType = chpl__eltTypeFromArrayRuntimeType(dstType);
-    const ref dom = chpl__domainFromArrayRuntimeType(dstType);
-
     pragma "no copy" // avoid error about recursion for initCopy
     pragma "unsafe" // when eltType is non-nilable
     var lhs = dom.buildArray(eltType, initElts=false);
@@ -3113,10 +3097,8 @@ proc newRayDI(dom2: domain, type eltType2) { //vass
   }
   pragma "find user line"
   pragma "coerce fn"
-  proc chpl__coerceMove(type dstType:_array, in rhs:desyncEltType(dstType), definedConst: bool) {
-    type eltType = chpl__eltTypeFromArrayRuntimeType(dstType);
-    const ref dom = chpl__domainFromArrayRuntimeType(dstType);
-
+  proc chpl__coerceMove(dom: domain, type eltType, //vass
+                        in rhs:_desync(eltType), definedConst: bool) {
     pragma "no copy" // avoid error about recursion for initCopy
     pragma "unsafe" // when eltType is non-nilable
     var lhs = dom.buildArray(eltType, initElts=false);
@@ -3136,11 +3118,9 @@ proc newRayDI(dom2: domain, type eltType2) { //vass
 
   pragma "find user line"
   pragma "coerce fn"
-  proc chpl__coerceCopy(type dstType:_array, rhs: _iteratorRecord, definedConst: bool) {
+  proc chpl__coerceCopy(dom: domain, type eltType, //vass
+                        rhs: _iteratorRecord, definedConst: bool) {
     // assumes rhs is iterable
-
-    type eltType = chpl__eltTypeFromArrayRuntimeType(dstType);
-    const ref dom = chpl__domainFromArrayRuntimeType(dstType);
 
     pragma "no copy" // avoid error about recursion for initCopy
     pragma "unsafe" // when eltType is non-nilable
@@ -3154,11 +3134,9 @@ proc newRayDI(dom2: domain, type eltType2) { //vass
   }
   pragma "find user line"
   pragma "coerce fn"
-  proc chpl__coerceMove(type dstType:_array, rhs: _iteratorRecord, definedConst: bool) {
+  proc chpl__coerceMove(dom: domain, type eltType, //vass
+                        rhs: _iteratorRecord, definedConst: bool) {
     // assumes rhs is iterable
-
-    type eltType = chpl__eltTypeFromArrayRuntimeType(dstType);
-    const ref dom = chpl__domainFromArrayRuntimeType(dstType);
 
     pragma "no copy" // avoid error about recursion for initCopy
     pragma "unsafe" // when eltType is non-nilable
@@ -3174,11 +3152,9 @@ proc newRayDI(dom2: domain, type eltType2) { //vass
   pragma "find user line"
   pragma "coerce fn"
   pragma "last resort"
-  proc chpl__coerceCopy(type dstType:_array, rhs, definedConst: bool) {
+  proc chpl__coerceCopy(dom: domain, type eltType, //vass
+                        rhs, definedConst: bool) {
     // assumes rhs is iterable (e.g. list)
-
-    type eltType = chpl__eltTypeFromArrayRuntimeType(dstType);
-    const ref dom = chpl__domainFromArrayRuntimeType(dstType);
 
     pragma "no copy" // avoid error about recursion for initCopy
     pragma "unsafe" // when eltType is non-nilable
@@ -3193,11 +3169,9 @@ proc newRayDI(dom2: domain, type eltType2) { //vass
   pragma "find user line"
   pragma "coerce fn"
   pragma "last resort"
-  proc chpl__coerceMove(type dstType:_array, in rhs, definedConst: bool) {
+  proc chpl__coerceMove(dom: domain, type eltType, //vass
+                        in rhs, definedConst: bool) {
     // assumes rhs is iterable (e.g. list)
-
-    type eltType = chpl__eltTypeFromArrayRuntimeType(dstType);
-    const ref dom = chpl__domainFromArrayRuntimeType(dstType);
 
     pragma "no copy" // avoid error about recursion for initCopy
     pragma "unsafe" // when eltType is non-nilable

@@ -2342,29 +2342,53 @@ static Expr* replaceBuildART(CallExpr* callBART) { //vass
 #endif
   if (CallExpr* move = toCallExpr(callBART->parentExpr))
    if (SymExpr* calltemp = toSymExpr(move->get(1)))
-    if (SymExpr* ctUse = calltemp->symbol()->getSingleUse())
-     {
+    if (SymExpr* ctUse = calltemp->symbol()->getSingleUse()) {
 
       /////////// the use is in a call ///////////
       if (CallExpr* useCall = toCallExpr(ctUse->parentExpr)) {
+
        if (useCall->isPrimitive(PRIM_DEFAULT_INIT_VAR)) {
-/* move( call_tmp call( chpl__buildArrayRuntimeType call_tmp2 type int ) ) 
-   default init var( AA[183894] call_tmp ) 
+/* move( call_tmp, call( chpl__buildArrayRuntimeType domainTemp EltType ) ) 
+   default init var( ArrayVar call_tmp ) 
 -->
-   move( call_tmp call( newRayDI call_tmp2 type int ) ) 
-   move( AA, call_tmp ) */
+   move( call_tmp, call( newRayDI domainTemp EltType ) ) 
+   move( ArrayVar, call_tmp ) */
          Expr*    calltempUse = useCall->get(2)->remove();
          SymExpr* initVarSE   = toSymExpr(useCall->get(1)->remove());
          Symbol*  initVar     = initVarSE->symbol();
-         INT_ASSERT(initVar->type == dtUnknown); // need to handle, otherwise
+         INT_ASSERT(initVar->type == dtUnknown); // o/w need to handle
+
          callBART->baseExpr->replace(new UnresolvedSymExpr("newRayDI"));
          useCall->replace("'move'(%E,%E)", initVarSE, calltempUse);
+
          if (callBART->id == breakOnResolveID) gdbShouldBreakHere(); //wass
+         return callBART;
+
+       } else if (useCall->isPrimitive(PRIM_INIT_VAR)) {
+/* move( call_tmp, call( chpl__buildArrayRuntimeType domainTemp EltType ) ) 
+   init var( ArrayVar rhsValue call_tmp ) 
+-->
+   move( call_tmp, call( chpl__coerceCopy( domainTemp EltType rhsValue T|F ) ) 
+   move( ArrayVar, call_tmp ) */
+         Expr*    calltempUse = useCall->get(3)->remove();
+         Expr*    rhsValue    = useCall->get(2)->remove();
+         SymExpr* initVarSE   = toSymExpr(useCall->get(1)->remove());
+         Symbol*  initVar     = initVarSE->symbol();
+         INT_ASSERT(initVar->type == dtUnknown); // o/w need to handle
+         
+         callBART->baseExpr->replace("chpl__coerceCopy");
+         callBART->insertAtTail(rhsValue);
+         callBART->insertAtTail(initVar->hasFlag(FLAG_CONST) ? gTrue : gFalse);
+         useCall->replace("'move'(%E,%E)", initVarSE, calltempUse);
+
+         //if (callBART->id == breakOnResolveID)
+         gdbShouldBreakHere(); //wass
          return callBART;
        }
 
-      /////////// the use is in a block ///////////
+      /////////// the use is directly in a block ///////////
       } else if (BlockStmt* useBlock = toBlockStmt(ctUse->parentExpr)) {
+
        if (DefExpr* def = toDefExpr(useBlock->parentExpr))
         if (useBlock == def->exprType) {
           INT_ASSERT(ctUse == useBlock->body.tail);
@@ -2385,21 +2409,11 @@ when resolving it, ex. resolveFieldTypeExpr()
           ctUse->insertAfter(new SymExpr(typeTmp));
           typeTmp->defPoint->insertAfter("'move'(%S,'typeof'(%E))",
                                          typeTmp, ctUse->remove());
-          //if (callBART->id == breakOnResolveID)
-          gdbShouldBreakHere(); //wass
-         return callBART;
+          if (callBART->id == breakOnResolveID) gdbShouldBreakHere(); //wass
+          return callBART;
         }
       }
-/*wass remove:
-
-        if (def->parentExpr == nullptr)
-         if (TypeSymbol* TS = toTypeSymbol(def->parentSymbol))
-
-
-          INT_ASSERT(isAggregateType(TS->type));
-        gdbShouldBreakHere(); //wass
-*/
-     }
+    }
   // wass if this remains here, replace some of the ifs above with just decls
   INT_FATAL(callBART, "unknown case with chpl__buildArrayRuntimeType()");
   return nullptr; // dummy
