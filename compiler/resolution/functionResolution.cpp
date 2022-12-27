@@ -7963,6 +7963,10 @@ void resolveInitVar(CallExpr* call) {
     }
 
     bool mismatch = targetType->getValType() != srcType->getValType();
+    if (mismatch && targetType->getValType()->symbol->hasFlag(FLAG_ARRAY))
+      USR_FATAL(call, "vass: initializing an array of a non-[]-type"
+                " from an expression of a different type");
+
     // Insert a coercion if the types are different. Some internal types use a
     // coercion because their initCopy returns a different type.
     if ((targetType->symbol->hasFlag(FLAG_HAS_RUNTIME_TYPE) && !genericTgt) ||
