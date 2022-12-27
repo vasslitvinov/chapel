@@ -2105,7 +2105,8 @@ module DefaultRectangular {
     // it can be aggregated. Will ultimately be of size `stridelevels`.
     //
     var strideDom = {1..inferredRank};
-    var dstStride, srcStride : [strideDom] c_size_t;
+    var dstStride : [strideDom] c_size_t; // vass convenience change
+    var srcStride : [strideDom] c_size_t;
 
     //
     // If the last dimension is strided then we can only copy one element at a
