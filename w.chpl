@@ -8,9 +8,9 @@ proc main {
   var A1: [DD] int;      // A1 <- newRayDI(DD, int)
   var A2: [DD] int = BB; // A2 <- chpl__coerceCopy(DD, int, BB, isCst)
   var A3: BBT      = BB; // BBT will be a static type
-  var A4: BBT = 5;       // error "need []-type, not BBT" WASS CONTINUE HERE
+  //var A4: BBT = 5;     // error "need []-type, not BBT"
   writeln(A1, A2, A3);
 }
 
-// WASS NEXT: halts at runtime
+// WASS CONTINUE HERE: halts at runtime
 // WASS NEXT: asdf([DD] int)
