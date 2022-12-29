@@ -2437,11 +2437,16 @@ static Expr* replaceBART_Blk(CallExpr* callBART, BlockStmt* bartBlock) {
   ArgSymbol* parentArg = toArgSymbol(bartBlock->parentSymbol);
   INT_ASSERT(bartBlock == parentArg->typeExpr); // o/w need to handle
 
-  BlockStmt* argInit  = parentArg->defaultExpr;
-  Expr*      lastInit = argInit->body.tail;
-  SymExpr*   lastSE   = toSymExpr(lastInit);
+  BlockStmt* argDflt  = parentArg->defaultExpr;
+  Expr*      lastDflt = argDflt->body.tail;
+  SymExpr*   lastSE   = toSymExpr(lastDflt);
   if (lastSE != nullptr && lastSE->symbol() == gTypeDefaultToken) {
-    lastInit->replace(bartBlock->copy());
+    // copy arg->typeExpr aka bartBlock into arg->defaultExpr
+    BlockStmt* bbCopy = bartBlock->copy();
+    for_alist(bbStmt, bbCopy->body)
+      lastDflt->insertBefore(bbStmt->remove());
+    lastDflt->remove();
+    gdbShouldBreakHere(); //wass
   } else {
     INT_FATAL(callBART, "need to implement");
   }
