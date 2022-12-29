@@ -715,7 +715,11 @@ inline bool Symbol::hasFlag(Flag flag) const {
   return flags[flag];
 }
 
+extern int breakOnID, cf1, cf2;
 inline void Symbol::addFlag(Flag flag) {
+bool skip = false; //wass
+if ((cf1 == (int)flag || cf2 == (int)flag) && this->id == breakOnID) gdbShouldBreakHere(); //wass
+if (skip) return;
   CHECK_FLAG(flag);
   flags.set(flag);
 }

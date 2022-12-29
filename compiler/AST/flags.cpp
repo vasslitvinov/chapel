@@ -229,4 +229,9 @@ bool hasFlag(BaseAST* ast, Flag flag)   { return hasFlag(ast, (int)flag); }
 void addFlag(BaseAST* ast, Flag flag)    { addFlag(ast, (int)flag); }
 void removeFlag(BaseAST* ast, Flag flag) { removeFlag(ast, (int)flag); }
 
+//wass
+Flag sflag(const char* str);
+Flag sflag(const char* str) { return pragma2flag(astr(str)); }
+int cf1=0, cf2=0;
+
 // end gdb support

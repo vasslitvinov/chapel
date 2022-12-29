@@ -1109,6 +1109,25 @@ void vec_view(std::vector<Symbol*>& syms) {
   }
 }
 
+//wass to .h
+void vec_view(const std::vector<VarSymbol*>* syms);
+void vec_view(const std::vector<VarSymbol*>& syms);
+
+void vec_view(const std::vector<VarSymbol*>* syms) {
+  vec_view(*syms);
+}
+
+void vec_view(const std::vector<VarSymbol*>& syms) {
+  printf("vector<VarSymbol> %d elm(s)\n", (int)syms.size());
+  for (int i = 0; i < (int)syms.size(); i++) {
+    VarSymbol* elm = syms[i];
+    if (elm)
+      printf("%3d  %8d  %s\n", i, elm->id, elm->name);
+    else
+      printf("%3d  <null>\n", i);
+  }
+}
+
 void vec_view(std::vector<FnSymbol*>* syms) {
   vec_view(*syms);
 }
