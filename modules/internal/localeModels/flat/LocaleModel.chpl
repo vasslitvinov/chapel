@@ -162,21 +162,12 @@ module LocaleModel {
       nPUsLogAcc = 0;
       nPUsLogAll = 0;
       maxTaskPar = 0;
-this.complete();
-//compilerError("VASS-w1");
-//private use ChapelDebugPrint;
-//chpl_debug_writeln("w1 RootLocale.init");
-use CTypes;
-extern proc printf(format, arg);
-printf("w1 RootLocale.init %p\n", c_ptrTo(myLocales[0]));
     }
 
     // The setup() function must use chpl_initOnLocales() to iterate (in
     // parallel) over the locales to set up the LocaleModel object.
     // In addition, the initial 'here' must be set.
     proc setup() {
-//private use ChapelDebugPrint;
-//chpl_debug_writeln("w1 RootLocale.setup");
       helpSetupRootLocaleFlat(this);
     }
 
@@ -217,9 +208,6 @@ printf("w1 RootLocale.init %p\n", c_ptrTo(myLocales[0]));
     override proc getDefaultLocaleArray() const ref return myLocales;
 
     override proc localeIDtoLocale(id : chpl_localeID_t) {
-use CTypes;
-extern proc printf(format, arg);
-printf("lm1 localeIDtoLocale %p\n", c_ptrTo(myLocales[chpl_rt_nodeFromLocaleID(id)]));
       // In the default architecture, there are only nodes and no sublocales.
       // What is more, the nodeID portion of a wide pointer is the same as
       // the index into myLocales that yields the locale representing that

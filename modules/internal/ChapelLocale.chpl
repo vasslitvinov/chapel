@@ -639,7 +639,7 @@ module ChapelLocale {
       // Split into 2 coforalls to barrier after the yield. Ideally, we would
       // just use a real barrier, but `chpl_comm_barrier` is in use and other
       // custom barriers have been non-scalable in the past.
-      for locIdx in 0..#numLocales {
+      coforall locIdx in 0..#numLocales {
         on __primitive("chpl_on_locale_num",
                        chpl_buildLocaleID(locIdx:chpl_nodeID_t,
                                           c_sublocid_any)) {
@@ -647,9 +647,7 @@ module ChapelLocale {
           yield locIdx;
         }
       } // Relying on barrier at join, do NOT fuse these loops
-use ChapelDebugPrint;
-chpl_debug_writeln("w1 chpl_initOnLocales barrier");
-      for locIdx in 0..#numLocales  {
+      coforall locIdx in 0..#numLocales  {
         on __primitive("chpl_on_locale_num",
                        chpl_buildLocaleID(locIdx:chpl_nodeID_t,
                                           c_sublocid_any)) {
