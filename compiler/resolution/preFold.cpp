@@ -2381,10 +2381,14 @@ if (calltemp->symbol()->hasFlag(FLAG_EXPR_TEMP)) printf("WASS: FLAG_EXPR_TEMP %d
   return callBART;
 }
 
-static void copyTypeToInit(DefExpr* def) {
-  INT_ASSERT(def->init == nullptr); // wass need to handle this case
-  def->init = def->exprType->copy();
-  parent_insert_help(def, def->init);
+// ctUse --> typeof(ctUse)
+static void addBartTypeof(SymExpr* ctUse) {
+  VarSymbol* typeTmp = newTemp("arrTypeTemp");
+  typeTmp->addFlag(FLAG_TYPE_VARIABLE);
+  ctUse->insertBefore(new DefExpr(typeTmp));
+  ctUse->insertAfter(new SymExpr(typeTmp));
+  typeTmp->defPoint->insertAfter("'move'(%S,'typeof'(%E))",
+                                 typeTmp, ctUse->remove());
 }
 
 /* def x: {useBlock};  -->  def x: {useBlock; ctUse.type} = {useBlock.copy()};
@@ -2395,21 +2399,54 @@ however sometimes the enclosing code relies on def.exprType non-nil
 when resolving it, ex. resolveFieldTypeExpr().
 So this transformation would need to be done before resolution.
 */
-static Expr* replaceBART_UB(CallExpr* callBART, DefExpr* def,
+static Expr* replaceBART_UB(CallExpr* callBART,
                             BlockStmt* useBlock, SymExpr* ctUse)
 {
+  DefExpr* def = toDefExpr(useBlock->parentExpr);
   INT_ASSERT(useBlock == def->exprType);
   INT_ASSERT(ctUse == useBlock->body.tail);
   callBART->baseExpr->replace(new UnresolvedSymExpr("newRayDI"));
-  copyTypeToInit(def);
+  // copy def->exprType to def->init
+  INT_ASSERT(def->init == nullptr); // o/w need to handle
+  def->init = def->exprType->copy();
+  parent_insert_help(def, def->init);
 
-  // ctUse --> typeof(ctUse)
-  VarSymbol* typeTmp = newTemp("arrTypeTemp");
-  typeTmp->addFlag(FLAG_TYPE_VARIABLE);
-  ctUse->insertBefore(new DefExpr(typeTmp));
-  ctUse->insertAfter(new SymExpr(typeTmp));
-  typeTmp->defPoint->insertAfter("'move'(%S,'typeof'(%E))",
-                                 typeTmp, ctUse->remove());
+  addBartTypeof(ctUse);
+  if (callBART->id == breakOnResolveID) gdbShouldBreakHere(); //wass
+  return callBART;
+}
+
+/* def x: { bartBlock; } where bartBlock is:
+...; call bART
+-->
+...; move(bartTemp, call bART); bartTemp
+then transform similar to replaceBART_UB()
+*/
+static Expr* replaceBART_Blk(CallExpr* callBART, BlockStmt* bartBlock) {
+  VarSymbol* bartTemp = newTemp("bartTemp");
+  SymExpr*   ctUse    = new SymExpr(bartTemp);
+  callBART->insertBefore(new DefExpr(bartTemp));
+  callBART->insertAfter(ctUse);
+  ctUse->insertBefore("'move'(%S,%E)", bartTemp, callBART->remove());
+  callBART->baseExpr->replace(new UnresolvedSymExpr("newRayDI"));
+
+  if (DefExpr* def = toDefExpr(bartBlock->parentExpr))
+    INT_FATAL(callBART, "need to implement");
+
+  INT_ASSERT(bartBlock->parentExpr == nullptr);
+  ArgSymbol* parentArg = toArgSymbol(bartBlock->parentSymbol);
+  INT_ASSERT(bartBlock == parentArg->typeExpr); // o/w need to handle
+
+  BlockStmt* argInit  = parentArg->defaultExpr;
+  Expr*      lastInit = argInit->body.tail;
+  SymExpr*   lastSE   = toSymExpr(lastInit);
+  if (lastSE != nullptr && lastSE->symbol() == gTypeDefaultToken) {
+    lastInit->replace(bartBlock->copy());
+  } else {
+    INT_FATAL(callBART, "need to implement");
+  }
+
+  addBartTypeof(ctUse);
   if (callBART->id == breakOnResolveID) gdbShouldBreakHere(); //wass
   return callBART;
 }
@@ -2430,11 +2467,12 @@ static Expr* replaceBuildART(CallExpr* callBART) { //vass
 
         /////////// the use is directly in a block ///////////
         } else if (BlockStmt* useBlock = toBlockStmt(ctUse->parentExpr)) {
-          if (DefExpr* def = toDefExpr(useBlock->parentExpr))
-            return replaceBART_UB(callBART, def, useBlock, ctUse);
+          return replaceBART_UB(callBART, useBlock, ctUse);
         }
       }
     }
+  } else if (BlockStmt* bartBlock = toBlockStmt(callBART->parentExpr)) {
+    return replaceBART_Blk(callBART, bartBlock);
   }
 
   // wass if this remains here, replace some of the ifs above with just decls
