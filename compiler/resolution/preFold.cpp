@@ -2360,6 +2360,9 @@ static Expr* replaceBuildART(CallExpr* callBART) { //vass
 
          callBART->baseExpr->replace(new UnresolvedSymExpr("newRayDI"));
          useCall->replace("'move'(%E,%E)", initVarSE, calltempUse);
+         // This flag would lead to FLAG_INSERT_AUTO_DESTROY in
+         // postFoldMoveTail() then call to autoDestroy in walkBlockStmt().
+         calltemp->symbol()->removeFlag(FLAG_EXPR_TEMP);
 
          if (callBART->id == breakOnResolveID) gdbShouldBreakHere(); //wass
          return callBART;
@@ -2375,11 +2378,14 @@ static Expr* replaceBuildART(CallExpr* callBART) { //vass
          SymExpr* initVarSE   = toSymExpr(useCall->get(1)->remove());
          Symbol*  initVar     = initVarSE->symbol();
          INT_ASSERT(initVar->type == dtUnknown); // o/w need to handle
-         
+
          callBART->baseExpr->replace("chpl__coerceCopy");
          callBART->insertAtTail(rhsValue);
          callBART->insertAtTail(initVar->hasFlag(FLAG_CONST) ? gTrue : gFalse);
          useCall->replace("'move'(%E,%E)", initVarSE, calltempUse);
+
+//wass should we remove FLAG_EXPR_TEMP like we do for 'default init var' above?
+if (calltemp->symbol()->hasFlag(FLAG_EXPR_TEMP)) printf("WASS: FLAG_EXPR_TEMP %d %s\n", calltemp->symbol()->id, calltemp->stringLoc()), gdbShouldBreakHere(); //wass
 
          if (callBART->id == breakOnResolveID) gdbShouldBreakHere(); //wass
          return callBART;
