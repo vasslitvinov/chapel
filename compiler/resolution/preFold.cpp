@@ -2330,95 +2330,113 @@ static bool isMethodCall(CallExpr* call) {
   return false;
 }
 
+//vass replaceBuildART cases
 
-static Expr* replaceBuildART(CallExpr* callBART) { //vass
-  if (callBART->id == breakOnResolveID) gdbShouldBreakHere(); //wass
-#if 0 //wass: we are simply redirecting it to newRayDI(),
-      //which will check the arguments
-  // must have two arguments: a domain and a type
-  INT_ASSERT(callBART->numActuals() == 2);
-  Expr* act1 = callBART->get(1);
-  Expr* act2 = callBart->get(2);
-#endif
-  if (CallExpr* move = toCallExpr(callBART->parentExpr))
-   if (SymExpr* calltemp = toSymExpr(move->get(1)))
-    if (SymExpr* ctUse = calltemp->symbol()->getSingleUse()) {
-
-      /////////// the use is in a call ///////////
-      if (CallExpr* useCall = toCallExpr(ctUse->parentExpr)) {
-
-       if (useCall->isPrimitive(PRIM_DEFAULT_INIT_VAR)) {
 /* move( call_tmp, call( chpl__buildArrayRuntimeType domainTemp EltType ) ) 
    default init var( ArrayVar call_tmp ) 
 -->
    move( call_tmp, call( newRayDI domainTemp EltType ) ) 
-   move( ArrayVar, call_tmp ) */
-         Expr*    calltempUse = useCall->get(2)->remove();
-         SymExpr* initVarSE   = toSymExpr(useCall->get(1)->remove());
-         Symbol*  initVar     = initVarSE->symbol();
-         INT_ASSERT(initVar->type == dtUnknown); // o/w need to handle
+   move( ArrayVar, call_tmp )
+*/
+static Expr* replaceBART_DIV(CallExpr* callBART, CallExpr* useCall,
+                             SymExpr* calltemp) {
+  Expr*    calltempUse = useCall->get(2)->remove();
+  SymExpr* initVarSE   = toSymExpr(useCall->get(1)->remove());
+  Symbol*  initVar     = initVarSE->symbol();
+  INT_ASSERT(initVar->type == dtUnknown); // o/w need to handle
 
-         callBART->baseExpr->replace(new UnresolvedSymExpr("newRayDI"));
-         useCall->replace("'move'(%E,%E)", initVarSE, calltempUse);
-         // This flag would lead to FLAG_INSERT_AUTO_DESTROY in
-         // postFoldMoveTail() then call to autoDestroy in walkBlockStmt().
-         calltemp->symbol()->removeFlag(FLAG_EXPR_TEMP);
+  callBART->baseExpr->replace(new UnresolvedSymExpr("newRayDI"));
+  useCall->replace("'move'(%E,%E)", initVarSE, calltempUse);
+  // This flag would lead to FLAG_INSERT_AUTO_DESTROY in
+  // postFoldMoveTail() then call to autoDestroy in walkBlockStmt().
+  calltemp->symbol()->removeFlag(FLAG_EXPR_TEMP);
 
-         if (callBART->id == breakOnResolveID) gdbShouldBreakHere(); //wass
-         return callBART;
+  if (callBART->id == breakOnResolveID) gdbShouldBreakHere(); //wass
+  return callBART;
+}
 
-       } else if (useCall->isPrimitive(PRIM_INIT_VAR)) {
 /* move( call_tmp, call( chpl__buildArrayRuntimeType domainTemp EltType ) ) 
    init var( ArrayVar rhsValue call_tmp ) 
 -->
    move( call_tmp, call( chpl__coerceCopy( domainTemp EltType rhsValue T|F ) ) 
-   move( ArrayVar, call_tmp ) */
-         Expr*    calltempUse = useCall->get(3)->remove();
-         Expr*    rhsValue    = useCall->get(2)->remove();
-         SymExpr* initVarSE   = toSymExpr(useCall->get(1)->remove());
-         Symbol*  initVar     = initVarSE->symbol();
-         INT_ASSERT(initVar->type == dtUnknown); // o/w need to handle
+   move( ArrayVar, call_tmp )
+*/
+static Expr* replaceBART_IV(CallExpr* callBART, CallExpr* useCall,
+                            SymExpr* calltemp) {
+  Expr*    calltempUse = useCall->get(3)->remove();
+  Expr*    rhsValue    = useCall->get(2)->remove();
+  SymExpr* initVarSE   = toSymExpr(useCall->get(1)->remove());
+  Symbol*  initVar     = initVarSE->symbol();
+  INT_ASSERT(initVar->type == dtUnknown); // o/w need to handle
 
-         callBART->baseExpr->replace("chpl__coerceCopy");
-         callBART->insertAtTail(rhsValue);
-         callBART->insertAtTail(initVar->hasFlag(FLAG_CONST) ? gTrue : gFalse);
-         useCall->replace("'move'(%E,%E)", initVarSE, calltempUse);
+  callBART->baseExpr->replace("chpl__coerceCopy");
+  callBART->insertAtTail(rhsValue);
+  callBART->insertAtTail(initVar->hasFlag(FLAG_CONST) ? gTrue : gFalse);
+  useCall->replace("'move'(%E,%E)", initVarSE, calltempUse);
 
 //wass should we remove FLAG_EXPR_TEMP like we do for 'default init var' above?
 if (calltemp->symbol()->hasFlag(FLAG_EXPR_TEMP)) printf("WASS: FLAG_EXPR_TEMP %d %s\n", calltemp->symbol()->id, calltemp->stringLoc()), gdbShouldBreakHere(); //wass
 
-         if (callBART->id == breakOnResolveID) gdbShouldBreakHere(); //wass
-         return callBART;
-       }
+  if (callBART->id == breakOnResolveID) gdbShouldBreakHere(); //wass
+  return callBART;
+}
 
-      /////////// the use is directly in a block ///////////
-      } else if (BlockStmt* useBlock = toBlockStmt(ctUse->parentExpr)) {
+static void copyTypeToInit(DefExpr* def) {
+  INT_ASSERT(def->init == nullptr); // wass need to handle this case
+  def->init = def->exprType->copy();
+  parent_insert_help(def, def->init);
+}
 
-       if (DefExpr* def = toDefExpr(useBlock->parentExpr))
-        if (useBlock == def->exprType) {
-          INT_ASSERT(ctUse == useBlock->body.tail);
-          INT_ASSERT(def->init == nullptr); // wass need to handle this case
-/* def x: {useBlock}; --> def x: {useBlock; ctUse.type} = {useBlock.copy()};
-   chpl__buildArrayRuntimeType() --> newRayDI()
-I first tried def x: {useBlock}; --> def x = {useBlock};
+/* def x: {useBlock};  -->  def x: {useBlock; ctUse.type} = {useBlock.copy()};
+with:  chpl__buildArrayRuntimeType() --> newRayDI()
+
+At first I tried def x: {useBlock}; --> def x = {useBlock};
 however sometimes the enclosing code relies on def.exprType non-nil
-when resolving it, ex. resolveFieldTypeExpr()
+when resolving it, ex. resolveFieldTypeExpr().
+So this transformation would need to be done before resolution.
 */
-          callBART->baseExpr->replace(new UnresolvedSymExpr("newRayDI"));
-          def->init = useBlock->copy();
-          parent_insert_help(def, def->init);
-          // ctUse --> typeof(ctUse)
-          VarSymbol* typeTmp = newTemp("arrTypeTemp");
-          typeTmp->addFlag(FLAG_TYPE_VARIABLE);
-          ctUse->insertBefore(new DefExpr(typeTmp));
-          ctUse->insertAfter(new SymExpr(typeTmp));
-          typeTmp->defPoint->insertAfter("'move'(%S,'typeof'(%E))",
-                                         typeTmp, ctUse->remove());
-          if (callBART->id == breakOnResolveID) gdbShouldBreakHere(); //wass
-          return callBART;
+static Expr* replaceBART_UB(CallExpr* callBART, DefExpr* def,
+                            BlockStmt* useBlock, SymExpr* ctUse)
+{
+  INT_ASSERT(useBlock == def->exprType);
+  INT_ASSERT(ctUse == useBlock->body.tail);
+  callBART->baseExpr->replace(new UnresolvedSymExpr("newRayDI"));
+  copyTypeToInit(def);
+
+  // ctUse --> typeof(ctUse)
+  VarSymbol* typeTmp = newTemp("arrTypeTemp");
+  typeTmp->addFlag(FLAG_TYPE_VARIABLE);
+  ctUse->insertBefore(new DefExpr(typeTmp));
+  ctUse->insertAfter(new SymExpr(typeTmp));
+  typeTmp->defPoint->insertAfter("'move'(%S,'typeof'(%E))",
+                                 typeTmp, ctUse->remove());
+  if (callBART->id == breakOnResolveID) gdbShouldBreakHere(); //wass
+  return callBART;
+}
+
+static Expr* replaceBuildART(CallExpr* callBART) { //vass
+  if (callBART->id == breakOnResolveID) gdbShouldBreakHere(); //wass
+
+  if (CallExpr* move = toCallExpr(callBART->parentExpr)) {
+    if (SymExpr* calltemp = toSymExpr(move->get(1))) {
+      if (SymExpr* ctUse = calltemp->symbol()->getSingleUse()) {
+
+        /////////// the use is in a call ///////////
+        if (CallExpr* useCall = toCallExpr(ctUse->parentExpr)) {
+          if (useCall->isPrimitive(PRIM_DEFAULT_INIT_VAR))
+            return replaceBART_DIV(callBART, useCall, calltemp);
+          else if (useCall->isPrimitive(PRIM_INIT_VAR))
+            return replaceBART_IV(callBART, useCall, calltemp);
+
+        /////////// the use is directly in a block ///////////
+        } else if (BlockStmt* useBlock = toBlockStmt(ctUse->parentExpr)) {
+          if (DefExpr* def = toDefExpr(useBlock->parentExpr))
+            return replaceBART_UB(callBART, def, useBlock, ctUse);
         }
       }
     }
+  }
+
   // wass if this remains here, replace some of the ifs above with just decls
   INT_FATAL(callBART, "unknown case with chpl__buildArrayRuntimeType()");
   return nullptr; // dummy
