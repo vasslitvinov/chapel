@@ -181,6 +181,10 @@ static Expr* walkBlockStmt(FnSymbol*         fn,
                            LastMentionMap&   lmm) {
 
   Expr* ret = stmt;
+static int liv = 0; void list_view(const BaseAST* ast); //wass
+if (stmt->id == liv || stmt->parentExpr->id == liv || stmt->parentSymbol->id == liv) list_view(stmt);
+static int bid = 0; //wass
+if (bid == 0 || stmt->id == bid || stmt->parentExpr->id == bid || stmt->parentSymbol->id == bid) gdbShouldBreakHere(); //wass
 
   //
   // Handle the current statement
@@ -369,6 +373,10 @@ static Expr* walkBlockStmt(FnSymbol*         fn,
       }
     }
   }
+
+//wass
+static int bido = 0;
+if (stmt->id == bido) gdbShouldBreakHere(); //wass
 
   if (isDeadCode == false) {
     // Destroy the variable after this statement if it's the last mention
