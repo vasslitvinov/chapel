@@ -625,6 +625,7 @@ static void markTypesWithDefaultInitEqOrAssign(FnSymbol* fn) {
 
 static void resolveAlsoConversions(FnSymbol* fn, CallExpr* forCall) {
 
+//if (fn->id == breakOnRemoveID) gdbShouldBreakHere(); //wass
   Type* toType = NULL;
   Type* fromType = NULL;
 
@@ -634,10 +635,14 @@ static void resolveAlsoConversions(FnSymbol* fn, CallExpr* forCall) {
     if (fn->getFormal(i)->hasFlag(FLAG_ARG_THIS)) i++;
     toType = fn->getFormal(i)->getValType(); i++;
     fromType = fn->getFormal(i)->getValType();
+//if (toType->symbol->hasFlag(FLAG_ARRAY)) //wass
+//printf("CONV assgn %d %s  %s\n", fn->id, debugLoc(fn), toType->symbol->name);
   } else if (fn->name == astrInitEquals) {
     // arg 1 is the method token
     toType = fn->getFormal(2)->getValType();
     fromType = fn->getFormal(3)->getValType();
+//if (toType->symbol->hasFlag(FLAG_ARRAY)) //wass
+//printf("CONV init= %d %s  %s\n", fn->id, debugLoc(fn), toType->symbol->name);
   } else {
     // Nothing to do if it's not one of the above cases.
     return;
@@ -723,6 +728,7 @@ static void resolveAlsoConversions(FnSymbol* fn, CallExpr* forCall) {
   // Don't worry about checking for 'init=' for tuples or types
   // with runtime type since these do not use 'init=' in the usual way.
   if (toType->symbol->hasFlag(FLAG_TUPLE) ||
+      toType->symbol->hasFlag(FLAG_ARRAY) || //vass
       toType->symbol->hasFlag(FLAG_HAS_RUNTIME_TYPE)) {
     checkInitEq = false;
     // However, don't allow '=' on these types to be defined
@@ -753,7 +759,8 @@ static void resolveAlsoConversions(FnSymbol* fn, CallExpr* forCall) {
 
   // Don't look for casts to array/domain types
   // (these should probably be added, right?)
-  if (toType->symbol->hasFlag(FLAG_HAS_RUNTIME_TYPE)) {
+  if (toType->symbol->hasFlag(FLAG_HAS_RUNTIME_TYPE) ||
+      toType->symbol->hasFlag(FLAG_ARRAY)) { //vass
     checkCast = false;
   }
 
@@ -822,6 +829,7 @@ static void resolveAlsoConversions(FnSymbol* fn, CallExpr* forCall) {
     have.cast = c->resolvedFunction();
   }
 
+//if (fn->id == breakOnRemoveID) gdbShouldBreakHere(); //wass
   // Now, error if an implied function was not found.
   bool error = false;
   if (checkAssign && have.assign == NULL) {
