@@ -2415,6 +2415,26 @@ static Expr* replaceBART_Split(CallExpr* callBART, SymExpr* calltemp) {
   return nullptr; // dummy
 }
 
+/* move call_temp <- chpl__buildArrayRuntimeType(dom, eltType)
+   coerce rhsExpr, call_temp
+-->
+   noop
+   chpl__coerceCopy(dom, eltType, rhsExpr, false)
+*/
+static Expr* replaceBART_Coerce(CallExpr* callBART, CallExpr* useCall,
+                                SymExpr* calltemp, CallExpr* move) {
+  Expr* elttypeArg = callBART->get(2)->remove();
+  Expr* domainArg  = callBART->get(1)->remove();
+  useCall->replace(new CallExpr("chpl__coerceCopy",
+    domainArg, elttypeArg, /*rhs:*/ useCall->get(1)->remove(), gFalse));
+
+  calltemp->symbol()->defPoint->remove();
+  CallExpr* noop = new CallExpr(PRIM_NOOP);
+  move->replace(noop);
+  if (callBART->id == breakOnResolveID) gdbShouldBreakHere(); //wass
+  return noop;
+}
+
 // ctUse --> typeof(ctUse)
 static void addBartTypeofA(SymExpr* ctUse) {
   VarSymbol* typeTmp = newTemp("arrTypeTempA");
@@ -2469,6 +2489,10 @@ static Expr* replaceBART_Blk(CallExpr* callBART, BlockStmt* bartBlock) {
     INT_FATAL(callBART, "need to implement");
 
   INT_ASSERT(bartBlock->parentExpr == nullptr);
+  if (FnSymbol* parentFn = toFnSymbol(bartBlock->parentSymbol))
+    if (bartBlock == parentFn->retExprType)
+      return callBART; // the static type suffices
+
   ArgSymbol* parentArg = toArgSymbol(bartBlock->parentSymbol);
   INT_ASSERT(bartBlock == parentArg->typeExpr); // o/w need to handle
 
@@ -2502,6 +2526,8 @@ static Expr* replaceBuildART(CallExpr* callBART) { //vass
             return replaceBART_DIV(callBART, useCall, calltemp);
           else if (useCall->isPrimitive(PRIM_INIT_VAR))
             return replaceBART_IV(callBART, useCall, calltemp);
+          else if (useCall->isPrimitive(PRIM_COERCE))
+            return replaceBART_Coerce(callBART, useCall, calltemp, move);
         }
         else if (BlockStmt* useBlock = toBlockStmt(ctUse->parentExpr)) {
           return replaceBART_UB(callBART, useBlock, ctUse);
