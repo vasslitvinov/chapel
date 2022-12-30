@@ -978,6 +978,36 @@ static void copyFormalTypeExpr(ArgSymbol* formal,
   }
 }
 
+/* move bartTemp, newRayDI(...)
+   move arrTypeTempA, typeof(bartTemp)
+   move typeTmp, arrTypeTempA
+-->
+   move temp, bartTemp
+*/
+static CallExpr* buildArrayInitExpr(BlockStmt* body, VarSymbol* temp,
+                                    Symbol* typeTmp) {
+  // Alas none of this is inTree(), so getSingleDef() et al. do not work.
+  CallExpr* move2typeTmp = toCallExpr(body->body.tail);
+  INT_ASSERT(move2typeTmp->isPrimitive(PRIM_MOVE));
+  Symbol* typeofSym = toSymExpr(move2typeTmp->get(2))->symbol();
+  INT_ASSERT(!strcmp(typeofSym->name, "arrTypeTempA"));
+  CallExpr* move2typeof = toCallExpr(move2typeTmp->prev);
+  INT_ASSERT(toSymExpr(move2typeof->get(1))->symbol() == typeofSym);
+  CallExpr* typeofCall = toCallExpr(move2typeof->get(2));
+  INT_ASSERT(typeofCall->isPrimitive(PRIM_TYPEOF));
+  Symbol* bartTemp = toSymExpr(typeofCall->get(1))->symbol();
+  INT_ASSERT(!strcmp(bartTemp->name, "bartTemp"));
+  DefExpr* typeofDef = toDefExpr(move2typeof->prev);
+  INT_ASSERT(typeofDef->sym == typeofSym);
+//gdbShouldBreakHere(); //wass
+  move2typeTmp->remove();
+  move2typeof->remove();
+  typeofDef->remove();
+  CallExpr* result = new CallExpr(PRIM_MOVE, temp, bartTemp);
+//gdbShouldBreakHere(); //wass
+  return result;
+}
+
 // Creates the default value for the type if fromExpr=NULL.
 // If fromExpr!=NULL, coerces fromExpr into the type of the formal.
 static void defaultedFormalApplyDefault(ArgSymbol* formal,
@@ -999,9 +1029,18 @@ static void defaultedFormalApplyDefault(ArgSymbol* formal,
 
   } else {
     Expr* initExpr = NULL;
+    if (fromExpr == NULL && formal->type->symbol->hasFlag(FLAG_ARRAY)) //vass
+      initExpr = buildArrayInitExpr(body, temp, typeTmp);
+    else
     if (fromExpr == NULL) {
       initExpr = new CallExpr(PRIM_DEFAULT_INIT_VAR, temp, typeTmp);
     } else {
+// WASS TODO: ensure that the below PRIM_COERCE gets newRayDI's actuals
+// and removes the call to newRayDI. Context:
+// For an array, fomal->typeExpr is inserted outside of a "type" block above
+// and likely contains a call to newRayDI.
+if (formal->type->symbol->hasFlag(FLAG_ARRAY))
+INT_FATAL(formal, "got stray call to newRayDI"); //wass
       SymExpr* fromExprSe = toSymExpr(fromExpr);
       if (fromExprSe && fromExprSe->symbol() == gNoInit) {
         initExpr = new CallExpr(PRIM_NOINIT_INIT_VAR, temp, typeTmp);

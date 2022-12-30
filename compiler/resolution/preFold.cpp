@@ -2495,7 +2495,9 @@ static Expr* replaceBART_Blk(CallExpr* callBART, BlockStmt* bartBlock) {
 
   ArgSymbol* parentArg = toArgSymbol(bartBlock->parentSymbol);
   INT_ASSERT(bartBlock == parentArg->typeExpr); // o/w need to handle
+  gdbShouldBreakHere(); //wass
 
+#if 0 //wass - do it differently
   BlockStmt* argDflt  = parentArg->defaultExpr;
   Expr*      lastDflt = argDflt->body.tail;
   SymExpr*   lastSE   = toSymExpr(lastDflt);
@@ -2505,10 +2507,10 @@ static Expr* replaceBART_Blk(CallExpr* callBART, BlockStmt* bartBlock) {
     for_alist(bbStmt, bbCopy->body)
       lastDflt->insertBefore(bbStmt->remove());
     lastDflt->remove();
-    gdbShouldBreakHere(); //wass
   } else {
     INT_FATAL(callBART, "need to implement");
   }
+#endif
 
   addBartTypeofA(ctUse);
   if (callBART->id == breakOnResolveID) gdbShouldBreakHere(); //wass
