@@ -2382,11 +2382,46 @@ if (calltemp->symbol()->hasFlag(FLAG_EXPR_TEMP)) printf("WASS: FLAG_EXPR_TEMP %d
 }
 
 // ctUse --> typeof(ctUse)
-static void addBartTypeof(SymExpr* ctUse) {
-  VarSymbol* typeTmp = newTemp("arrTypeTemp");
+static void addBartTypeofB(CallExpr* useCall, SymExpr* ctUse) {
+  VarSymbol* typeTmp = newTemp("arrTypeTempB");
+  typeTmp->addFlag(FLAG_TYPE_VARIABLE);
+  ctUse->replace(new SymExpr(typeTmp));
+
+  useCall->insertBefore(new DefExpr(typeTmp));
+  useCall->insertBefore("'move'(%S,'typeof'(%E))", typeTmp, ctUse);
+}
+
+/* move type_tmp <- chpl__buildArrayRuntimeType(...)
+   init var split decl (A, type_tmp)
+   init var split init (A, rhs, type_tmp)
+-->
+ * move:       redirect the call to newRaySI()
+ * split decl: type_tmp --> typeof(type_tmp)
+ * split init: will be switched to chpl__coerceCopy in insertInitConversion()
+   using the actuals for the newRaySI call.
+*/
+static Expr* replaceBART_Split(CallExpr* callBART, SymExpr* calltemp) {
+  for_SymbolUses(ctUse, calltemp->symbol()) {
+    CallExpr* useCall = toCallExpr(ctUse->parentExpr);
+    if (useCall->isPrimitive(PRIM_INIT_VAR_SPLIT_DECL)) {
+      callBART->baseExpr->replace(new UnresolvedSymExpr("newRaySI"));
+      addBartTypeofB(useCall, ctUse);
+      if (callBART->id == breakOnResolveID) gdbShouldBreakHere(); //wass
+      return callBART;
+    }
+  }
+
+  INT_FATAL(callBART, "unknown case in replaceBART_Split()");
+  return nullptr; // dummy
+}
+
+// ctUse --> typeof(ctUse)
+static void addBartTypeofA(SymExpr* ctUse) {
+  VarSymbol* typeTmp = newTemp("arrTypeTempA");
   typeTmp->addFlag(FLAG_TYPE_VARIABLE);
   ctUse->insertBefore(new DefExpr(typeTmp));
   ctUse->insertAfter(new SymExpr(typeTmp));
+  // replaces 'ctUse'
   typeTmp->defPoint->insertAfter("'move'(%S,'typeof'(%E))",
                                  typeTmp, ctUse->remove());
 }
@@ -2411,7 +2446,7 @@ static Expr* replaceBART_UB(CallExpr* callBART,
   def->init = def->exprType->copy();
   parent_insert_help(def, def->init);
 
-  addBartTypeof(ctUse);
+  addBartTypeofA(ctUse);
   if (callBART->id == breakOnResolveID) gdbShouldBreakHere(); //wass
   return callBART;
 }
@@ -2451,7 +2486,7 @@ static Expr* replaceBART_Blk(CallExpr* callBART, BlockStmt* bartBlock) {
     INT_FATAL(callBART, "need to implement");
   }
 
-  addBartTypeof(ctUse);
+  addBartTypeofA(ctUse);
   if (callBART->id == breakOnResolveID) gdbShouldBreakHere(); //wass
   return callBART;
 }
@@ -2462,18 +2497,17 @@ static Expr* replaceBuildART(CallExpr* callBART) { //vass
   if (CallExpr* move = toCallExpr(callBART->parentExpr)) {
     if (SymExpr* calltemp = toSymExpr(move->get(1))) {
       if (SymExpr* ctUse = calltemp->symbol()->getSingleUse()) {
-
-        /////////// the use is in a call ///////////
         if (CallExpr* useCall = toCallExpr(ctUse->parentExpr)) {
           if (useCall->isPrimitive(PRIM_DEFAULT_INIT_VAR))
             return replaceBART_DIV(callBART, useCall, calltemp);
           else if (useCall->isPrimitive(PRIM_INIT_VAR))
             return replaceBART_IV(callBART, useCall, calltemp);
-
-        /////////// the use is directly in a block ///////////
-        } else if (BlockStmt* useBlock = toBlockStmt(ctUse->parentExpr)) {
+        }
+        else if (BlockStmt* useBlock = toBlockStmt(ctUse->parentExpr)) {
           return replaceBART_UB(callBART, useBlock, ctUse);
         }
+      } else {
+        return replaceBART_Split(callBART, calltemp);
       }
     }
   } else if (BlockStmt* bartBlock = toBlockStmt(callBART->parentExpr)) {

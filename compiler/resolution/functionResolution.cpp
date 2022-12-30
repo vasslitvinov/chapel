@@ -7932,6 +7932,7 @@ void resolveInitVar(CallExpr* call) {
     return;
   }
 
+//wass  SymExpr* preserveTargetTypeSE = nullptr; //vass
   if (call->numActuals() == 3) {
     SymExpr* targetTypeExpr = toSymExpr(call->get(3)->remove());
     targetType = targetTypeExpr->typeInfo();
@@ -7963,13 +7964,16 @@ void resolveInitVar(CallExpr* call) {
     }
 
     bool mismatch = targetType->getValType() != srcType->getValType();
+/*wass???
     if (mismatch && targetType->getValType()->symbol->hasFlag(FLAG_ARRAY))
       USR_FATAL(call, "vass: initializing an array of a non-[]-type"
                 " from an expression of a different type");
+*/
 
     // Insert a coercion if the types are different. Some internal types use a
     // coercion because their initCopy returns a different type.
     if ((targetType->symbol->hasFlag(FLAG_HAS_RUNTIME_TYPE) && !genericTgt) ||
+        targetType->symbol->hasFlag(FLAG_ARRAY) || //vass
         (targetType->symbol->hasFlag(FLAG_TUPLE) && mismatch) ||
         (isRecord(targetType->getValType()) == false && mismatch)) {
 
@@ -8095,6 +8099,12 @@ void resolveInitVar(CallExpr* call) {
     call->insertAtTail(initCopy);
     call->primitive = primitives[PRIM_MOVE];
 
+#if 0 //wass - not needed
+bool adjustedICforArray(CallExpr* initCopy, Type* targetType); //wass in .h
+    if (adjustedICforArray(initCopy, targetType)) { //vass
+      // taken care of
+    } else
+#endif
     if (initCopyIter == false) {
       // If there is an error in that initCopy call,
       // just mark it for later (rather than raising the error now)

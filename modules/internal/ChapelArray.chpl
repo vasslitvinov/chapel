@@ -244,6 +244,12 @@ proc newRayDI(dom2: domain, type eltType2) { //vass
   return dom2.buildArray(eltType2, true);
 }
 
+// a temporary marker for a split init of array variables
+proc newRaySI(dom2: domain, type eltType2) { //vass
+  warning("should not be executed");
+  return dom2.buildArray(eltType2, false);
+}
+
   proc chpl__convertValueToRuntimeType(arr: []) type {
     return chpl__buildArrayRuntimeType(arr.domain, arr.eltType);
   }

@@ -2593,6 +2593,56 @@ static void issueInitConversionError(Symbol* to, Symbol* toType, Symbol* from,
                  toName, toTypeStr, sep, fromStr);
 }
 
+static SymbolMap arrayTypeTemp2domain, arrayTypeTemp2eltType;
+
+/* newCall = chpl__coerceCopy(toType, rhs, definedConst)
+--> chpl__coerceCopy(domain, eltType, rhs, definedConst)
+where (domain, eltType) come from the call to newRaySI()
+that defines 'toType'.
+When removing the call to newRaySI, stash its args in maps
+for future use if there are multiple split inits.
+*/
+//vass: adjustConversionForArrayType
+static void adjustConversionForArrayType(CallExpr* newCall, Symbol* toType) {
+  if (!toType->type->symbol->hasFlag(FLAG_ARRAY)) return;
+  SymExpr* typeDef = toType->getSingleDef();
+  CallExpr*   move = toCallExpr(typeDef->parentExpr);
+  INT_ASSERT(move->isPrimitive(PRIM_MOVE));
+  // prepare the domain and eltType arguments
+  SymExpr* domainArg  = nullptr;
+  SymExpr* elttypeArg = nullptr;
+  if (CallExpr* newArr = toCallExpr(move->get(2))) {
+    INT_ASSERT(newArr->isNamed("newRaySI"));
+    elttypeArg = toSymExpr(newArr->get(2)->remove());
+    domainArg  = toSymExpr(newArr->get(1)->remove());
+    arrayTypeTemp2domain.put(toType, domainArg->symbol());
+    arrayTypeTemp2eltType.put(toType, elttypeArg->symbol());
+    domainArg  = domainArg->copy();
+    elttypeArg = elttypeArg->copy();
+    newArr->replace(new SymExpr(toType->type->symbol));
+  } else {
+    SymExpr* toTypeType = toSymExpr(move->get(2));
+    INT_ASSERT(toTypeType->symbol()->type == toType->type);
+    domainArg  = new SymExpr(arrayTypeTemp2domain.get(toType));
+    elttypeArg = new SymExpr(arrayTypeTemp2eltType.get(toType));
+  }
+  // swap in the domain and eltType arguments
+  Expr* toTypeArg = newCall->get(1);
+  INT_ASSERT(toTypeArg->getValType() == toType->type);
+  toTypeArg->insertBefore(domainArg);
+  toTypeArg->insertBefore(elttypeArg);
+  toTypeArg->remove();
+}
+
+#if 0 //wass - not needed
+bool adjustedICforArray(CallExpr* initCopy, Type* targetType); //wass to .h
+bool adjustedICforArray(CallExpr* initCopy, Type* targetType) {
+  if (! targetType->symbol->hasFlag(FLAG_ARRAY)) return false;
+  gdbShouldBreakHere(); //wass tbd
+  return false;
+}
+#endif
+
 // Emit an init= or similar pattern to create 'to' of type 'toType' from 'from'
 // (the Symbol toType conveys any runtime type info beyond what to->type is.)
 //
@@ -2620,11 +2670,12 @@ static void insertInitConversion(Symbol* to, Symbol* toType, Symbol* from,
     warnForIntUintConversion(insertBefore, toValType, fromValType, from);
   }
 
+  bool arrayType = toType->type->symbol->hasFlag(FLAG_ARRAY); //vass
   // seemingly redundant toType->type->symbol is for lowered runtime type vars
   bool runtimeType = toType->type->symbol->hasFlag(FLAG_HAS_RUNTIME_TYPE);
   // Don't consider runtime types unless from PRIM_COERCE,
   // because if not in a PRIM_COERCE, we have no way of accessing it.
-  bool useRttCopy = runtimeType && fromPrimCoerce;
+  bool useRttCopy = (runtimeType || arrayType) && fromPrimCoerce;
   bool typesDiffer = (toType->type != fromValType);
 
   // If the types are the same but runtime types are involved, we don't know
@@ -2722,6 +2773,7 @@ static void insertInitConversion(Symbol* to, Symbol* toType, Symbol* from,
     } else {
       newCall = new CallExpr(astr_coerceCopy, toType, from, definedConst);
     }
+    adjustConversionForArrayType(newCall, toType); //vass
     newCalls.push_back(newCall);
     CallExpr* move = new CallExpr(PRIM_MOVE, to, newCall);
     newCalls.push_back(move);
