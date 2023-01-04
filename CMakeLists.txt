@@ -53,6 +53,7 @@ if (${CHPL_OFFICIAL_RELEASE} AND CHPL_BUILD_VERSION GREATER 0)
 endif()
 
 project(Chapel VERSION ${CHPL_VERSION})
+set(CMAKE_MESSAGE_LOG_LEVEL WARNING) #wass
 
 message(STATUS "Configuring Chapel version: ${CMAKE_PROJECT_VERSION}")
 
