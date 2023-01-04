@@ -2333,20 +2333,20 @@ static bool isMethodCall(CallExpr* call) {
 //vass replaceBuildART cases
 
 /* move( call_tmp, call( chpl__buildArrayRuntimeType domainTemp EltType ) ) 
-   default init var( ArrayVar call_tmp ) 
+   default init var( arrayVar call_tmp ) 
 -->
    move( call_tmp, call( newRayDI domainTemp EltType ) ) 
-   move( ArrayVar, call_tmp )
+   move( arrayVar, call_tmp )
 */
 static Expr* replaceBART_DIV(CallExpr* callBART, CallExpr* useCall,
                              SymExpr* calltemp) {
   Expr*    calltempUse = useCall->get(2)->remove();
-  SymExpr* initVarSE   = toSymExpr(useCall->get(1)->remove());
-  Symbol*  initVar     = initVarSE->symbol();
-  INT_ASSERT(initVar->type == dtUnknown); // o/w need to handle
+  SymExpr* arrayVarSE  = toSymExpr(useCall->get(1)->remove());
+  Symbol*  arrayVar    = arrayVarSE->symbol();
+  INT_ASSERT(arrayVar->type == dtUnknown); // o/w need to handle
 
   callBART->baseExpr->replace(new UnresolvedSymExpr("newRayDI"));
-  useCall->replace("'move'(%E,%E)", initVarSE, calltempUse);
+  useCall->replace("'move'(%E,%E)", arrayVarSE, calltempUse);
   // This flag would lead to FLAG_INSERT_AUTO_DESTROY in
   // postFoldMoveTail() then call to autoDestroy in walkBlockStmt().
   calltemp->symbol()->removeFlag(FLAG_EXPR_TEMP);
@@ -2356,23 +2356,23 @@ static Expr* replaceBART_DIV(CallExpr* callBART, CallExpr* useCall,
 }
 
 /* move( call_tmp, call( chpl__buildArrayRuntimeType domainTemp EltType ) ) 
-   init var( ArrayVar rhsValue call_tmp ) 
+   init var( arrayVar rhsValue call_tmp ) 
 -->
    move( call_tmp, call( chpl__coerceCopy( domainTemp EltType rhsValue T|F ) ) 
-   move( ArrayVar, call_tmp )
+   move( arrayVar, call_tmp )
 */
 static Expr* replaceBART_IV(CallExpr* callBART, CallExpr* useCall,
                             SymExpr* calltemp) {
   Expr*    calltempUse = useCall->get(3)->remove();
   Expr*    rhsValue    = useCall->get(2)->remove();
-  SymExpr* initVarSE   = toSymExpr(useCall->get(1)->remove());
-  Symbol*  initVar     = initVarSE->symbol();
-  INT_ASSERT(initVar->type == dtUnknown); // o/w need to handle
+  SymExpr* arrayVarSE  = toSymExpr(useCall->get(1)->remove());
+  Symbol*  arrayVar    = arrayVarSE->symbol();
+  INT_ASSERT(arrayVar->type == dtUnknown); // o/w need to handle
 
   callBART->baseExpr->replace("chpl__coerceCopy");
   callBART->insertAtTail(rhsValue);
-  callBART->insertAtTail(initVar->hasFlag(FLAG_CONST) ? gTrue : gFalse);
-  useCall->replace("'move'(%E,%E)", initVarSE, calltempUse);
+  callBART->insertAtTail(arrayVar->hasFlag(FLAG_CONST) ? gTrue : gFalse);
+  useCall->replace("'move'(%E,%E)", arrayVarSE, calltempUse);
 
 //wass should we remove FLAG_EXPR_TEMP like we do for 'default init var' above?
 if (calltemp->symbol()->hasFlag(FLAG_EXPR_TEMP)) printf("WASS: FLAG_EXPR_TEMP %d %s\n", calltemp->symbol()->id, calltemp->stringLoc()), gdbShouldBreakHere(); //wass
@@ -2381,6 +2381,7 @@ if (calltemp->symbol()->hasFlag(FLAG_EXPR_TEMP)) printf("WASS: FLAG_EXPR_TEMP %d
   return callBART;
 }
 
+#if 0 //wass - no longer needed
 // ctUse --> typeof(ctUse)
 static void addBartTypeofB(CallExpr* useCall, SymExpr* ctUse) {
   VarSymbol* typeTmp = newTemp("arrTypeTempB");
@@ -2390,8 +2391,11 @@ static void addBartTypeofB(CallExpr* useCall, SymExpr* ctUse) {
   useCall->insertBefore(new DefExpr(typeTmp));
   useCall->insertBefore("'move'(%S,'typeof'(%E))", typeTmp, ctUse);
 }
+#endif
 
-/* move type_tmp <- chpl__buildArrayRuntimeType(...)
+/*
+Follow the schemes for DIV and IV above. For split init:
+   move type_tmp <- chpl__buildArrayRuntimeType(...)
    init var split decl (A, type_tmp)
    init var split init (A, rhs, type_tmp)
 -->
@@ -2400,19 +2404,73 @@ static void addBartTypeofB(CallExpr* useCall, SymExpr* ctUse) {
  * split init: will be switched to chpl__coerceCopy in insertInitConversion()
    using the actuals for the newRaySI call.
 */
-static Expr* replaceBART_Split(CallExpr* callBART, SymExpr* calltemp) {
-  for_SymbolUses(ctUse, calltemp->symbol()) {
+static Expr* replaceBART_MultiIV(CallExpr* callBART, CallExpr* move,
+                                 SymExpr* calltempSE) {
+  SymbolMap arrToTemp;
+  Symbol* origCallTemp = calltempSE->symbol();
+  Expr* firstReplacement = nullptr;
+
+  for_SymbolUses(ctUse, origCallTemp) {
     CallExpr* useCall = toCallExpr(ctUse->parentExpr);
-    if (useCall->isPrimitive(PRIM_INIT_VAR_SPLIT_DECL)) {
-      callBART->baseExpr->replace(new UnresolvedSymExpr("newRaySI"));
-      addBartTypeofB(useCall, ctUse);
-      if (callBART->id == breakOnResolveID) gdbShouldBreakHere(); //wass
-      return callBART;
+    if (callBART->id == breakOnResolveID) gdbShouldBreakHere(); //wass
+    if (useCall->isPrimitive(PRIM_DEFAULT_INIT_VAR)) {
+// move(type_tmpA, newRayDI(dom.copy(), elt.copy()))
+// move(A, type_tmpA)  // replaces 'useCall'
+      VarSymbol* callTmp = newTemp("type_tmpA");
+      useCall->insertBefore(new DefExpr(callTmp));
+      useCall->insertBefore("'move'(%S,newRayDI(%E,%E))", callTmp,
+                         callBART->get(1)->copy(), callBART->get(2)->copy());
+      useCall->replace("'move'(%E,%S)", useCall->get(1)->remove(), callTmp);
+      if (firstReplacement == nullptr) firstReplacement = callTmp->defPoint;
+    }
+    else if (useCall->isPrimitive(PRIM_INIT_VAR)) {
+// move(type_tmpB, chpl__coerceCopy(dom.copy(), elt.copy(), rhsValue, T|F))
+// move(A, type_tmpB)  // replaces 'useCall'
+      Expr*   rhsValue = useCall->get(2)->remove();
+      Symbol* arrayVar = toSymExpr(useCall->get(1)->remove())->symbol();
+      INT_ASSERT(arrayVar->type == dtUnknown); // o/w need to handle
+      VarSymbol* callTmp = newTemp("type_tmpB");
+      useCall->insertBefore(new DefExpr(callTmp));
+      useCall->insertBefore("'move'(%S,chpl__coerceCopy(%E,%E,%E,%S))", callTmp,
+                   callBART->get(1)->copy(), callBART->get(2)->copy(), rhsValue,
+                   arrayVar->hasFlag(FLAG_CONST) ? gTrue : gFalse);
+      useCall->replace("'move'(%S,%S)", arrayVar, callTmp);
+      if (firstReplacement == nullptr) firstReplacement = callTmp->defPoint;
+    }
+    else if (useCall->isPrimitive(PRIM_INIT_VAR_SPLIT_DECL)) {
+// move(type_tmpC, newRaySI(dom.copy(), elt.copy()))
+// move(type_tmpD, typeof(type_tmpC))
+// edit useCall: redirect ctUse to tmpD
+      VarSymbol* callTmp = newTemp("type_tmpC");
+      useCall->insertBefore(new DefExpr(callTmp));
+      useCall->insertBefore("'move'(%S,newRaySI(%E,%E))", callTmp,
+                         callBART->get(1)->copy(), callBART->get(2)->copy());
+
+      VarSymbol* typeTmp = newTemp("type_tmpD");
+      typeTmp->addFlag(FLAG_TYPE_VARIABLE);
+      useCall->insertBefore(new DefExpr(typeTmp));
+      useCall->insertBefore("'move'(%S,'typeof'(%S))", typeTmp, callTmp);
+      ctUse->replace(new SymExpr(typeTmp));
+
+      arrToTemp.put(toSymExpr(useCall->get(1))->symbol(), callTmp);
+      if (firstReplacement == nullptr) firstReplacement = callTmp->defPoint;
+    }
+    else if (useCall->isPrimitive(PRIM_INIT_VAR_SPLIT_INIT)) {
+// edit useCall: redirect 2nd arg to tmpC that's stashed in the map
+      Symbol* arrayVar = toSymExpr(useCall->get(1))->symbol();
+      SymExpr* ttemp = toSymExpr(useCall->get(3));
+      INT_ASSERT(ttemp->symbol() == origCallTemp);
+      ttemp->replace(new SymExpr(arrToTemp.get(arrayVar)));
+      arrToTemp.put(arrayVar, nullptr);
     }
   }
 
-  INT_FATAL(callBART, "unknown case in replaceBART_Split()");
-  return nullptr; // dummy
+  INT_ASSERT(callBART, firstReplacement != nullptr);
+  move->remove();
+  origCallTemp->defPoint->remove();
+  INT_ASSERT(callBART, origCallTemp->firstSymExpr() == nullptr);
+  if (callBART->id == breakOnResolveID) gdbShouldBreakHere(); //wass
+  return firstReplacement;
 }
 
 /* move call_temp <- chpl__buildArrayRuntimeType(dom, eltType)
@@ -2495,7 +2553,6 @@ static Expr* replaceBART_Blk(CallExpr* callBART, BlockStmt* bartBlock) {
 
   ArgSymbol* parentArg = toArgSymbol(bartBlock->parentSymbol);
   INT_ASSERT(bartBlock == parentArg->typeExpr); // o/w need to handle
-  gdbShouldBreakHere(); //wass
 
 #if 0 //wass - do it differently
   BlockStmt* argDflt  = parentArg->defaultExpr;
@@ -2535,7 +2592,7 @@ static Expr* replaceBuildART(CallExpr* callBART) { //vass
           return replaceBART_UB(callBART, useBlock, ctUse);
         }
       } else {
-        return replaceBART_Split(callBART, calltemp);
+        return replaceBART_MultiIV(callBART, move, calltemp);
       }
     }
   } else if (BlockStmt* bartBlock = toBlockStmt(callBART->parentExpr)) {
