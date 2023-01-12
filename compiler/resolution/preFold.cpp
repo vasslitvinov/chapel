@@ -2493,6 +2493,42 @@ static Expr* replaceBART_Coerce(CallExpr* callBART, CallExpr* useCall,
   return noop;
 }
 
+/* move call_tmp1 <- chpl__buildArrayRuntimeType(dom1, eltType)
+   move call_tmp2 <- chpl__buildArrayRuntimeType(dom2, call_tmp1)
+   default init var ( arrayVar call_tmp2 )
+-->
+   call_tmp3 <- call newRayDI2d(dom2, dom1, eltType)
+   move arrayVar, call_tmp3
+*/
+static Expr* replaceBART_2d(CallExpr* callBART, CallExpr* callBART2,
+                SymExpr* ctUse, SymExpr* calltemp, CallExpr* move) {
+  CallExpr* move2 = toCallExpr(callBART2->parentExpr);
+  INT_ASSERT(move2->isPrimitive(PRIM_MOVE));
+  SymExpr* calltemp2 = toSymExpr(move2->get(1));
+  SymExpr*    ctUse2 = calltemp2->symbol()->getSingleUse();
+  CallExpr* useCall2 = toCallExpr(ctUse2->parentExpr);
+  INT_ASSERT(useCall2->isPrimitive(PRIM_DEFAULT_INIT_VAR));
+  Expr* eltType1 = callBART->get(2)->remove();
+  Expr* dom1     = callBART->get(1)->remove();
+  Expr* dom2     = callBART2->get(1)->remove();
+  Expr* arrayVar = useCall2->get(1)->remove();
+  VarSymbol* callTmp3 = newTemp("call_tmpX");
+  useCall2->insertBefore(new DefExpr(callTmp3));
+  useCall2->insertBefore("'move'(%S,newRayDI2d(%E,%E,%E))", callTmp3,
+                         dom2, dom1, eltType1);
+  useCall2->insertBefore("'move'(%E,%S)", arrayVar, callTmp3);
+  move->remove();
+  move2->remove();
+  useCall2->remove();
+  calltemp->symbol()->defPoint->remove();
+  calltemp2->symbol()->defPoint->remove();
+  INT_ASSERT(calltemp->symbol()->firstSymExpr() == nullptr);
+  INT_ASSERT(calltemp2->symbol()->firstSymExpr() == nullptr);
+  if (callBART->id == breakOnResolveID ||
+      callBART2->id == breakOnResolveID) gdbShouldBreakHere(); //wass
+  return callTmp3->defPoint;
+}
+
 // ctUse --> typeof(ctUse)
 static void addBartTypeofA(SymExpr* ctUse) {
   VarSymbol* typeTmp = newTemp("arrTypeTempA");
@@ -2578,6 +2614,7 @@ static Expr* replaceBuildART(CallExpr* callBART) { //vass
   if (callBART->id == breakOnResolveID) gdbShouldBreakHere(); //wass
 
   if (CallExpr* move = toCallExpr(callBART->parentExpr)) {
+    INT_ASSERT(move->isPrimitive(PRIM_MOVE));
     if (SymExpr* calltemp = toSymExpr(move->get(1))) {
       if (SymExpr* ctUse = calltemp->symbol()->getSingleUse()) {
         if (CallExpr* useCall = toCallExpr(ctUse->parentExpr)) {
@@ -2587,6 +2624,8 @@ static Expr* replaceBuildART(CallExpr* callBART) { //vass
             return replaceBART_IV(callBART, useCall, calltemp);
           else if (useCall->isPrimitive(PRIM_COERCE))
             return replaceBART_Coerce(callBART, useCall, calltemp, move);
+          else if (useCall->isNamed("chpl__buildArrayRuntimeType"))
+            return replaceBART_2d(callBART, useCall, ctUse, calltemp, move);
         }
         else if (BlockStmt* useBlock = toBlockStmt(ctUse->parentExpr)) {
           return replaceBART_UB(callBART, useBlock, ctUse);

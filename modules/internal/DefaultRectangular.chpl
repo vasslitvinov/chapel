@@ -1051,6 +1051,9 @@ module DefaultRectangular {
       this.deinitElts = deinitElts;
 
       this.complete();
+if isArray(eltType) && initElts then
+  halt("default init of an array of arrays");
+else
       this.setupFieldsAndAllocate(initElts);
     }
 
@@ -1461,7 +1464,7 @@ module DefaultRectangular {
         } else {
 
           // Should have been checked above.
-          param initElts = isDefaultInitializable(eltType);
+          param initElts = isDefaultInitializable(eltType) || isArray(eltType) /*vass*/;
 
           var copy = new unmanaged
               DefaultRectangularArr(eltType=eltType,

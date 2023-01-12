@@ -238,7 +238,6 @@ module ChapelArray {
 // default-initialize the elements
 ///////////
 // a clone of the above chpl__convertRuntimeTypeToValue()
-//wass todo add overloads for user-friendly errors in error cases?
 pragma "no copy returns owned" // workaround for order of resolution issue
 proc newRayDI(dom2: domain, type eltType2) { //vass
   return dom2.buildArray(eltType2, true);
@@ -248,6 +247,19 @@ proc newRayDI(dom2: domain, type eltType2) { //vass
 proc newRaySI(dom2: domain, type eltType2) { //vass
   warning("should not be executed");
   return dom2.buildArray(eltType2, false);
+}
+
+///////////
+// create and return a new array of arrays `[dom1] [dom2] eltType3`
+// default-initialize the elements
+///////////
+pragma "no copy returns owned" // workaround for order of resolution issue
+proc newRayDI2d(dom1: domain, dom2: domain, type eltType3) { //vass
+  pragma "no copy" pragma "no auto destroy"
+  var result = dom2.buildArray([dom2] eltType3, false);
+  forall r in result do
+    r = newRayDI(dom2, eltType3);
+  return result;
 }
 
   proc chpl__convertValueToRuntimeType(arr: []) type {
@@ -407,6 +419,7 @@ proc newRaySI(dom2: domain, type eltType2) { //vass
   // test/users/bugzilla/bug794133/ for more details and examples.
   //
   proc chpl_incRefCountsForDomainsInArrayEltTypes(arr:unmanaged BaseArr, type eltType) {
+/*vass
     if isArrayType(eltType) {
       arr._decEltRefCounts = true;
 
@@ -416,10 +429,12 @@ proc newRaySI(dom2: domain, type eltType2) { //vass
       dv.add_containing_arr(arr);
       chpl_incRefCountsForDomainsInArrayEltTypes(arr, arrayEltType);
     }
+*/
   }
 
   proc chpl_decRefCountsForDomainsInArrayEltTypes(arr:unmanaged BaseArr, type eltType) {
     if isArrayType(eltType) {
+/*vass
       if arr._decEltRefCounts == false then
         halt("Decrementing array's elements' ref counts without having incremented first!");
 
@@ -442,6 +457,7 @@ proc newRaySI(dom2: domain, type eltType2) { //vass
             _delete_dist(distToFree!, _isPrivatized(inst.dist));
         }
       }
+*/
     }
   }
 
@@ -605,7 +621,7 @@ proc newRaySI(dom2: domain, type eltType2) { //vass
     //vass
     pragma "no copy"
     pragma "no auto destroy"
-    var A = newRayDI(dom, eltType);
+    var A = dom.buildArray(eltType, false);
     return A._instance.type;
   }
 
@@ -2256,7 +2272,7 @@ proc newRaySI(dom2: domain, type eltType2) { //vass
   // check that the runtime type components match. If not, copy-initialize.
   private proc fixRuntimeType(type eltType, ref elt) {
     var runtimeTypesDiffer = false;
-    if isSubtype(eltType, _array) || isSubtype(eltType, _domain) {
+    if /*vass was: isSubtype(eltType, _array) ||*/ isSubtype(eltType, _domain) {
       if isSubtype(eltType, _array) {
         const ref lhsDomain = chpl__domainFromArrayRuntimeType(eltType);
         const ref rhsDomain = elt.domain;
@@ -2656,21 +2672,34 @@ proc newRaySI(dom2: domain, type eltType2) { //vass
   } */
 
   proc _desync(type t:_array) type {
+compilerError("vass: do not do this");
+/*
     type eltType = chpl__eltTypeFromArrayRuntimeType(t);
     const ref dom = chpl__domainFromArrayRuntimeType(t);
     return [dom] _desync(eltType);
+*/
   }
 
   proc _desync(type t) type {
     return t;
   }
 
-/*vass
   private proc desyncEltType(type t:_array) type {
+compilerError("vass: do not do this");
+/*
     type eltType = chpl__eltTypeFromArrayRuntimeType(t);
     return _desync(eltType);
-  }
 */
+  }
+
+  // helper for chpl__coerceCopy()
+  private proc checkDesyncElttype(rhs, type eltType: _array) param {
+    // required by the original coerceCopy
+    compilerAssert(isArray(rhs));
+    // the array-of-array-of-sync case is not implemented
+    compilerAssert(!isSync(rhs.eltType) && !isSingle(rhs.eltType));
+    return true;
+  }
 
   pragma "no doc"
   operator =(ref a: [], b: _desync(a.eltType)) {
@@ -3089,8 +3118,9 @@ proc newRaySI(dom2: domain, type eltType2) { //vass
   pragma "find user line"
   pragma "coerce fn"
   proc chpl__coerceCopy(dom: domain, type eltType, //vass
-                        rhs:_desync(eltType),
+                        rhs /*:_desync(eltType)*/, //vass
                         definedConst: bool) {
+    checkDesyncElttype(rhs, eltType); //vass
     pragma "no copy" // avoid error about recursion for initCopy
     pragma "unsafe" // when eltType is non-nilable
     var lhs = dom.buildArray(eltType, initElts=false);
@@ -3109,7 +3139,8 @@ proc newRaySI(dom2: domain, type eltType2) { //vass
   pragma "find user line"
   pragma "coerce fn"
   proc chpl__coerceMove(dom: domain, type eltType, //vass
-                        in rhs:_desync(eltType), definedConst: bool) {
+                      in rhs /*:_desync(eltType)*/, definedConst: bool) { //vass
+    checkDesyncElttype(rhs, eltType); //vass
     pragma "no copy" // avoid error about recursion for initCopy
     pragma "unsafe" // when eltType is non-nilable
     var lhs = dom.buildArray(eltType, initElts=false);

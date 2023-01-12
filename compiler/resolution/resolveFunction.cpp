@@ -2601,6 +2601,19 @@ static void issueInitConversionError(Symbol* to, Symbol* toType, Symbol* from,
                  toName, toTypeStr, sep, fromStr);
 }
 
+static Symbol* makeAdjTemp(Expr* ref, Symbol* srcArray, bool isType,
+                           const char* tempName, const char* methodName) {
+  VarSymbol* temp = newTemp(tempName);
+  if (isType) temp->addFlag(FLAG_TYPE_VARIABLE);
+  ref->insertBefore(new DefExpr(temp));
+  CallExpr* get  = new CallExpr(methodName, gMethodToken, srcArray);
+  CallExpr* move = new CallExpr(PRIM_MOVE, temp, get);
+  ref->insertBefore(move);
+  resolveCall(get);
+  resolveCall(move);
+  return temp;
+}
+
 static SymbolMap arrayTypeTemp2domain, arrayTypeTemp2eltType;
 
 /* newCall = chpl__coerceCopy(toType, rhs, definedConst)
@@ -2611,34 +2624,62 @@ When removing the call to newRaySI, stash its args in maps
 for future use if there are multiple split inits.
 */
 //vass: adjustConversionForArrayType
-static void adjustConversionForArrayType(CallExpr* newCall, Symbol* toType) {
+static void adjustConversionForArrayType(CallExpr* newCall, Symbol* toType,
+                                         Expr* ref) {
   if (!toType->type->symbol->hasFlag(FLAG_ARRAY)) return;
   SymExpr* typeDef = toType->getSingleDef();
   CallExpr*   move = toCallExpr(typeDef->parentExpr);
   INT_ASSERT(move->isPrimitive(PRIM_MOVE));
   // prepare the domain and eltType arguments
-  SymExpr* domainArg  = nullptr;
-  SymExpr* elttypeArg = nullptr;
+  Symbol* domainArg  = nullptr;
+  Symbol* elttypeArg = nullptr;
   if (CallExpr* newArr = toCallExpr(move->get(2))) {
     INT_ASSERT(newArr->isNamed("newRaySI"));
-    elttypeArg = toSymExpr(newArr->get(2)->remove());
-    domainArg  = toSymExpr(newArr->get(1)->remove());
-    arrayTypeTemp2domain.put(toType, domainArg->symbol());
-    arrayTypeTemp2eltType.put(toType, elttypeArg->symbol());
-    domainArg  = domainArg->copy();
-    elttypeArg = elttypeArg->copy();
+    elttypeArg = toSymExpr(newArr->get(2)->remove())->symbol();
+    domainArg  = toSymExpr(newArr->get(1)->remove())->symbol();
+    arrayTypeTemp2domain.put(toType, domainArg);
+    arrayTypeTemp2eltType.put(toType, elttypeArg);
     newArr->replace(new SymExpr(toType->type->symbol));
-  } else {
+  } else if (arrayTypeTemp2domain.get(toType) != nullptr) {
     SymExpr* toTypeType = toSymExpr(move->get(2));
     INT_ASSERT(toTypeType->symbol()->type == toType->type);
-    domainArg  = new SymExpr(arrayTypeTemp2domain.get(toType));
-    elttypeArg = new SymExpr(arrayTypeTemp2eltType.get(toType));
+    domainArg  = arrayTypeTemp2domain.get(toType);
+    elttypeArg = arrayTypeTemp2eltType.get(toType);
+  } else {
+    // The domain and eltType components of toType are not available.
+    // Just use those from the array we are converting.
+    Symbol* srcArray = toSymExpr(newCall->get(2))->symbol();
+    domainArg  = makeAdjTemp(ref, srcArray, 0, "domTemp", "_dom");
+    elttypeArg = makeAdjTemp(ref, srcArray, 1, "eltTemp", "eltType");
+#if 0 //wass
+    eltTemp->addFlag(FLAG_TYPE_VARIABLE);
+    ref->insertBefore(new DefExpr(domTemp));
+    ref->insertBefore(new DefExpr(eltTemp));
+    CallExpr* getDom = new CallExpr("_dom", gMethodToken, srcArray);
+    CallExpr* mvDom  = new CallExpr(PRIM_MOVE, domTemp, getDom);
+    ref->insertBefore(mvDom);
+    resolveCall(getDom);
+    resolveCall(mvDom);
+    ref->insertBefore
+    
+    if (newCall->isNamedAstr(astr_coerceCopy)) {
+      // chpl__coerceCopy(toType, from, definedConst) -->
+      // chpl__initCopy(from, definedConst)
+      newCall->baseExpr->replace(new UnresolvedSymExpr("chpl__initCopy"));
+      newCall->get(1)->remove();
+    } else {
+      // chpl__coerceMove(toType, from, definedConst) -->
+      Expr* definedConst = newCall->get(3)->remove();
+      Expr* from         = newCall->get(2)->remove();
+      newCall->...;
+    }
+#endif
   }
   // swap in the domain and eltType arguments
   Expr* toTypeArg = newCall->get(1);
   INT_ASSERT(toTypeArg->getValType() == toType->type);
-  toTypeArg->insertBefore(domainArg);
-  toTypeArg->insertBefore(elttypeArg);
+  toTypeArg->insertBefore(new SymExpr(domainArg));
+  toTypeArg->insertBefore(new SymExpr(elttypeArg));
   toTypeArg->remove();
 }
 
@@ -2781,7 +2822,7 @@ static void insertInitConversion(Symbol* to, Symbol* toType, Symbol* from,
     } else {
       newCall = new CallExpr(astr_coerceCopy, toType, from, definedConst);
     }
-    adjustConversionForArrayType(newCall, toType); //vass
+    adjustConversionForArrayType(newCall, toType, insertBefore); //vass
     newCalls.push_back(newCall);
     CallExpr* move = new CallExpr(PRIM_MOVE, to, newCall);
     newCalls.push_back(move);

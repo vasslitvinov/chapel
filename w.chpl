@@ -1,3 +1,11 @@
+
+var D1 = {2..3}, D2 = {4..5};
+proc main {
+  var aaa: [D1] [D2] int;
+  writeln(aaa);
+}
+
+/*
 //wass: not for PR
 
 var DD = {112..113};
@@ -30,3 +38,4 @@ proc main {
   type t22 = [DD] bool;
   showType(t22);
 }
+*/

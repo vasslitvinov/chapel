@@ -1128,7 +1128,7 @@ module ChapelBase {
     // skip initializing, or zero out the memory of new slots.
     select policy {
       when chpl_ddataResizePolicy.normalInit do
-        if !isDefaultInitializable(eltType) {
+        if isArray(eltType)/*vass*/ || !isDefaultInitializable(eltType) {
           halt('internal error: Attempt to resize dynamic block ' +
                'containing non-default-initializable elements');
         } else {

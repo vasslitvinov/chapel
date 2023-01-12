@@ -210,6 +210,7 @@ static void removeRandomPrimitive(CallExpr* call) {
 
     case PRIM_MOVE:
     {
+if (call->id == breakOnRemoveID) gdbShouldBreakHere(); //wass
       // Remove types to enable --baseline
       SymExpr* se = toSymExpr(call->get(2));
       if (se && se->symbol()) {
