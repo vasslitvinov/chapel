@@ -3030,7 +3030,59 @@ static void removeUncalledIterators()
   }
 }
 
+static bool interestingIter(FnSymbol* fn, Type* yt) {
+  return
+      ! isReferenceType(yt) && isRecord(yt)              &&
+      // do not mess with loop expressions
+      strncmp(fn->name, "chpl__loopexpr_iter", 19)       &&
+      // tuples, ranges, borrowed and unmanaged are to be yielded by value
+      ! yt->symbol->hasFlag(FLAG_TUPLE)                  &&
+      ! yt->symbol->hasFlag(FLAG_RANGE)                  &&
+      ! isBorrowedClass(yt)                              &&
+      ! isUnmanagedClass(yt)                             &&
+      true;
+}
+
+static void reportOne(FnSymbol* fn, Type* yt) {
+//  printf("%%%%%% %s %%%%%%\n", fn->stringLoc());
+  std::vector<CallExpr*> calls;
+  collectCallExprs(fn, calls);
+  bool withIC = false, noIC = false;
+  for_vector(CallExpr, call, calls) if (call->isPrimitive(PRIM_YIELD)) {
+    Symbol* yvv = toSymExpr(call->get(1))->symbol();
+//gdbShouldBreakHere(); //wass
+    INT_ASSERT(yvv->hasFlag(FLAG_YVV));
+    bool gotIC = false;
+    if (SymExpr* se = yvv->getSingleDef())
+     if (CallExpr* move = toCallExpr(se->parentExpr))
+      if (move->isPrimitive(PRIM_MOVE))
+       if (CallExpr* icCall = toCallExpr(move->get(2)))
+        if (FnSymbol* icFun = icCall->resolvedFunction())
+         if (icFun->hasFlag(FLAG_INIT_COPY_FN))
+          gotIC = true;
+    if (gotIC) withIC = true; else noIC = true;
+  }
+  printf("%%%%%% %s withIC%c noIC%c %%%%%%\n",
+         fn->stringLoc(), withIC?'+':'-', noIC?'+':'-');
+//  gdbShouldBreakHere(); //wass
+}
+
+static void reportIterators() {
+  forv_Vec(FnSymbol, fn, gFnSymbols) {
+   if (IteratorInfo* ii = fn->iteratorInfo) {
+    Type* yt = ii->yieldedType;
+    if (ii->iteratorRetTag == RET_VALUE && interestingIter(fn, yt)) {
+      reportOne(fn, yt);
+     //printf("%p\n", ii);
+     //gdbShouldBreakHere(); //wass
+    }
+   }
+  }
+}
+
 void lowerIterators() {
+  reportIterators();
+
   nonLeaderParCheck();
 
   markVectorizableForallLoops();
