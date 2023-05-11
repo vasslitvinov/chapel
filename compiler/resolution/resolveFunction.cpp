@@ -1174,6 +1174,7 @@ static CallExpr* findSetShape(CallExpr* setRet, Symbol* ret) {
 }
 
 static void insertUnrefForTupleYields(FnSymbol* fn) {
+#if 0 //wass - do not do this
   // do not unref:
   if (fn->retTag == RET_TYPE       ||  // could iterators yield types?
       fn->retTag == RET_REF        ||  // if yielding refs
@@ -1216,6 +1217,7 @@ static void insertUnrefForTupleYields(FnSymbol* fn) {
         insertUnrefForTupleYields(callee);
     }
   }
+#endif //wass
 }
 
 class SplitInitVisitor final : public AstVisitorTraverse {
@@ -2092,6 +2094,15 @@ void resolveReturnTypeAndYieldedType(FnSymbol* fn, Type** yieldedType) {
         if (yieldedSym->hasFlag(FLAG_YVV))
           yieldedSym->type = retType;
       }
+    }
+
+    // adjust retTag to yield records by ref; see also moveDetermineLhsType()
+    Type* retValType = retType->getValType();
+    if (fn->retTag == RET_VALUE && isRecord(retValType) &&
+        ! retValType->symbol->hasFlag(FLAG_TUPLE))
+    {
+      INT_ASSERT(fn, isReferenceType(retType));
+      fn->retTag = RET_CONST_REF;
     }
   }
 

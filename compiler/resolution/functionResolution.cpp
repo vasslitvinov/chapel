@@ -8913,6 +8913,30 @@ Type* moveDetermineLhsType(CallExpr* call) {
     lhsSym->type = type;
   }
 
+  if (lhsSym->hasFlag(FLAG_YVV) && lhsSym->qual == QUAL_UNKNOWN &&
+      ! isReferenceType(lhsSym->type) && isRecord(lhsSym->type) &&
+      ! lhsSym->type->symbol->hasFlag(FLAG_TUPLE))  // tuples are cool already
+  {
+    // iterator yields record value by default intent => switch to yield by ref
+    bool handled = false;
+    if (CallExpr* deref = toCallExpr(call->get(2))) {
+      if (deref->isPrimitive(PRIM_DEREF)) {
+        deref->replace(deref->get(1)->remove());
+        handled = true;
+//printf("removed PRIM_DEREF %d %s\n", call->id, debugLoc(call)); //wass
+      }
+    }
+    Type* refType = lhsSym->type->getRefType();
+    lhsSym->type = refType;
+    if (!handled) {
+      VarSymbol* addrOfTmp = newTemp("yieldAddr", refType);
+      call->insertBefore(new DefExpr(addrOfTmp));
+      call->insertBefore("'move'(%S,'addr of'(%E))",
+                         addrOfTmp, call->get(2)->remove());
+      call->insertAtTail(new SymExpr(addrOfTmp));
+    }
+  }
+
   return lhsSym->type;
 }
 

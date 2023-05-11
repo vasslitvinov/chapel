@@ -1860,6 +1860,7 @@ static void normalizeYields(FnSymbol* fn) {
         retval->qual = QUAL_REF;
       else if (fn->retTag == RET_CONST_REF)
         retval->qual = QUAL_CONST_REF;
+INT_ASSERT(fn->retTag != RET_PARAM && fn->retTag != RET_TYPE); //wass
 
       yield->insertBefore(new DefExpr(retval));
       insertRetMove(fn, retval, yield, false);
