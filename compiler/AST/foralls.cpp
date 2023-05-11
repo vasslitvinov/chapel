@@ -970,9 +970,15 @@ static void resolveIdxVar(ForallStmt* pfs, FnSymbol* iterFn)
     case RET_REF:
       INT_ASSERT(idxVar->isRef());
       idxVar->qual = QUAL_REF;
+      idxVar->removeFlag(FLAG_INSERT_AUTO_DESTROY); //wass just in case
       break;
     case RET_CONST_REF:
+#if 0 //wass - this does not hold if iterFn has the default yield intent
       INT_ASSERT(idxVar->isRef());
+#else
+      idxVar->type = idxVar->type->getRefType();
+      idxVar->removeFlag(FLAG_INSERT_AUTO_DESTROY);
+#endif
       idxVar->qual = QUAL_CONST_REF;
       idxVar->addFlag(FLAG_CONST);
       break;
