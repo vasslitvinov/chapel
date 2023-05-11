@@ -8913,12 +8913,15 @@ Type* moveDetermineLhsType(CallExpr* call) {
     lhsSym->type = type;
   }
 
-  if (lhsSym->hasFlag(FLAG_YVV) && lhsSym->qual == QUAL_UNKNOWN &&
-      ! isReferenceType(lhsSym->type) && isRecord(lhsSym->type) &&
-      // tuples are cool already
-      ! lhsSym->type->symbol->hasFlag(FLAG_TUPLE)               &&
+  if (lhsSym->hasFlag(FLAG_YVV) && lhsSym->qual == QUAL_UNKNOWN    &&
+      ! isReferenceType(lhsSym->type) && isRecord(lhsSym->type)    &&
       // do not mess with loop expressions
-      strncmp(call->parentSymbol->name, "chpl__loopexpr_iter", 19))
+      strncmp(call->parentSymbol->name, "chpl__loopexpr_iter", 19) &&
+      // tuples, ranges, borrowed and unmanaged are to be yielded by value
+      ! lhsSym->type->symbol->hasFlag(FLAG_TUPLE)                  &&
+      ! lhsSym->type->symbol->hasFlag(FLAG_RANGE)                  &&
+      ! isBorrowedClass(lhsSym->type)                              &&
+      ! isUnmanagedClass(lhsSym->type)                             )
   {
     // iterator yields record value by default intent => switch to yield by ref
     bool handled = false;

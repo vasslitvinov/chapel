@@ -2102,8 +2102,13 @@ void resolveReturnTypeAndYieldedType(FnSymbol* fn, Type** yieldedType) {
     if (IteratorInfo* ii = fn->iteratorInfo)
       yieldIntent = &(ii->iteratorRetTag);
     if (*yieldIntent == RET_VALUE && isRecord(retValType) &&
+        // do not mess with loop expressions
+        strncmp(fn->name, "chpl__loopexpr_iter", 19)      &&
+        // tuples, ranges, borrowed and unmanaged are to be yielded by value
         ! retValType->symbol->hasFlag(FLAG_TUPLE)         &&
-        strncmp(fn->name, "chpl__loopexpr_iter", 19)      )
+        ! retValType->symbol->hasFlag(FLAG_RANGE)         &&
+        ! isBorrowedClass(retValType)                     &&
+        ! isUnmanagedClass(retValType)                    )
     {
       INT_ASSERT(fn, isReferenceType(retType));
       *yieldIntent = RET_CONST_REF;
