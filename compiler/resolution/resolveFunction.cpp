@@ -1622,11 +1622,31 @@ static FnSymbol*      makeIteratorMethod(IteratorInfo* ii,
                                          const char*   name,
                                          Type*         retType);
 
+static void adjustForDefaultIntent(FnSymbol* fn, Type*& yieldedType) {
+  // follow moveDetermineLhsType()
+  if (fn->retTag == RET_VALUE                                  &&
+      ! isReferenceType(yieldedType) && isRecord(yieldedType)  &&
+      // do not mess with loop expressions
+      strncmp(fn->name, "chpl__loopexpr_iter", 19)             &&
+      // tuples, ranges, borrowed and unmanaged are to be yielded by value
+      ! yieldedType->symbol->hasFlag(FLAG_TUPLE)               &&
+      ! yieldedType->symbol->hasFlag(FLAG_RANGE)               &&
+      ! isBorrowedClass(yieldedType)                           &&
+      ! isUnmanagedClass(yieldedType)                          )
+  {
+//printf("adjusted in protoIteratorClass %s %d %s\n",
+//fn->name, fn->id, debugLoc(fn)); //wass
+    yieldedType = yieldedType->getRefType();
+    fn->retTag = RET_CONST_REF;
+  }
+}
+
 static void protoIteratorClass(FnSymbol* fn, Type* yieldedType) {
   INT_ASSERT(yieldedType != NULL);
   if (yieldedType == dtUnknown) {
     USR_FATAL(fn, "unable to resolve yielded type");
   }
+  adjustForDefaultIntent(fn, yieldedType); // may adjust yieldedType
 
   SET_LINENO(fn);
 

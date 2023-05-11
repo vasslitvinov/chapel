@@ -34,6 +34,7 @@
 #include "stlUtil.h"
 #include "stringutil.h"
 #include "TransformLogicalShortCircuit.h"
+#include "view.h" //wass
 
 #include "global-ast-vecs.h"
 
@@ -976,6 +977,9 @@ static void resolveIdxVar(ForallStmt* pfs, FnSymbol* iterFn)
 #if 0 //wass - this does not hold if iterFn has the default yield intent
       INT_ASSERT(idxVar->isRef());
 #else
+//wass todo - do this instead when idxVar is resolve
+//printf("adjusting idxVar %s %d %s\n",
+//       idxVar->name, idxVar->id, debugLoc(idxVar)); //wass
       idxVar->type = idxVar->type->getRefType();
       idxVar->removeFlag(FLAG_INSERT_AUTO_DESTROY);
 #endif
