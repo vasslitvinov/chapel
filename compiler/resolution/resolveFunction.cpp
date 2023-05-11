@@ -2098,11 +2098,16 @@ void resolveReturnTypeAndYieldedType(FnSymbol* fn, Type** yieldedType) {
 
     // adjust retTag to yield records by ref; see also moveDetermineLhsType()
     Type* retValType = retType->getValType();
-    if (fn->retTag == RET_VALUE && isRecord(retValType) &&
-        ! retValType->symbol->hasFlag(FLAG_TUPLE))
+    RetTag *yieldIntent = &(fn->retTag);
+    if (IteratorInfo* ii = fn->iteratorInfo)
+      yieldIntent = &(ii->iteratorRetTag);
+    if (*yieldIntent == RET_VALUE && isRecord(retValType) &&
+        ! retValType->symbol->hasFlag(FLAG_TUPLE)         &&
+        strncmp(fn->name, "chpl__loopexpr_iter", 19)      )
     {
       INT_ASSERT(fn, isReferenceType(retType));
-      fn->retTag = RET_CONST_REF;
+      *yieldIntent = RET_CONST_REF;
+//printf("set RET_CONST_REF  %s %d %s\n", fn->name, fn->id, debugLoc(fn)); //wass
     }
   }
 

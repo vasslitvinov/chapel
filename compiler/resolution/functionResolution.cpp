@@ -8915,7 +8915,10 @@ Type* moveDetermineLhsType(CallExpr* call) {
 
   if (lhsSym->hasFlag(FLAG_YVV) && lhsSym->qual == QUAL_UNKNOWN &&
       ! isReferenceType(lhsSym->type) && isRecord(lhsSym->type) &&
-      ! lhsSym->type->symbol->hasFlag(FLAG_TUPLE))  // tuples are cool already
+      // tuples are cool already
+      ! lhsSym->type->symbol->hasFlag(FLAG_TUPLE)               &&
+      // do not mess with loop expressions
+      strncmp(call->parentSymbol->name, "chpl__loopexpr_iter", 19))
   {
     // iterator yields record value by default intent => switch to yield by ref
     bool handled = false;
@@ -8923,7 +8926,8 @@ Type* moveDetermineLhsType(CallExpr* call) {
       if (deref->isPrimitive(PRIM_DEREF)) {
         deref->replace(deref->get(1)->remove());
         handled = true;
-//printf("removed PRIM_DEREF %d %s\n", call->id, debugLoc(call)); //wass
+//printf("removed PRIM_DEREF %s %d %s\n",
+//       call->parentSymbol->name, call->id, debugLoc(call)); //wass
       }
     }
     Type* refType = lhsSym->type->getRefType();
@@ -8934,6 +8938,8 @@ Type* moveDetermineLhsType(CallExpr* call) {
       call->insertBefore("'move'(%S,'addr of'(%E))",
                          addrOfTmp, call->get(2)->remove());
       call->insertAtTail(new SymExpr(addrOfTmp));
+//printf("added PRIM_ADDR_OF %s %d %s\n",
+//       call->parentSymbol->name, call->id, debugLoc(call)); //wass
     }
   }
 
