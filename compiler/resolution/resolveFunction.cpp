@@ -2084,18 +2084,6 @@ void resolveReturnTypeAndYieldedType(FnSymbol* fn, Type** yieldedType) {
 
   } else {
 
-    // Update the yielded type argument if it was requested
-    if (yieldedType != NULL)
-      *yieldedType = retType;
-
-    // Update the types of the yielded symbols if they have FLAG_YVV
-    if (isIterator) {
-      forv_Vec(Symbol, yieldedSym, retSymbols) {
-        if (yieldedSym->hasFlag(FLAG_YVV))
-          yieldedSym->type = retType;
-      }
-    }
-
     // adjust retTag to yield records by ref; see also moveDetermineLhsType()
     Type* retValType = retType->getValType();
     RetTag *yieldIntent = &(fn->retTag);
@@ -2110,9 +2098,26 @@ void resolveReturnTypeAndYieldedType(FnSymbol* fn, Type** yieldedType) {
         ! isBorrowedClass(retValType)                     &&
         ! isUnmanagedClass(retValType)                    )
     {
-      INT_ASSERT(fn, isReferenceType(retType));
+      // retType may be non-ref when it is declared by user
+      if (! isReferenceType(retType)) {
+        retType = retType->getRefType();
+        if (IteratorInfo* ii = fn->iteratorInfo)
+          ii->yieldedType = retType;
+      }
       *yieldIntent = RET_CONST_REF;
 //printf("set RET_CONST_REF  %s %d %s\n", fn->name, fn->id, debugLoc(fn)); //wass
+    }
+
+    // Update the yielded type argument if it was requested
+    if (yieldedType != NULL)
+      *yieldedType = retType;
+
+    // Update the types of the yielded symbols if they have FLAG_YVV
+    if (isIterator) {
+      forv_Vec(Symbol, yieldedSym, retSymbols) {
+        if (yieldedSym->hasFlag(FLAG_YVV))
+          yieldedSym->type = retType;
+      }
     }
   }
 

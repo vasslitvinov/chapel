@@ -8938,8 +8938,14 @@ Type* moveDetermineLhsType(CallExpr* call) {
     if (!handled) {
       VarSymbol* addrOfTmp = newTemp("yieldAddr", refType);
       call->insertBefore(new DefExpr(addrOfTmp));
-      call->insertBefore("'move'(%S,'addr of'(%E))",
-                         addrOfTmp, call->get(2)->remove());
+      Expr* rhs = call->get(2)->remove();
+      if (! isSymExpr(rhs)) {
+        VarSymbol* rhsTemp = newTemp("yieldedRHS", rhs->typeInfo());
+        call->insertBefore(new DefExpr(rhsTemp));
+        call->insertBefore("'move'(%S,%E)", rhsTemp, rhs);
+        rhs = new SymExpr(rhsTemp);
+      }
+      call->insertBefore("'move'(%S,'addr of'(%E))", addrOfTmp, rhs);
       call->insertAtTail(new SymExpr(addrOfTmp));
 //printf("added PRIM_ADDR_OF %s %d %s\n",
 //       call->parentSymbol->name, call->id, debugLoc(call)); //wass
