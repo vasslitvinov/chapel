@@ -3030,6 +3030,14 @@ static void removeUncalledIterators()
   }
 }
 
+#include <filesystem>
+static const char* abspathB(BaseAST* ast) {
+  static char buffer[4096];
+  std::__fs::filesystem::path p = ast->fname();
+  snprintf(buffer, 4096, "%s", std::__fs::filesystem::absolute(p).c_str());
+  return buffer;
+}
+
 static bool interestingIter(FnSymbol* fn, Type* yt) {
   return
       ! isReferenceType(yt) && isRecord(yt)              &&
@@ -3043,14 +3051,12 @@ static bool interestingIter(FnSymbol* fn, Type* yt) {
       true;
 }
 
-static void reportOne(FnSymbol* fn, Type* yt) {
-//  printf("%%%%%% %s %%%%%%\n", fn->stringLoc());
+static void examineFn(FnSymbol* fn, bool& withIC, bool& noIC) {
   std::vector<CallExpr*> calls;
   collectCallExprs(fn, calls);
-  bool withIC = false, noIC = false;
-  for_vector(CallExpr, call, calls) if (call->isPrimitive(PRIM_YIELD)) {
+  for_vector(CallExpr, call, calls) {
+   if (call->isPrimitive(PRIM_YIELD)) {  // examine this yield
     Symbol* yvv = toSymExpr(call->get(1))->symbol();
-//gdbShouldBreakHere(); //wass
     INT_ASSERT(yvv->hasFlag(FLAG_YVV));
     bool gotIC = false;
     if (SymExpr* se = yvv->getSingleDef())
@@ -3061,20 +3067,28 @@ static void reportOne(FnSymbol* fn, Type* yt) {
          if (icFun->hasFlag(FLAG_INIT_COPY_FN))
           gotIC = true;
     if (gotIC) withIC = true; else noIC = true;
+   }
+   else if (FnSymbol* taskFn = call->resolvedFunction()) {
+    if (isTaskFun(taskFn))               // descend into the task function
+     examineFn(taskFn, withIC, noIC);
+   }
   }
-  printf("%%%%%% %s withIC%c noIC%c %%%%%%\n",
-         fn->stringLoc(), withIC?'+':'-', noIC?'+':'-');
-//  gdbShouldBreakHere(); //wass
+}
+
+static void reportOne(FnSymbol* fn, Type* yt) {
+  bool withIC = false, noIC = false;
+  examineFn(fn, withIC, noIC);
+  printf("%%%%%%  %s:%d  withIC%c  noIC%c  %%%%%%\n",
+         abspathB(fn), fn->linenum(), withIC?'+':'-', noIC?'+':'-');
 }
 
 static void reportIterators() {
   forv_Vec(FnSymbol, fn, gFnSymbols) {
    if (IteratorInfo* ii = fn->iteratorInfo) {
     Type* yt = ii->yieldedType;
-    if (ii->iteratorRetTag == RET_VALUE && interestingIter(fn, yt)) {
+    if (ii->iteratorRetTag == RET_VALUE &&
+        !isTaskFun(fn) && interestingIter(fn, yt)) {
       reportOne(fn, yt);
-     //printf("%p\n", ii);
-     //gdbShouldBreakHere(); //wass
     }
    }
   }
