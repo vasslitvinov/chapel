@@ -3035,6 +3035,21 @@ static const char* abspathB(BaseAST* ast) {
   return realpath(ast->fname(), buffer);
 }
 
+#if 1 //wass - when does a value-yielding iterator return a ref type?
+static void reportIterators() {
+  forv_Vec(FnSymbol, fn, gFnSymbols) {
+    if (IteratorInfo* ii = fn->iteratorInfo) {
+      if (isTaskFun(fn)) continue;
+
+      Type* yt = ii->yieldedType;
+      if (ii->iteratorRetTag == RET_VALUE && (yt->isRef() || yt->isWideRef()))
+        printf("%%%%%%   %s:%d   %s   %s   %%%%%%\n",
+               abspathB(fn), fn->linenum(), fn->name, yt->symbol->name);
+    }
+  }
+}
+
+#else //wass
 static bool interestingIter(FnSymbol* fn, Type* yt) {
   return
       ! isReferenceType(yt) && isRecord(yt)              &&
@@ -3090,6 +3105,7 @@ static void reportIterators() {
    }
   }
 }
+#endif //wass
 
 void lowerIterators() {
   reportIterators();
