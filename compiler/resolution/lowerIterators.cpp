@@ -3030,12 +3030,9 @@ static void removeUncalledIterators()
   }
 }
 
-#include <filesystem>
 static const char* abspathB(BaseAST* ast) {
   static char buffer[4096];
-  std::__fs::filesystem::path p = ast->fname();
-  snprintf(buffer, 4096, "%s", std::__fs::filesystem::absolute(p).c_str());
-  return buffer;
+  return realpath(ast->fname(), buffer);
 }
 
 static bool interestingIter(FnSymbol* fn, Type* yt) {
