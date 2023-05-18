@@ -3035,7 +3035,7 @@ static const char* abspathB(BaseAST* ast) {
   return realpath(ast->fname(), buffer);
 }
 
-#if 1 //wass - when does a value-yielding iterator return a ref type?
+#if 0 //wass - when does a value-yielding iterator return a ref type?
 static void reportIterators() {
   forv_Vec(FnSymbol, fn, gFnSymbols) {
     if (IteratorInfo* ii = fn->iteratorInfo) {
@@ -3076,7 +3076,7 @@ static void examineFn(FnSymbol* fn, bool& withIC, bool& noIC) {
       if (move->isPrimitive(PRIM_MOVE))
        if (CallExpr* icCall = toCallExpr(move->get(2)))
         if (FnSymbol* icFun = icCall->resolvedFunction())
-         if (icFun->hasFlag(FLAG_INIT_COPY_FN))
+         if (icFun->hasFlag(FLAG_AUTO_COPY_FN))
           gotIC = true;
     if (gotIC) withIC = true; else noIC = true;
    }
@@ -3092,6 +3092,7 @@ static void reportOne(FnSymbol* fn, Type* yt) {
   examineFn(fn, withIC, noIC);
   printf("%%%%%%  %s:%d  withIC%c  noIC%c  %%%%%%\n",
          abspathB(fn), fn->linenum(), withIC?'+':'-', noIC?'+':'-');
+//  if (!strcmp(fn->name, "node_iter") || !strcmp(fn->name, "coeffs_iter")) gdbShouldBreakHere(); //wass
 }
 
 static void reportIterators() {
