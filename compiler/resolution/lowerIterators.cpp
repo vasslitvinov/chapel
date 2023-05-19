@@ -3035,8 +3035,9 @@ static const char* abspathB(BaseAST* ast) {
   return realpath(ast->fname(), buffer);
 }
 
-#if 0 //wass - when does a value-yielding iterator return a ref type?
-static void reportIterators() {
+#if 0 //wass
+// when does a value-yielding iterator return a ref type?
+static void reportIteratorsYieldingRefTypesByDefaultIntent() {
   forv_Vec(FnSymbol, fn, gFnSymbols) {
     if (IteratorInfo* ii = fn->iteratorInfo) {
       if (isTaskFun(fn)) continue;
@@ -3048,8 +3049,8 @@ static void reportIterators() {
     }
   }
 }
+#endif //wass
 
-#else //wass
 static bool interestingIter(FnSymbol* fn, Type* yt) {
   return
       ! isReferenceType(yt) && isRecord(yt)              &&
@@ -3076,7 +3077,7 @@ static void examineFn(FnSymbol* fn, bool& withIC, bool& noIC) {
       if (move->isPrimitive(PRIM_MOVE))
        if (CallExpr* icCall = toCallExpr(move->get(2)))
         if (FnSymbol* icFun = icCall->resolvedFunction())
-         if (icFun->hasFlag(FLAG_AUTO_COPY_FN))
+         if (icFun->hasEitherFlag(FLAG_AUTO_COPY_FN, FLAG_INIT_COPY_FN))
           gotIC = true;
     if (gotIC) withIC = true; else noIC = true;
    }
@@ -3106,7 +3107,6 @@ static void reportIterators() {
    }
   }
 }
-#endif //wass
 
 void lowerIterators() {
   reportIterators();
