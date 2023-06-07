@@ -1114,7 +1114,7 @@ module MyRandom {
       proc choice(x: range(stridable=?), size:?sizeType=none, replace=true, prob:?probType=none)
         throws
       {
-        var dom: domain(1,stridable=true);
+        var dom: domain(1,strides=strideKind.any);
 
         if x.boundedType != BoundedRangeType.bounded {
           throw new owned IllegalArgumentError('input range must be bounded');

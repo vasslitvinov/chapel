@@ -624,7 +624,7 @@ proc LevelVariable.fillCFGhostRegion (
 //---------------------------------------------------------------
 
 proc GridVariable.refineValues (
-  fine_cells: domain(dimension,stridable=true),
+  fine_cells: domain(dimension,strides=strideKind.any),
   ref_ratio:  dimension*int )
 {
 

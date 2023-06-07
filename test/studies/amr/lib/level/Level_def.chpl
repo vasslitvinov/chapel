@@ -38,8 +38,8 @@ class Level {
   // the level.
   //--------------------------------------------------------------
   
-  var possible_cells:       domain(dimension, stridable=true);
-  var possible_ghost_cells: domain(dimension, stridable=true);
+  var possible_cells:       domain(dimension, strides=strideKind.any);
+  var possible_ghost_cells: domain(dimension, strides=strideKind.any);
 
 
   //==== Child grid info ====
@@ -79,7 +79,7 @@ class Level {
 
 
     //---- Possible cells ----
-    var ranges: dimension*range(stridable = true);
+    var ranges: dimension*range(stridable = strideKind.any);
     for d in dimensions do ranges(d) = 1 .. 2*n_cells(d)-1 by 2;
     possible_cells = ranges;
 
@@ -226,7 +226,7 @@ proc Level.addGrid(
 // This version takes the full domain of grid cells.
 //---------------------------------------------------
 
-proc Level.addGrid (grid_cells: domain(dimension,stridable=true))
+proc Level.addGrid (grid_cells: domain(dimension,strides=strideKind.any))
 {
   addGrid(grid_cells.low-1, grid_cells.high+1);
 }
@@ -316,7 +316,7 @@ proc Level.complete ()
 class SiblingGhostRegion {
 
   var neighbors: domain(unmanaged Grid);
-  var overlaps:  [neighbors] domain(dimension,stridable=true);
+  var overlaps:  [neighbors] domain(dimension,strides=strideKind.any);
   
   
   //|\''''''''''''''''''''|\

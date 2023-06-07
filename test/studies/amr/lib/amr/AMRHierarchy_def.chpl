@@ -368,9 +368,9 @@ proc AMRHierarchy.buildRefinedLevel ( i_refining: int )
 
     for cell in cells do
       if flags(cell) {
-        var ranges: dimension*range(stridable=true);
+        var ranges: dimension*range(strides=strideKind.any);
         for d in dimensions do ranges(d) = cell(d)-2 .. cell(d)+2 by 2;
-        var neighborhood: domain(dimension,stridable=true) = ranges;
+        var neighborhood: domain(dimension,strides=strideKind.any) = ranges;
         for nbr in cells(neighborhood) do
           buffered_flags(nbr) = true;
       }
@@ -413,7 +413,7 @@ proc AMRHierarchy.buildRefinedLevel ( i_refining: int )
   
   //===> Ensure proper nesting ===>
 
-  var domains_to_refine = new unmanaged List( domain(dimension,stridable=true) );  
+  var domains_to_refine = new unmanaged List( domain(dimension,strides=strideKind.any) );  
   
   
   //---- Form exterior of coarse level ----
