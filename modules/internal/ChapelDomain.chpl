@@ -2113,10 +2113,19 @@ module ChapelDomain {
     proc high where this.isAssociative() {
       compilerError("associative domains do not support '.high'");
     }
+
     /* Return the stride of the indices in this domain */
     proc stride do return _value.dsiStride;
+    @chpldoc.nodoc proc stride param where rank==1 &&
+      (isRectangular() || isSparse()) && strides.isPosNegOne() do
+      return if strides.isOne() then 1 else -1;
+
     /* Return the alignment of the indices in this domain */
     proc alignment do return _value.dsiAlignment;
+
+    @chpldoc.nodoc proc alignment param where rank==1 &&
+      (isRectangular() || isSparse()) && strides.isPosNegOne() do return 0;
+
     /* Return the first index in this domain */
     proc first do return _value.dsiFirst;
     /* Return the last index in this domain */
