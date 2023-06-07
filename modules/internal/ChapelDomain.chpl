@@ -794,7 +794,7 @@ module ChapelDomain {
     if isTuple(b) then return allUintTup(0);
     return false; // an error will be issued by _makeIndexTuple()
     proc allUintTup(param dim) param do
-      if dim == b.size then return false;
+      if dim == b.size then return true;
       else if ! isUint(b(dim)) then return false;
       else return allUintTup(dim+1);
   }
