@@ -179,7 +179,7 @@ class LocCyclic1DDist {
   // to use lclIdxType here is wrong since we're talking about
   // the section of the global index space owned by the locale.
   //
-  const myChunk: domain(1, glbIdxType, true);
+  const myChunk: domain(1, glbIdxType, strideKind.any);
   const locid: int;
   const loc: locale;
 
@@ -397,7 +397,7 @@ class LocCyclic1DDom {
   //
   // a local domain describing the indices owned by this locale
   //
-  var myBlock: domain(1, glbIdxType, true);
+  var myBlock: domain(1, glbIdxType, strideKind.any);
 
   //
   // iterator over this locale's indices
