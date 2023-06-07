@@ -1086,7 +1086,7 @@ proc CyclicZipOptArr.doiBulkTransferTo(Barg)
           const end=bulkCommConvertCoordinate(regionA.last, B, A);
           const sb=chpl__tuplify(A.dom.locDoms(i).myBlock.stride);
           
-          var r1,r2: rank * range(idxType = el,stridable = strideKind.any);
+          var r1,r2: rank * range(idxType = el,strides = strideKind.any);
           r2=regionA.dims();
            //In the case that the number of elements in dimension t for r1 and r2
            //were different, we need to calculate the correct stride in r1
@@ -1125,7 +1125,7 @@ proc CyclicZipOptArr.doiBulkTransferFrom(Barg)
         const end=bulkCommConvertCoordinate(regionA.last, A, B);
         const sb=chpl__tuplify(B.dom.locDoms(i).myBlock.stride);
       
-        var r1,r2: rank * range(idxType = el,stridable = strideKind.any);
+        var r1,r2: rank * range(idxType = el,strides = strideKind.any);
         r2=regionA.dims();
         //In the case that the number of elements in dimension t for r1 and r2
         //were different, we need to calculate the correct stride in r1
@@ -1165,7 +1165,7 @@ proc CyclicZipOptArr.doiBulkTransferToDR(Barg)
         
         //r2 is the domain to refer the elements of A in locale j
         //r1 is the domain to refer the correspondig elements of B
-        var r1,r2: rank * range(idxType = el,stridable = strideKind.any);
+        var r1,r2: rank * range(idxType = el,strides = strideKind.any);
         r2=inters.dims();
         //In the case that the number of elements in dimension t for r1 and r2
         //were different, we need to calculate the correct stride in r1
@@ -1210,7 +1210,7 @@ proc CyclicZipOptArr.doiBulkTransferFromDR(Barg)
         const end=bulkCommConvertCoordinate(inters.last, A, B);
         const sb = chpl__tuplify(B.dom.dsiStride); //return a tuple
         
-        var r1,r2: rank * range(idxType = el,stridable = strideKind.any);
+        var r1,r2: rank * range(idxType = el,strides = strideKind.any);
         r2=inters.dims();
         //In the case that the number of elements in dimension t for r1 and r2
         //were different, we need to calculate the correct stride in r1

@@ -54,7 +54,7 @@ for param rank in 2..maxDims {
   {
     var r : (rank-1)*range(strides=strideKind.any);
     for i in 0..#(rank-1) do r(i) = 1..10;
-    var temp : domain(rank-1, stridable = strideKind.any) = r;
+    var temp : domain(rank-1, strides = strideKind.any) = r;
     smaller = temp;
   }
   

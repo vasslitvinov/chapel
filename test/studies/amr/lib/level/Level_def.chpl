@@ -79,7 +79,7 @@ class Level {
 
 
     //---- Possible cells ----
-    var ranges: dimension*range(stridable = strideKind.any);
+    var ranges: dimension*range(strides = strideKind.any);
     for d in dimensions do ranges(d) = 1 .. 2*n_cells(d)-1 by 2;
     possible_cells = ranges;
 

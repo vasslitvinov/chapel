@@ -75,7 +75,7 @@ class Grid {
       i_high(d) = i_low(d) + 2*n_cells(d);
 
     //==== Physical cells ====
-    var ranges: dimension*range(stridable = strideKind.any);
+    var ranges: dimension*range(strides = strideKind.any);
     for d in dimensions
     {
       ranges(d) = (i_low(d)+1 .. by 2) #n_cells(d);
