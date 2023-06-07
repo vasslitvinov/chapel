@@ -228,7 +228,7 @@ class Cyclic1DDom {
   //
   // a domain describing the complete domain
   //
-  const whole: domain(1, glbIdxType, false);
+  const whole: domain(1, glbIdxType);
 
   //
   // an array of local domain class descriptors -- set up in

@@ -18,7 +18,7 @@ test(customConstDom);
 writeln();
 
 writeln("var domain with record initializer");
-var varRecInit = new _domain(defaultDist, 1, int, false, false);
+var varRecInit = new _domain(defaultDist, 1, int, false);
 test(varRecInit);
 writeln();
 
