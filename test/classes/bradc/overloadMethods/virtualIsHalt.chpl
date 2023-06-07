@@ -11,7 +11,7 @@ class D : C {
   type dim_type;
   param stridable: bool;
 
-  var ranges: rank*range(dim_type, boundKind.both, stridable);
+  var ranges: rank*range(dim_type, boundKind.both);
 
   override proc bbox(d: int) {
     const r: range(dim_type, boundKind.both) = ranges(d-1);
