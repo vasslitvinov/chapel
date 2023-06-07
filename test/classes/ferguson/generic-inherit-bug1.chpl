@@ -11,7 +11,7 @@ module Structure {
   class Parent : GrandParent {
     param rank:int;
     type idxType;
-    param strides: strideKind.any;
+    param strides: strideKind;
 
     proc foo( arg: rank*range(idxType, boundKind.both,strides) ) {
       writeln("in Parent(", rank, ") foo ", arg);
@@ -34,7 +34,7 @@ module Structure {
   class ListerParent : ListerGrandParent {
     param rank:int;
     type idxType;
-    param strides: strideKind.any;
+    param strides: strideKind;
 
     proc getListedType() type {
       return unmanaged Parent(rank=rank, idxType=idxType, strides=strides);
