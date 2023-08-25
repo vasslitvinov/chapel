@@ -29,7 +29,7 @@ proc main(args: [] string) {
   var dataDom = {1..fileLen-numRead},
       data: [dataDom] uint(8),
       idx = 1;
-
+  data.enableResize();
   while stdinNoLock.readline(data, lineSize, idx) do
     idx += lineSize - 1;
 
