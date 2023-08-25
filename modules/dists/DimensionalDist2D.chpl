@@ -515,6 +515,14 @@ proc DimensionalArr.dsiLocalSubdomain(loc: locale) {
   return dom.dsiLocalSubdomain(loc);
 }
 
+override proc DimensionalArr.dsiSetResizable() {
+  _resizable = true;
+  // todo: avoid duplicate updates below, which are due to accessing
+  // the same set of local array descriptors through each privatized copy
+  for lad in localAdescs do on lad do
+    lad.myStorageArr.dsiSetResizable();
+}
+
 
 //== privatization
 

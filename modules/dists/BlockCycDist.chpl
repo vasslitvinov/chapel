@@ -866,6 +866,12 @@ class BlockCyclicArr: BaseRectangularArr(?) {
 
 override proc BlockCyclicArr.dsiGetBaseDom() do return dom;
 
+override proc BlockCyclicArr.dsiSetResizable() {
+  _resizable = true;
+  if const mla = myLocArr then
+    mla.myElems.dsiSetResizable();
+}
+
 override proc BlockCyclicArr.dsiIteratorYieldsLocalElements() param {
   return true;
 }

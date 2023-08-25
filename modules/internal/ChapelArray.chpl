@@ -1767,18 +1767,19 @@ module ChapelArray {
 //wass was: proc displayRepresentation() { _value.dsiDisplayRepresentation(); }
     proc displayRepresentation() {
       use ChapelDebugPrint;
-      proc stringify(dims, param d = 0) do return
-        if d == dims.size then "" else "," +
-          dims(d):string + stringify(dims, d+1);
-        
       chpl_debug_writeln("array(", if _value._resizable then "R+" else "r-",
-                         stringify(this.domain.dims()), ")");
+                         stringifyDims(this.domain), ")");
     }
 
     proc enableResize() {
-      _value._resizable = true;
+      const value = _value;
+      const pid = value.pid;
       if _isPrivatized(_instance) {
-        compilerError("TODO");
+        // see proc _reprivatize(value)
+        coforall loc in Locales do on loc do
+          chpl_getPrivatizedCopy(value.type, pid).dsiSetResizable();
+      } else {
+        value.dsiSetResizable();
       }
     }
 

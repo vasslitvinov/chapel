@@ -883,6 +883,12 @@ override proc CyclicArr.dsiDisplayRepresentation() {
 
 override proc CyclicArr.dsiGetBaseDom() do return dom;
 
+override proc CyclicArr.dsiSetResizable() {
+  _resizable = true;
+  if const mla = myLocArr then
+    mla.myElems.dsiSetResizable();
+}
+
 override proc CyclicArr.dsiIteratorYieldsLocalElements() param {
   return true;
 }

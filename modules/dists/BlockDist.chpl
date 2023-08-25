@@ -1217,6 +1217,12 @@ override proc BlockArr.dsiDisplayRepresentation() {
 
 override proc BlockArr.dsiGetBaseDom() do return dom;
 
+override proc BlockArr.dsiSetResizable() {
+  _resizable = true;
+  if const mla = myLocArr then
+    mla.myElems.dsiSetResizable();
+}
+
 override proc BlockArr.dsiIteratorYieldsLocalElements() param {
   return true;
 }

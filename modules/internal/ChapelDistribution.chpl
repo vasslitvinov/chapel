@@ -780,8 +780,8 @@ module ChapelDistribution {
 
     var pid: int = nullPid; // privatized ID, if privatization is supported
     var _decEltRefCounts : bool = false;
-    var _resizePolicy = chpl_ddataResizePolicy.normalInit;
     var _resizable = false;
+    var _resizePolicy = chpl_ddataResizePolicy.normalInit;
 
     proc chpl__rvfMe() param {
       return false;
@@ -809,6 +809,8 @@ module ChapelDistribution {
       pragma "unsafe" var ret: unmanaged BaseDom; // nil
       return ret;
     }
+
+    proc dsiSetResizable() do _resizable = true;
 
     // takes 'rmFromList' which indicates whether the array should
     // be removed from the domain's list or just decremented from
@@ -1240,21 +1242,35 @@ module ChapelDistribution {
 
     // todo: should we cast indices for dsiSetIndices like for dsiReallocate?
     lhs.dsiSetIndices(rhsInds);
+//wass
+//    if !lhsPrivate then
+//      chpl_debug_writeln("start resizing to ", rhsInds(0):string);
 
     for e in lhs._arrs do {
       var eCastQ = e:arrType?;
       var eCast = eCastQ!;
       use ChapelDebugPrint;
       if ! lhsPrivate && ! eCast._resizable then
-        chpl_debug_writeln("resizing an array not opted into it");
+        chpl_debug_writeln("resizing an array not opted into it ",
+                           /*wass*/stringifyDims(rhsInds));
       on e do eCast.dsiPostReallocate();
     }
 
+//wass
+//    if !lhsPrivate then
+//      chpl_debug_writeln("done resizing to ", rhsInds(0):string);
     if lhs.dsiSupportsPrivatization() {
       _reprivatize(lhs);
     }
   }
 
+//wass
+  proc stringifyDims(dom) do return
+    stringifyDims(dom.dsiDims());
+
+  proc stringifyDims(dims:_tuple, param d=0) do return
+    if d == dims.size then ""
+    else "," + dims(d):string + stringifyDims(dims, d+1);
 
   proc chpl_assignDomainWithIndsIterSafeForRemoving(lhs:?t, rhs: domain)
     where isSubtype(_to_borrowed(t),BaseSparseDom) ||

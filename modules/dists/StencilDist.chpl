@@ -1214,6 +1214,12 @@ override proc StencilArr.dsiDisplayRepresentation() {
   }
 }
 
+override proc BlockCyclicArr.dsiSetResizable() {
+  _resizable = true;
+  if const mla = myLocArr then
+    mla.myElems.dsiSetResizable();
+}
+
 override proc StencilArr.dsiGetBaseDom() do return dom;
 
 //
