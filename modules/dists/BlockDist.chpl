@@ -1179,7 +1179,7 @@ proc BlockDom.dsiSetIndices(x) {
 }
 
 proc BlockDom.dsiAssignDomain(rhs: domain, lhsPrivate:bool) {
-  chpl_assignDomainWithGetSetIndices(this, rhs);
+  chpl_assignDomainWithGetSetIndices(this, rhs, lhsPrivate);
 }
 
 proc BlockDom.setup() {

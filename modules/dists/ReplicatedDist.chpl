@@ -447,6 +447,7 @@ override proc ReplicatedDom.dsiDestroyDom() {
 
 proc ReplicatedDom.dsiAssignDomain(rhs: domain, lhsPrivate:bool) {
   // Don't do anything for the arrays (no dsiReallocate/dsiPostReallocate)
+  writeln("in ReplicatedDom.dsiAssignDomain()"); //wass todo
   this.dsiSetIndices(rhs.getIndices());
 }
 

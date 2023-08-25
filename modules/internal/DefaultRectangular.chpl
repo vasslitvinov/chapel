@@ -208,7 +208,7 @@ module DefaultRectangular {
     }
 
     proc dsiAssignDomain(rhs: domain, lhsPrivate:bool) {
-      chpl_assignDomainWithGetSetIndices(this, rhs);
+      chpl_assignDomainWithGetSetIndices(this, rhs, lhsPrivate);
     }
 
     iter these_help(param d: int) /*where storageOrder == ArrayStorageOrder.RMO*/ {

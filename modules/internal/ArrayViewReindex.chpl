@@ -279,7 +279,7 @@ module ArrayViewReindex {
     }
 
     proc dsiAssignDomain(rhs: domain, lhsPrivate: bool) {
-      chpl_assignDomainWithGetSetIndices(this, rhs);
+      chpl_assignDomainWithGetSetIndices(this, rhs, lhsPrivate);
     }
 
     override proc isReindexDomainView() param {

@@ -1764,7 +1764,23 @@ module ChapelArray {
     }
 
     @chpldoc.nodoc
-    proc displayRepresentation() { _value.dsiDisplayRepresentation(); }
+//wass was: proc displayRepresentation() { _value.dsiDisplayRepresentation(); }
+    proc displayRepresentation() {
+      use ChapelDebugPrint;
+      proc stringify(dims, param d = 0) do return
+        if d == dims.size then "" else "," +
+          dims(d):string + stringify(dims, d+1);
+        
+      chpl_debug_writeln("array(", if _value._resizable then "R+" else "r-",
+                         stringify(this.domain.dims()), ")");
+    }
+
+    proc enableResize() {
+      _value._resizable = true;
+      if _isPrivatized(_instance) {
+        compilerError("TODO");
+      }
+    }
 
     /*
        Return an array of locales over which this array has been distributed.

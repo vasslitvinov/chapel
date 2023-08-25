@@ -781,6 +781,7 @@ module ChapelDistribution {
     var pid: int = nullPid; // privatized ID, if privatization is supported
     var _decEltRefCounts : bool = false;
     var _resizePolicy = chpl_ddataResizePolicy.normalInit;
+    var _resizable = false;
 
     proc chpl__rvfMe() param {
       return false;
@@ -1220,7 +1221,7 @@ module ChapelDistribution {
   // Domain implementations may supply their own dsiAssignDomain
   // that does something else.
   // lhs is a subclass of BaseRectangularDom
-  proc chpl_assignDomainWithGetSetIndices(lhs:?t, rhs: domain)
+  proc chpl_assignDomainWithGetSetIndices(lhs:?t, rhs: domain, lhsPrivate)
     where isSubtype(_to_borrowed(t),BaseRectangularDom)
   {
     const rhsInds = rhs.getIndices();
@@ -1243,6 +1244,9 @@ module ChapelDistribution {
     for e in lhs._arrs do {
       var eCastQ = e:arrType?;
       var eCast = eCastQ!;
+      use ChapelDebugPrint;
+      if ! lhsPrivate && ! eCast._resizable then
+        chpl_debug_writeln("resizing an array not opted into it");
       on e do eCast.dsiPostReallocate();
     }
 

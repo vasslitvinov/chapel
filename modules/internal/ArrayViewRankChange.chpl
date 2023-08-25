@@ -218,7 +218,7 @@ module ArrayViewRankChange {
     }
 
     proc dsiAssignDomain(rhs: domain, lhsPrivate: bool) {
-      chpl_assignDomainWithGetSetIndices(this, rhs);
+      chpl_assignDomainWithGetSetIndices(this, rhs, lhsPrivate);
     }
 
     iter these() {

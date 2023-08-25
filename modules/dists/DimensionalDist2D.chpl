@@ -876,7 +876,7 @@ proc DimensionalDom.dsiSetIndices(newRanges: rank * rangeT): void {
 }
 
 proc DimensionalDom.dsiAssignDomain(rhs: domain, lhsPrivate:bool) {
-  chpl_assignDomainWithGetSetIndices(this, rhs);
+  chpl_assignDomainWithGetSetIndices(this, rhs, lhsPrivate);
 }
 
 // not part of DSI

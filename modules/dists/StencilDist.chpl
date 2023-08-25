@@ -1038,7 +1038,7 @@ proc StencilDom.dsiSetIndices(x) {
 }
 
 proc StencilDom.dsiAssignDomain(rhs: domain, lhsPrivate:bool) {
-  chpl_assignDomainWithGetSetIndices(this, rhs);
+  chpl_assignDomainWithGetSetIndices(this, rhs, lhsPrivate);
 }
 
 // Create a domain that points to the nearest neighboring locales

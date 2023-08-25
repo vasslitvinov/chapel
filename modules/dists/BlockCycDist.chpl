@@ -670,7 +670,7 @@ proc BlockCyclicDom.dsiSetIndices(x) {
 }
 
 proc BlockCyclicDom.dsiAssignDomain(rhs: domain, lhsPrivate:bool) {
-  chpl_assignDomainWithGetSetIndices(this, rhs);
+  chpl_assignDomainWithGetSetIndices(this, rhs, lhsPrivate);
 }
 
 proc BlockCyclicDom.setup() {
