@@ -1250,7 +1250,7 @@ module ChapelDistribution {
       var eCastQ = e:arrType?;
       var eCast = eCastQ!;
       use ChapelDebugPrint;
-      if ! lhsPrivate && ! eCast._resizable then
+      if ! eCast._resizable then
         chpl_debug_writeln("resizing an array not opted into it ",
                            /*wass*/stringifyDims(rhsInds));
       on e do eCast.dsiPostReallocate();
