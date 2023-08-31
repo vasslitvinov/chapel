@@ -2771,6 +2771,14 @@ static Expr* preFoldNamed(CallExpr* call) {
       retval = unrollHetTupleLoop(call, tupExpr, iterType);
     }
 
+  } else if (call->isNamed("chpl_arrayDomainCheck")) {
+      INT_ASSERT(call->numActuals() == 1);
+      Symbol* arg = toSymExpr(call->get(1))->symbol();
+      if (! arg->type->getValType()->symbol->hasFlag(FLAG_ARRAY)) {
+        retval = new CallExpr(PRIM_NOOP);
+        call->replace(retval);
+      }
+
   } else if (call->numActuals() == 1) {
     // Implement the common case of a boolean argument here,
     // to avoid full-blown call resolution.

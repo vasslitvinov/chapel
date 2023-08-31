@@ -684,6 +684,27 @@ static void normalizeBase(BaseAST* base, bool addEndOfStatements) {
   }
 }
 
+static std::set<CallExpr*> domainCheckAdded;
+
+//wass
+static void addArrayDomainCheck(CallExpr* call) {
+  if (call->isPrimitive(PRIM_DEFAULT_INIT_VAR) ||
+      call->isPrimitive(PRIM_INIT_VAR) ||
+      call->isPrimitive(PRIM_INIT_VAR_SPLIT_INIT))
+  {
+    if (domainCheckAdded.count(call) > 0) return; // already handled
+    domainCheckAdded.insert(call);
+    INT_ASSERT(call == call->getStmtExpr()); // else get stmt expr
+    Symbol* var = toSymExpr(call->get(1))->symbol();
+    if (var->hasFlag(FLAG_TEMP) || var ->hasFlag(FLAG_EXPR_TEMP)) return;
+    if (!var->hasFlag(FLAG_AGG_GENERATOR)) {
+      SET_LINENO(call);
+      call->insertAfter("chpl_arrayDomainCheck(%S)", var);
+    }
+    if (call->getModule()->modTag == MOD_USER) gdbShouldBreakHere(); //wass
+  }
+}
+
 /************************************* | **************************************
 *                                                                             *
 * We can't really do this before resolution, because we need to know if       *
@@ -781,6 +802,8 @@ void checkUseBeforeDefs(FnSymbol* fn) {
           }
         }
       }
+      if (CallExpr* call = toCallExpr(ast))
+        addArrayDomainCheck(call);
     }
   }
 }

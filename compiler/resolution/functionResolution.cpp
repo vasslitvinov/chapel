@@ -7915,6 +7915,9 @@ static void resolveInitField(CallExpr* call) {
   if (srcType == dtUnknown)
     INT_FATAL(call, "Unable to resolve field type");
 
+//wass - field init
+if (srcType->getValType()->symbol->hasFlag(FLAG_ARRAY)) gdbShouldBreakHere();
+
   if (fs->hasFlag(FLAG_PARAM)) {
     if (isLegalParamType(srcType) == false) {
       USR_FATAL_CONT(fs, "'%s' is not of a supported param type", fs->name);

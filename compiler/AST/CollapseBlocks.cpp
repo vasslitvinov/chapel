@@ -86,6 +86,8 @@
 
 bool CollapseBlocks::enterBlockStmt(BlockStmt* node)
 {
+  extern int breakOnRemoveID; //wass
+  int bodSave = breakOnRemoveID; breakOnRemoveID = 0; //wass
   AList shuffle;
 
   // Transfer all of the expressions in to a temporary Alist
@@ -123,6 +125,7 @@ bool CollapseBlocks::enterBlockStmt(BlockStmt* node)
 
   removeDeadIterResumeGotos();
 
+  breakOnRemoveID = bodSave; //wass
   // Do not recurse
   return false;
 }
