@@ -471,6 +471,7 @@ module ChapelDistribution {
     override proc dsiBulkAdd(inds: [] index(rank, idxType),
         dataSorted=false, isUnique=false, addOn=nilLocale){
 
+pragma "aggregator generator"
       var inds_ = inds;
       return bulkAdd_help(inds_, dataSorted, isUnique, addOn);
     }
@@ -583,7 +584,9 @@ module ChapelDistribution {
 
       //find individual insert points
       //and eliminate duplicates between inds and dom
+pragma "aggregator generator"
       var indivInsertPts: [inds.domain] int;
+pragma "aggregator generator"
       var actualInsertPts: [inds.domain] int; //where to put in newdom
 
       //eliminate duplicates --assumes sorted

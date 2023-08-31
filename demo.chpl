@@ -9,12 +9,12 @@ writeln(Dvar._value.definedConst);    //false
 var Arange: [1..2] int;   //clear
 var Aconst: [Dconst] int; //clear
 var Avar:   [Dvar] int;   //warn
-pragma "aggregator generator"
+pragma "array resize OK"
 var Avarvar: [Dvar] int;  //clear
 
 var AreshapeConst = reshape(Arange, Dconst);  //clear
 var AreshapeVar   = reshape(Arange, Dvar);    //warn
-pragma "aggregator generator"
+pragma "array resize OK"
 var AreshapeVarVar = reshape(Arange, Dvar);   //clear
 
 /////////////////////////////////////////////////////////////////////////////
@@ -42,3 +42,27 @@ use BlockDist;
 }
 
 /////////////////////////////////////////////////////////////////////////////
+
+proc makeAA() {
+  var D: domain(string);
+  D += "hi";
+pragma "array resize OK"
+  var A: [D] string = "five";
+  return A;
+}
+
+var AA = makeAA();
+writeln(AA);
+
+/////////////////////////////////////////////////////////////////////////////
+
+/* open questions:
+var A = Block.createArray(...); // OK, A.domain is const
+
+var A2: [var]? = createArrayOver(myVarDomain); // how to opt in?
+
+//LayoutCS.chpl
+const (actualInsertPts, actualAddCnt) =  // how to opt in?
+  __getActualInsertPts(this, inds, isUnique);
+
+*/

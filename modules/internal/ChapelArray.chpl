@@ -280,6 +280,7 @@ module ChapelArray {
                             else chpl_computeUnifiedType(elems);
 
     var dom = {arrayLiteralLowBound..#k};
+pragma "aggregator generator"
     var arr = dom.buildArray(eltType, initElts=false);
 
     if homog {
@@ -349,6 +350,7 @@ module ChapelArray {
     // passed to this function has 2 elements (key and value)
     // for each array element.
     D.requestCapacity(k/2);
+pragma "aggregator generator"
     var A : [D] valType;
 
     for param i in 0..k-1 by 2 {
@@ -3876,6 +3878,7 @@ pragma "aggregator generator"
 
       // Now construct a DefaultRectangular array using the data
       pragma "no copy"
+pragma "aggregator generator"
       var A = D.buildArrayWith(data[0].type, data, size:int);
 
       // Normally, the sub-arrays share a domain with the
@@ -3899,6 +3902,7 @@ pragma "aggregator generator"
         _ddata_allocate_postalloc(data, size);
 
       pragma "no copy"
+pragma "aggregator generator"
       var A = D.buildArrayWith(elemType, data, size:int);
 
       // in lieu of automatic memory management for runtime types

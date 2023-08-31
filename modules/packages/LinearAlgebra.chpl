@@ -3201,7 +3201,7 @@ module Sparse {
 
   /* Transpose CSR matrix */
   proc transpose(A: [?Adom] ?eltType) where isCSArr(A) {
-    var Dom = transpose(Adom);
+    const Dom = transpose(Adom);
     var B: [Dom] eltType;
 
     forall i in Adom.dim(0) {
@@ -3222,6 +3222,9 @@ module Sparse {
     var sps = CSRDomain(Adom.parentDom);
     sps += this.domain;
     sps += Adom;
+// at this point, 'sps' will not be resized any longer
+// yet, need for 'S' to "opt in"
+pragma "aggregator generator"
     var S: [sps] eltType;
     forall (i,j) in sps {
       S[i,j] = this[i,j] + A[i,j];
@@ -3237,6 +3240,9 @@ module Sparse {
     var sps: sparse subdomain(Adom.parentDom);
     sps += this.domain;
     sps += Adom;
+// at this point, 'sps' will not be resized any longer
+// yet, need for 'S' to "opt in"
+pragma "aggregator generator"
     var S: [sps] eltType;
     forall (i,j) in sps {
       S[i,j] = this[i,j] + A[i,j];
@@ -3251,6 +3257,9 @@ module Sparse {
     var sps = CSRDomain(Adom.parentDom);
     sps += this.domain;
     sps += Adom;
+// at this point, 'sps' will not be resized any longer
+// yet, need for 'S' to "opt in"
+pragma "aggregator generator"
     var S: [sps] eltType;
     forall (i,j) in sps {
       S[i,j] = this[i,j] - A[i,j];
@@ -3266,6 +3275,9 @@ module Sparse {
     var sps: sparse subdomain(Adom.parentDom);
     sps += this.domain;
     sps += Adom;
+// at this point, 'sps' will not be resized any longer
+// yet, need for 'S' to "opt in"
+pragma "aggregator generator"
     var S: [sps] eltType;
     forall (i,j) in sps {
       S[i,j] = this[i,j] - A[i,j];
@@ -3280,6 +3292,7 @@ module Sparse {
 
     // Create copy of 'this'
     var BDom = this.domain;
+pragma "aggregator generator"
     var B: [BDom] this.eltType;
     forall (i,j) in B.domain do B[i,j] = this[i,j];
 
@@ -3304,6 +3317,9 @@ module Sparse {
     var sps: sparse subdomain(Adom.parentDom);
     sps += this.domain;
     sps += Adom;
+// at this point, 'sps' will not be resized any longer
+// yet, need for 'S' to "opt in"
+pragma "aggregator generator"
     var S: [sps] eltType;
     forall (i,j) in sps {
       S[i,j] = this[i,j] * A[i,j];
@@ -3318,6 +3334,7 @@ module Sparse {
 
     // Create copy of 'this'
     var BDom = this.domain;
+pragma "aggregator generator"
     var B: [BDom] this.eltType;
     forall (i,j) in B.domain do B[i,j] = this[i,j];
 
@@ -3342,6 +3359,9 @@ module Sparse {
     var sps: sparse subdomain(Adom.parentDom);
     sps += this.domain;
     sps += Adom;
+// at this point, 'sps' will not be resized any longer
+// yet, need for 'S' to "opt in"
+pragma "aggregator generator"
     var S: [sps] eltType;
     forall (i,j) in Adom {
       S[i,j] = this[i,j] / A[i,j];
