@@ -2287,6 +2287,13 @@ module ChapelArray {
     //return help(0);
   }
 
+  pragma "always propagate line file info"
+  proc chpl_arrayDomainCheck(A, name:string) {
+    compilerAssert(isArray(A));
+    if ! A.domain._value.definedConst then
+      warning("array may get resized: ", name);
+  }
+
   //
   // Assignment of distributions and arrays
   //
@@ -3188,6 +3195,7 @@ module ChapelArray {
     if A.sizeAs(int) != D.sizeAs(int) then
       halt("reshape(A,D) is invoked when A has ", A.sizeAs(int),
            " elements, but D has ", D.sizeAs(int), " indices");
+pragma "array resize OK"
     var B: [D] A.eltType = for (i,a) in zip(D, A) do a;
     return B;
   }
@@ -3247,6 +3255,7 @@ module ChapelArray {
   pragma "init copy fn"
   proc chpl__initCopy(const ref rhs: [], definedConst: bool) {
     pragma "no copy"
+pragma "array resize OK"
     var lhs = chpl__coerceCopy(rhs.type, rhs, definedConst);
     return lhs;
   }
@@ -3298,6 +3307,7 @@ module ChapelArray {
 
     pragma "no copy" // avoid error about recursion for initCopy
     pragma "unsafe" // when eltType is non-nilable
+pragma "array resize OK"
     var lhs = dom.buildArray(eltType, initElts=false);
 
     if lhs.rank != rhs.rank then
@@ -3349,6 +3359,7 @@ module ChapelArray {
 
     pragma "no copy" // avoid error about recursion for initCopy
     pragma "unsafe" // when eltType is non-nilable
+pragma "array resize OK"
     var lhs = dom.buildArray(eltType, initElts=false);
 
     if lhs.rank != rhs.rank then
@@ -3513,6 +3524,7 @@ module ChapelArray {
 
     pragma "no copy" // avoid error about recursion for initCopy
     pragma "unsafe" // when eltType is non-nilable
+pragma "array resize OK"
     var lhs = dom.buildArray(eltType, initElts=false);
 
     forall e in lhs with (in rhs) {
@@ -3577,6 +3589,7 @@ module ChapelArray {
 
     pragma "no copy" // avoid error about recursion for initCopy
     pragma "unsafe" // when eltType is non-nilable
+pragma "array resize OK"
     var lhs = dom.buildArray(eltType, initElts=false);
 
     chpl__transferArray(lhs, rhs, kind=_tElt.move);

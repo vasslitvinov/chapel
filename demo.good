@@ -1,0 +1,6 @@
+true
+false
+demo.chpl:11: warning: array may get resized: Avar
+demo.chpl:16: warning: array may get resized: AreshapeVar
+demo.chpl:29: warning: array may get resized: ABvar
+demo.chpl:36: warning: array may get resized: ABvar
