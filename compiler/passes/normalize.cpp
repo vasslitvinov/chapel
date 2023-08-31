@@ -687,6 +687,7 @@ static void normalizeBase(BaseAST* base, bool addEndOfStatements) {
 static std::set<CallExpr*> domainCheckAdded;
 
 //wass
+//invoked on each Chapel-level var declaration
 static void addArrayDomainCheck(CallExpr* call) {
   if (call->isPrimitive(PRIM_DEFAULT_INIT_VAR) ||
       call->isPrimitive(PRIM_INIT_VAR) ||

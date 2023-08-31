@@ -2774,7 +2774,10 @@ static Expr* preFoldNamed(CallExpr* call) {
   } else if (call->isNamed("chpl_arrayDomainCheck")) {
       INT_ASSERT(call->numActuals() == 1);
       Symbol* arg = toSymExpr(call->get(1))->symbol();
-      if (! arg->type->getValType()->symbol->hasFlag(FLAG_ARRAY)) {
+      if (arg->type->getValType()->symbol->hasFlag(FLAG_ARRAY)) {
+        Symbol* name = new_StringSymbol(arg->name);
+        call->insertAtTail(name);
+      } else {
         retval = new CallExpr(PRIM_NOOP);
         call->replace(retval);
       }

@@ -2287,10 +2287,10 @@ module ChapelArray {
     //return help(0);
   }
 
-  proc chpl_arrayDomainCheck(A) {
+  proc chpl_arrayDomainCheck(A, name:string) {
     compilerAssert(isArray(A));
     if ! A.domain._value.definedConst then
-      warning("array may get resized");
+      warning("array may get resized: ", name);
   }
 
   //
