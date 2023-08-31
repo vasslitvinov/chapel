@@ -2287,6 +2287,12 @@ module ChapelArray {
     //return help(0);
   }
 
+  proc chpl_arrayDomainCheck(A) {
+    compilerAssert(isArray(A));
+    if ! A.domain._value.definedConst then
+      warning("array may get resized");
+  }
+
   //
   // Assignment of distributions and arrays
   //
