@@ -424,7 +424,9 @@ class BlockImpl : BaseDist {
   type idxType = int;
   var boundingBox: domain(rank, idxType);
   var targetLocDom: domain(rank);
+pragma "aggregator generator"
   var targetLocales: [targetLocDom] locale;
+pragma "aggregator generator"
   var locDist: [targetLocDom] unmanaged LocBlock(rank, idxType);
   var dataParTasksPerLocale: int;
   var dataParIgnoreRunningTasks: bool;
@@ -458,6 +460,7 @@ class LocBlock {
 class BlockDom: BaseRectangularDom(?) {
   type sparseLayoutType;
   const dist: unmanaged BlockImpl(rank, idxType, sparseLayoutType);
+pragma "aggregator generator"
   var locDoms: [dist.targetLocDom] unmanaged LocBlockDom(rank, idxType, strides);
   var whole: domain(rank, idxType, strides);
 }
@@ -492,6 +495,7 @@ class BlockArr: BaseRectangularArr(?) {
   type sparseLayoutType;
   var doRADOpt: bool = defaultDoRADOpt;
   var dom: unmanaged BlockDom(rank, idxType, strides, sparseLayoutType);
+pragma "aggregator generator"
   var locArr: [dom.dist.targetLocDom] unmanaged LocBlockArr(eltType,
                                                   rank, idxType, strides);
   pragma "local field"
@@ -608,6 +612,7 @@ proc BlockImpl.init(boundingBox: domain,
 
   // Instead of 'dummyLB', we could give 'locDistTemp' a nilable element type.
   const dummyLB = new unmanaged LocBlock(rank, idxType, dummy=true);
+pragma "aggregator generator"
   var locDistTemp: [targetLocDom] unmanaged LocBlock(rank, idxType) = dummyLB;
 
   // Store a const copy of the dims for RVF
@@ -735,6 +740,7 @@ override proc BlockImpl.dsiNewRectangularDom(param rank: int, type idxType,
   const whole = createWholeDomainForInds(rank, idxType, strides, inds);
 
   const dummyLBD = new unmanaged LocBlockDom(rank, idxType, strides);
+pragma "aggregator generator"
   var locDomsTemp: [this.targetLocDom]
                   unmanaged LocBlockDom(rank, idxType, strides) = dummyLBD;
   coforall (localeIdx, loc, locDomsTempElt)
@@ -878,7 +884,7 @@ proc type Block.createDomain(rng: range...) {
 }
 
 proc type Block.createArray(dom: domain, type eltType) {
-  var D = createDomain(dom);
+  const D = createDomain(dom);
   var A: [D] eltType;
   return A;
 }
@@ -1055,6 +1061,7 @@ proc BlockDom.dsiBuildArray(type eltType, param initElts:bool) {
   const dummyLBD = new unmanaged LocBlockDom(rank, idxType, strides);
   const dummyLBA = new unmanaged LocBlockArr(eltType, rank, idxType,
                                              strides, dummyLBD, false);
+pragma "aggregator generator"
   var locArrTemp: [dom.dist.targetLocDom]
         unmanaged LocBlockArr(eltType, rank, idxType, strides) = dummyLBA;
   var myLocArrTemp: unmanaged LocBlockArr(eltType, rank, idxType, strides)?;
@@ -1090,6 +1097,7 @@ proc BlockDom.doiTryCreateArray(type eltType) throws {
   const dummyLBD = new unmanaged LocBlockDom(rank, idxType, strides);
   const dummyLBA = new unmanaged LocBlockArr(eltType, rank, idxType,
                                              strides, dummyLBD, false);
+pragma "aggregator generator"
   var locArrTemp: [dom.dist.targetLocDom]
         unmanaged LocBlockArr(eltType, rank, idxType, strides) = dummyLBA;
   var myLocArrTemp: unmanaged LocBlockArr(eltType, rank, idxType, strides)?;
@@ -1602,6 +1610,7 @@ proc BlockDom.dsiGetPrivatizeData() {
 proc BlockDom.dsiPrivatize(privatizeData) {
   var privdist = chpl_getPrivatizedCopy(dist.type, privatizeData.distpid);
 
+pragma "aggregator generator"
   var locDomsTemp: [privdist.targetLocDom]
                       unmanaged LocBlockDom(rank, idxType, strides)
     = privatizeData.locdoms;
@@ -1649,6 +1658,7 @@ proc BlockArr.dsiGetPrivatizeData() {
 proc BlockArr.dsiPrivatize(privatizeData) {
   var privdom = chpl_getPrivatizedCopy(dom.type, privatizeData.dompid);
 
+pragma "aggregator generator"
   var locArrTemp: [privdom.dist.targetLocDom]
                      unmanaged LocBlockArr(eltType, rank, idxType, strides)
     = privatizeData.locarr;
