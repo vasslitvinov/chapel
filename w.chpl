@@ -20,13 +20,19 @@ proc main {
   A6 = 560;
   writeln(A5, A6);
 
-  // multi-var decl
-  var A7, A8, A9: [DD] int;
-  writeln(A7, A8, A9);
-
   showType([DD] real);
   type t11 = BB.type;
   showType(t11);
   type t22 = [DD] bool;
   showType(t22);
+
+  // multi-var decl
+  var A7, A8, A9: [DD] int;
+  writeln(A7, A8, A9);
+
+  // CONTINUE HERE: a mix of default- and split-init
+  var A11, A12: [DD] int;
+  writeln(A11);
+  A12 = A11;
+  writeln(A12);
 }
