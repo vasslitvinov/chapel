@@ -25,4 +25,8 @@ proc main {
   showType(t11);         // [domain(1,int(64),one)] int(64)
   type t22 = [DD] bool;
   showType(t22);         // [domain(1,int(64),one)] bool
+
+  // multi-var decl
+  var A7, A8, A9: [DD] int;
+  writeln(A7, A8, A9);   // prints 0 00 00 0
 }

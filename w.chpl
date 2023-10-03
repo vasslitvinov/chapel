@@ -18,8 +18,11 @@ proc main {
   writeln(A1, A2);
   A5 = BB;
   A6 = 560;
-
   writeln(A5, A6);
+
+  // multi-var decl
+  var A7, A8, A9: [DD] int;
+  writeln(A7, A8, A9);
 
   showType([DD] real);
   type t11 = BB.type;
