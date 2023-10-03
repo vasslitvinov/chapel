@@ -2528,8 +2528,7 @@ static Expr* replaceBuildART(CallExpr* callBART) { //vass
          callBART->insertAtTail(initVar->hasFlag(FLAG_CONST) ? gTrue : gFalse);
          useCall->replace("'move'(%E,%E)", initVarSE, calltempUse);
 
-         //if (callBART->id == breakOnResolveID)
-         gdbShouldBreakHere(); //wass
+         if (callBART->id == breakOnResolveID) gdbShouldBreakHere(); //wass
          return callBART;
        }
 

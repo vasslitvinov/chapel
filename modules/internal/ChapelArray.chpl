@@ -219,10 +219,12 @@ module ChapelArray {
   //
   // Support for array types
   //
+/* vass
   pragma "runtime type init fn"
   proc chpl__buildArrayRuntimeType(dom: domain, type eltType) type {
     return dom.buildArray(eltType, false);
   }
+*/
 
   pragma "no copy returns owned" // workaround for order of resolution issue
   proc chpl__convertRuntimeTypeToValue(dom: domain,
@@ -601,6 +603,8 @@ proc newRayDI(dom2: domain, type eltType2) { //vass
     __primitive("chpl_warning",
                 "chpl__instanceTypeFromArrayRuntimeType should not be run");
     //vass
+    pragma "no copy"
+    pragma "no auto destroy"
     var A = newRayDI(dom, eltType);
     return A._instance.type;
   }
@@ -3280,7 +3284,8 @@ proc newRayDI(dom2: domain, type eltType2) { //vass
   pragma "init copy fn"
   proc chpl__initCopy(const ref rhs: [], definedConst: bool) {
     pragma "no copy"
-    var lhs = chpl__coerceCopy(rhs.type, rhs, definedConst);
+    // wass: need to do anything special for a coerceCopy on an array?
+    var lhs = chpl__coerceCopy(rhs.domain, rhs.eltType, rhs, definedConst);
     return lhs;
   }
 
