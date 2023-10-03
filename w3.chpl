@@ -9,21 +9,20 @@ proc main {
   /// basic declarations
   var A1: [DD] int;      // A1 <- newRayDI(DD, int)
   var A2: [DD] int = BB; // A2 <- chpl__coerceCopy(DD, int, BB, isCst)
-  //var A3: BBT = BB;    // TODO: BBT will be a static type
-  //var A4: BBT = 5;     // error "need []-type, not BBT"
+  writeln(A1);           // prints 0 0
+  writeln(A2);           // prints 320 340
 
   // split initialization
   var A5: [DD] int;
   var A6: [DD] int;
-  writeln(A1, A2);
   A5 = BB;
   A6 = 560;
+  writeln(A5);           // prints 320 340
+  writeln(A6);           // prints 560 560
 
-  writeln(A5, A6);
-
-  showType([DD] real);
+  showType([DD] real);   // [domain(1,int(64),one)] real(64)
   type t11 = BB.type;
-  showType(t11);
+  showType(t11);         // [domain(1,int(64),one)] int(64)
   type t22 = [DD] bool;
-  showType(t22);
+  showType(t22);         // [domain(1,int(64),one)] bool
 }

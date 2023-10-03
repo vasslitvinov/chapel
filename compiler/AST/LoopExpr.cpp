@@ -379,7 +379,7 @@ handleArrayTypeCase(LoopExpr* loopExpr, FnSymbol* fn, Expr* indices,
     BlockStmt* exprCopy = expr->copy();
     Expr* lastExpr = exprCopy->body.tail->remove();
     exprCopy->insertAtTail(new CallExpr(PRIM_MOVE, arrayType,
-                             new CallExpr("chpl__buildArrayRuntimeType",
+                                 new_Expr("'typeof'(newRayDI(%S,%E))",
                                           domain, lastExpr)));
     thenStmt->insertAtTail(exprCopy);
   }
