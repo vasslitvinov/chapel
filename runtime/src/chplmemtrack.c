@@ -564,6 +564,7 @@ printMemAllocs(chpl_mem_descInt_t description, int64_t threshold,
   }
 
   totalWidth = filenameWidth+numberWidth*4+descWidth+20;
+#if 0 //wass
   const int headerWidth = strlen(" Memory Leaks ");
   const int leftHeaderWidth = (totalWidth-headerWidth)/2;
   const int rightHeaderWidth = totalWidth-leftHeaderWidth-headerWidth;
@@ -585,6 +586,7 @@ printMemAllocs(chpl_mem_descInt_t description, int64_t threshold,
   for (i = 0; i < totalWidth; i++)
     fprintf(memLogFile, "=");
   fprintf(memLogFile, "\n");
+#endif
 
   table = (memTableEntry**)sys_malloc(n*sizeof(memTableEntry*));
   if (!table)
@@ -608,6 +610,7 @@ printMemAllocs(chpl_mem_descInt_t description, int64_t threshold,
 
   for (i = 0; i < n; i++) {
     memEntry = table[i];
+#if 0 //vass
     if (memEntry->filename) {
       memEntryFilename = chpl_lookupFilename(memEntry->filename);
       snprintf(loc, locSize, "%s:%" PRId32, memEntryFilename,
@@ -622,6 +625,13 @@ printMemAllocs(chpl_mem_descInt_t description, int64_t threshold,
            numberWidth, memEntry->size*memEntry->number,
            descWidth, chpl_mem_descString(memEntry->description),
            addressWidth, precision, (uintptr_t)memEntry->memAlloc);
+#else
+    fprintf(memLogFile, "0x%-16lx %3ld %5ld   %s\n",
+            (uintptr_t)memEntry->memAlloc,
+            memEntry->number, memEntry->size,
+            chpl_mem_descString(memEntry->description));
+    if (0) printf("%ld", strlen(memEntryFilename) + filenameLength + descWidth + addressWidth);
+#endif
   }
   for (i = 0; i < totalWidth; i++)
     fprintf(memLogFile, "=");
@@ -669,6 +679,24 @@ void chpl_reportMemInfo(void) {
   }
 }
 
+
+//vass
+static uintptr_t mt = 0;    // tracked address
+static int      mtf = 0;    // track free(), too?
+void gdbShouldBreakHere(void);
+static void mtta(void* memAlloc) {
+  if ((uintptr_t)memAlloc == mt) gdbShouldBreakHere();
+}
+static void mttf(void* memAlloc) {
+  if (mtf && (uintptr_t)memAlloc == mt) gdbShouldBreakHere();
+}
+// turn on memory tracking to stdout
+void mton(void);
+void mton(void) {
+  chpl_verbose_mem = chpl_memTrack = 1;
+  memLogFile = stdout;
+}
+
 void chpl_track_malloc(void* memAlloc, size_t number, size_t size,
                        chpl_mem_descInt_t description,
                        int32_t lineno, int32_t filename) {
@@ -683,11 +711,18 @@ void chpl_track_malloc(void* memAlloc, size_t number, size_t size,
     if (chpl_verbose_mem) {
       char subloc_info[16] = "";
       chpl_track_gen_subloc_info(subloc_info, subloc);
+#if 0 //vass
       fprintf(memLogFile, "%" PRI_c_nodeid_t "%s: %s:%" PRId32
                           ": allocate %zuB of %s at %p\n",
               chpl_nodeID, subloc_info, (filename ? chpl_lookupFilename(filename) : "--"),
               lineno, number * size, chpl_mem_descString(description),
               memAlloc);
+#else
+        fprintf(memLogFile, "0x%-16lx %3ld %5ld   %s\n",
+                (uintptr_t)memAlloc, number, size,
+                chpl_mem_descString(description));
+        mtta(memAlloc);
+#endif
     }
   }
 }
@@ -714,12 +749,18 @@ void chpl_track_free(void* memAlloc, size_t approximateSize, int32_t lineno,
         if (chpl_verbose_mem) {
           char subloc_info[16] = "";
           chpl_track_gen_subloc_info(subloc_info, subloc);
+#if 0 //vass
           fprintf(memLogFile, "%" PRI_c_nodeid_t "%s: %s:%" PRId32
                               ": free %zuB of %s at %p\n",
                   chpl_nodeID, subloc_info,
                   (filename ? chpl_lookupFilename(filename) : "--"),
                   lineno, memEntry->number * memEntry->size,
                   chpl_mem_descString(memEntry->description), memAlloc);
+#else
+          fprintf(memLogFile, "0x%-16lx %3ld %5ld   %s\n",
+                  (uintptr_t)memAlloc, memEntry->number, memEntry->size, "<free>");
+          mttf(memAlloc);
+#endif
         }
         sys_free(memEntry);
       }
