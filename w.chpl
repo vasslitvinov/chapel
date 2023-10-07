@@ -8,17 +8,17 @@ type BBT3 = BB.type;
 proc test1(type TT8) {
   // basic declarations, explicit array type
   // these are OK as the domain is given explicitly
-  var BE1: [DD] int;
-  var BE2: [DD] int = BB;
-  var BE3: [DD] int = 5;
+  var BE1: [DD] int;        // default init var BE1 calltemp
+  var BE2: [DD] int = BB;   // init var BE2 BB calltemp
+  var BE3: [DD] int = 5;    // init var BE3 5 calltemp
   writeln(BE1, BE2, BE3);
 }
 proc test2(type TT8) {
   // basic declarations, the type is BBT2
   // these are OK if we can get to BBT2's domain
-  var BS1: BBT2;
-  var BS2: BBT2 = BB;
-  var BS3: BBT2 = 5;
+  var BS1: BBT2;            // default init var BS1 BBT2
+  var BS2: BBT2 = BB;       // init var BS2 BB BBT2
+  var BS3: BBT2 = 5;        // init var BS3 5 BBT2
   writeln(BS1, BS2, BS3);
 }
 proc test3(type TT8) {
@@ -80,7 +80,7 @@ proc test8(type TT8) {
   writeln(BS1, BZ1);
 }
 
-// todo: formal arg types
+// todo: formal arg types; fields
 
 proc main {
   test1(BBT2);
