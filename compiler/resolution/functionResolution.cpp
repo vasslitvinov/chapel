@@ -242,6 +242,57 @@ bool tryingToResolve() {
   return inTryResolve > 0;
 }
 
+// Returns the defining CallExpr* if it calls chpl__buildArrayRuntimeType(),
+// otherwise the last known SymExpr*, skipping intermediate moves.
+// TODO skip also intermediate defPoints for type aliases.
+static Expr* definingExpr(SymExpr* target) {
+  SymExpr* cur = target;
+  while (true) {
+    // looking for move(defSE, ...)
+    if (SymExpr* defSE = cur->symbol()->getSingleDef()) {
+      if (CallExpr* defCall = toCallExpr(defSE->parentExpr)) {
+        if (defCall->isPrimitive(PRIM_MOVE)) {
+          Expr* def2expr = defCall->get(2);
+          if (SymExpr* def2sym = toSymExpr(def2expr)) {
+            cur = def2sym;
+            continue;
+          }
+          if (CallExpr* def2call = toCallExpr(def2expr))
+            if (FnSymbol* def2fn = def2call->resolvedFunction())
+              if (def2fn->hasFlag(FLAG_RUNTIME_TYPE_INIT_FN))
+                return def2call;
+        }
+      }
+    }
+    return cur; // did not find a call to chpl__buildArrayRuntimeType
+  }
+  return nullptr; // dummy
+}
+
+void checkArrayRTT(CallExpr* initCall, SymExpr* typeArg, Type* type); //wass
+void checkArrayRTT(CallExpr* initCall, SymExpr* typeArg, Type* type) {
+  type = type->getValType();
+  if (! type->symbol->hasFlag(FLAG_ARRAY)) return;
+  bool vv = developer && (initCall->getModule()->modTag == MOD_USER);
+
+  Expr* defExpr = definingExpr(typeArg);
+  if (CallExpr* bart = toCallExpr(defExpr)) {
+    INT_ASSERT(bart->numActuals() == 2);
+    Type* type1 = bart->get(1)->getValType(); // the first arg is a domain
+    INT_ASSERT(type1->symbol->hasFlag(FLAG_DOMAIN));
+    Type* type2 = bart->get(2)->getValType(); // the second arg has RTT?
+    if (type2->symbol->hasFlag(FLAG_ARRAY))
+      USR_WARN(typeArg, "VASS array of arrays");
+    else if (type2->symbol->hasFlag(FLAG_DOMAIN))
+      USR_WARN(typeArg, "VASS array of domains");
+    else if (vv)
+      USR_WARN(typeArg, "WASS OK");
+
+  } else {
+    USR_WARN(typeArg, "VASS no available domain");
+  }
+}
+
 //
 // Invoke resolveFunction(fn) with 'call' on top of 'callStack'.
 //
@@ -8252,6 +8303,8 @@ void resolveInitVar(CallExpr* call) {
                       "declared with generic type", dst->name);
     }
 
+    checkArrayRTT(call, targetTypeExpr, targetType);
+
     // Since we are not initializing, just set the variable's type
     dst->type = targetType;
     call->primitive = primitives[PRIM_NOOP];
@@ -8265,6 +8318,8 @@ void resolveInitVar(CallExpr* call) {
     // PRIM_INIT_VAR has dst, src like PRIM_MOVE so we can reuse some checking
     if (moveIsAcceptable(call) == false)
       moveHaltMoveIsUnacceptable(call);
+
+    checkArrayRTT(call, targetTypeExpr, targetType);
 
     bool genericTgt = targetType->symbol->hasFlag(FLAG_GENERIC);
     // If the target type is generic, compute the appropriate instantiation
@@ -11415,6 +11470,7 @@ void resolve() {
 
   resolveSupportForModuleDeinits();
 
+gdbShouldBreakHere(); //wass
   USR_STOP();
 
   finishInterfaceChecking();  // should happen before resolveAutoCopies
@@ -13083,18 +13139,22 @@ static void resolvePrimInit(CallExpr* call) {
   if (SymExpr* se = toSymExpr(typeExpr)) {
     if (se->symbol()->hasFlag(FLAG_TYPE_VARIABLE) == true) {
       checkSurprisingGenericDecls(val, typeExpr, nullptr);
-      resolvePrimInit(call, val, resolveTypeAlias(se));
+      Type* resolvedType = resolveTypeAlias(se);
+      checkArrayRTT(call, se, resolvedType);
+      resolvePrimInit(call, val, resolvedType);
     } else {
       USR_FATAL(call, "invalid type specification");
     }
   } else if (CallExpr* ce = toCallExpr(typeExpr)) {
     if (Symbol* field = resolvePrimInitGetField(ce)) {
       if (field->hasFlag(FLAG_TYPE_VARIABLE) == true) {
+        //wass TODO
         resolvePrimInit(call, val, field->typeInfo());
       } else {
         USR_FATAL(call, "invalid type specification");
       }
     }
+    else USR_WARN(call, "VASS unexpected case 1"); //wass
   } else {
     INT_FATAL(call, "Unsupported primInit");
   }
