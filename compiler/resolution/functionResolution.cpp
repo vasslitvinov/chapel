@@ -242,54 +242,83 @@ bool tryingToResolve() {
   return inTryResolve > 0;
 }
 
-// Returns the defining CallExpr* if it calls chpl__buildArrayRuntimeType(),
-// otherwise the last known SymExpr*, skipping intermediate moves.
+static Type* arrayElementType(AggregateType* arrayType); //wass
+
+// Returns the defining Expr for 'target', skipping the intermediate MOVEs.
 // TODO skip also intermediate defPoints for type aliases.
 static Expr* definingExpr(SymExpr* target) {
   SymExpr* cur = target;
   while (true) {
-    // looking for move(defSE, ...)
     if (SymExpr* defSE = cur->symbol()->getSingleDef()) {
       if (CallExpr* defCall = toCallExpr(defSE->parentExpr)) {
         if (defCall->isPrimitive(PRIM_MOVE)) {
           Expr* def2expr = defCall->get(2);
-          if (SymExpr* def2sym = toSymExpr(def2expr)) {
-            cur = def2sym;
+          if (SymExpr* def2SE = toSymExpr(def2expr)) {
+            cur = def2SE;
             continue;
           }
-          if (CallExpr* def2call = toCallExpr(def2expr))
-            if (FnSymbol* def2fn = def2call->resolvedFunction())
-              if (def2fn->hasFlag(FLAG_RUNTIME_TYPE_INIT_FN))
-                return def2call;
+          // return the source of the MOVE
+          return def2expr;
         }
       }
     }
-    return cur; // did not find a call to chpl__buildArrayRuntimeType
+    // did not find anything expected
+    return cur;
   }
   return nullptr; // dummy
 }
 
 void checkArrayRTT(CallExpr* initCall, SymExpr* typeArg, Type* type); //wass
 void checkArrayRTT(CallExpr* initCall, SymExpr* typeArg, Type* type) {
+  if (initCall->id == breakOnRemoveID) gdbShouldBreakHere(); //wass
   type = type->getValType();
   if (! type->symbol->hasFlag(FLAG_ARRAY)) return;
+  // for split-init vars, we need to check only PRIM_INIT_VAR_SPLIT_DECL
+  if (initCall->isPrimitive(PRIM_INIT_VAR_SPLIT_INIT)) return;
   bool vv = developer && (initCall->getModule()->modTag == MOD_USER);
 
+  ////// check if we can get to the domain //////
+  bool OK = false;
   Expr* defExpr = definingExpr(typeArg);
-  if (CallExpr* bart = toCallExpr(defExpr)) {
-    INT_ASSERT(bart->numActuals() == 2);
-    Type* type1 = bart->get(1)->getValType(); // the first arg is a domain
-    INT_ASSERT(type1->symbol->hasFlag(FLAG_DOMAIN));
-    Type* type2 = bart->get(2)->getValType(); // the second arg has RTT?
-    if (type2->symbol->hasFlag(FLAG_ARRAY))
-      USR_WARN(typeArg, "VASS array of arrays");
-    else if (type2->symbol->hasFlag(FLAG_DOMAIN))
-      USR_WARN(typeArg, "VASS array of domains");
-    else if (vv)
-      USR_WARN(typeArg, "WASS OK");
+  if (CallExpr* defCall = toCallExpr(defExpr)) {
+    if (FnSymbol* defFn = defCall->resolvedFunction()) {
+      if (defFn->hasFlag(FLAG_RUNTIME_TYPE_INIT_FN)) {
+        // got chpl__buildArrayRuntimeType()
+        INT_ASSERT(defCall->numActuals() == 2);
+        Type* type1 = defCall->get(1)->getValType(); // first arg is a domain
+        INT_ASSERT(type1->symbol->hasFlag(FLAG_DOMAIN));
+        OK = true;
+        if (vv) USR_WARN(typeArg, "WASS OK bart");
+      }
+      else if (startsWith(defFn->name, astr_forallexpr)) {
+        // got a forall expression
+        INT_ASSERT(defCall->numActuals() == 1);
+        Type* type1 = defCall->get(1)->getValType(); // first arg is a domain
+        INT_ASSERT(type1->symbol->hasFlag(FLAG_DOMAIN));
+        OK = true;
+        if (vv) USR_WARN(typeArg, "WASS OK forallexpr");
+      } else if (!strcmp(defFn->name, "chpl__convertValueToRuntimeType")) {
+        // got chpl__convertValueToRuntimeType()
+        INT_ASSERT(defCall->numActuals() == 1);
+        Type* type1 = defCall->get(1)->getValType(); // first arg is an array
+        INT_ASSERT(type1->symbol->hasFlag(FLAG_ARRAY));
+        OK = true;
+        if (vv) USR_WARN(typeArg, "WASS OK cvrt");
+      }
+    }
+  }
 
-  } else {
+  if (OK) {
+    ////// check for an array of arrays or domains //////
+    Type* eltType = arrayElementType(toAggregateType(type));
+    if (eltType->symbol->hasFlag(FLAG_ARRAY))
+      USR_WARN(typeArg, "VASS array of arrays");
+    else if (eltType->symbol->hasFlag(FLAG_DOMAIN))
+      USR_WARN(typeArg, "VASS array of domains");
+  }
+  else {
     USR_WARN(typeArg, "VASS no available domain");
+    gdbShouldBreakHere(); //wass
   }
 }
 
