@@ -728,6 +728,16 @@ static bool isSameTypeOrInstantiation(Type* sub, Type* super, Expr* ctx) {
   if (sub == super)
     return true;
 
+  // Cater to queries like 'myRecord(int(?w))'
+  if (isPrimitiveType(super)) {
+    if (super == dtInt[INT_SIZE_DEFAULT]) return is_int_type(sub);
+    if (super == dtUInt[INT_SIZE_DEFAULT]) return is_uint_type(sub);
+    if (super == dtReal[FLOAT_SIZE_DEFAULT]) return is_real_type(sub);
+    if (super == dtImag[FLOAT_SIZE_DEFAULT]) return is_imag_type(sub);
+    if (super == dtComplex[COMPLEX_SIZE_DEFAULT]) return is_complex_type(sub);
+    return false; // no other primitive 'super' can result in a match
+  }
+
   // Consider instantiation
   if (super->symbol->hasFlag(FLAG_GENERIC)) {
     super = getInstantiationType(sub, NULL, super, NULL, ctx);

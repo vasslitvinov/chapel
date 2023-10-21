@@ -203,6 +203,18 @@ static FnSymbol* findForallexprFollower(FnSymbol* serialIter) {
   return NULL;
 }
 
+// Given a query (temp:uint(8), 1), return temp's bitwidth, otherwise 0.
+static int bitWidthForQuery(CallExpr* call) {
+  Type* queriedType = call->get(1)->getValType();
+  // Confirm the query is for field #1.
+  if (fVerify) {
+    VarSymbol* fieldSym = toVarSymbol(toSymExpr(call->get(2))->symbol());
+    INT_ASSERT(call, fieldSym->immediate->int_value() == 1);
+  }
+  int get_width_or_zero(Type *t); //wass in .h
+  return get_width_or_zero(queriedType);
+}
+
 static bool recordContainsNonNilableOwned(Type* t) {
   if (isManagedPtrType(t) &&
       getManagedPtrManagerType(t) == dtOwned &&
@@ -2066,6 +2078,10 @@ static Expr* preFoldPrimOp(CallExpr* call) {
       else
         call->replace(new SymExpr(tmp));
 
+    } else if (int numBits = bitWidthForQuery(call)) {
+      retval = new SymExpr(new_IntSymbol(numBits, INT_SIZE_DEFAULT));
+      call->replace(retval);
+
     } else {
       // Possibly indicated by 'determineQueriedField' returning NULL
       USR_FATAL(call,
@@ -3005,6 +3021,9 @@ static Symbol* determineQueriedField(CallExpr* call) {
   if (var->immediate->const_kind == CONST_KIND_STRING) {
     retval = at->getField(var->immediate->v_string.c_str(), false);
     checkRangeDeprecations(at, call, var, retval); // may update 'retval'
+
+  } else if (at == nullptr) {
+    retval = nullptr;
 
   } else {
     Vec<Symbol*> args;

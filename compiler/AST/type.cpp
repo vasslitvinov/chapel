@@ -716,7 +716,7 @@ const char* FunctionType::intentToString(IntentTag intent) {
 static const char* builtinTypeName(Type* vt) {
   if (vt == dtInt[INT_SIZE_DEFAULT]) return "int";
   if (vt == dtUInt[INT_SIZE_DEFAULT]) return "uint";
-  if (vt == dtReal[COMPLEX_SIZE_DEFAULT]) return "real";
+  if (vt == dtReal[FLOAT_SIZE_DEFAULT]) return "real";
   if (vt == dtBool) return "bool";
   if (vt == dtComplex[COMPLEX_SIZE_DEFAULT]) return "complex";
   if (vt == dtImag[FLOAT_SIZE_DEFAULT]) return "imag";
@@ -1478,7 +1478,8 @@ bool isLegalParamType(Type* t) {
           t == dtUnknown);
 }
 
-int get_width(Type *t) {
+int get_width_or_zero(Type *t); //wass to .h
+int get_width_or_zero(Type *t) {
   if (t == dtInt[INT_SIZE_8] ||
       t == dtUInt[INT_SIZE_8])
     return 8;
@@ -1498,8 +1499,14 @@ int get_width(Type *t) {
     return 64;
   if (t == dtComplex[COMPLEX_SIZE_128])
     return 128;
-  INT_FATAL(t, "Unknown bit width");
+
   return 0;
+}
+
+int get_width(Type *t) {
+  int result = get_width_or_zero(t);
+  if (result == 0) INT_FATAL(t, "Unknown bit width");
+  return result;
 }
 
 // numbers between -2**width .. 2**width
