@@ -1,0 +1,2 @@
+# extern block requires LLVM
+CHPL_LLVM == none

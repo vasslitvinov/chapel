@@ -39,6 +39,7 @@
 
 static void undoReturnByRef(FnSymbol* fn);
 static void collapseTrivialMoves();
+static void addInIntentFormalTemps(FnSymbol* fn);
 
 //helper datastructures/types
 typedef std::pair<Expr*, Type*> DefCastPair;
@@ -94,6 +95,8 @@ void denormalize(void) {
       removeUnnecessaryGotos(fn, true);
       if (!fReturnByRef && fn->hasFlag(FLAG_FN_RETARG))
         undoReturnByRef(fn);
+      if (fn->hasFlag(FLAG_EXPORT) && fLlvmCodegen)
+        addInIntentFormalTemps(fn);
 
       bool isFirstRound = true;
       do {
@@ -677,6 +680,35 @@ inline bool unsafeExprInBetween(Expr* e1, Expr* e2, Expr* exprToMove,
   }
   return false;
 }
+
+/////////////////////////////////////////////////////////////////////////////
+// addInIntentFormalTemps()
+//
+// As of this writing, LLVM codegen does not stack-allocate numeric in-intent formals
+// of export procs. Passing such a formal to __primitive("=") for assignment crashes
+// in codegen; passing it to a ref formal incorrectly passes a stack-allocated copy.
+// Therefore, ahead of codegen, replace all uses of such a formal with a temp.
+// Ideally, fix codegen directly instead of this.
+
+static void addInIntentFormalTemps(FnSymbol* fn) {
+  for_formals(formal, fn) {
+    // in-intent formals of record types are handled properly already
+    if (formal->intent & INTENT_FLAG_IN && isPrimitiveType(formal->type)) {
+      bool gotDefs = false;
+      for_SymbolDefs(def, formal) { gotDefs = true; break; }
+      if (gotDefs) {
+        // replace all uses of 'formal' with 'subst'
+        SET_LINENO(formal);
+        VarSymbol* subst = newTemp(formal->name, formal->type);
+        if (formal->isConstant()) subst->addFlag(FLAG_CONST);
+        for_SymbolSymExprs(se, formal) se->setSymbol(subst);
+        fn->insertAtHead(new CallExpr(PRIM_MOVE, subst, formal));
+        fn->insertAtHead(new DefExpr(subst));
+      }
+    }
+  }
+}
+
 
 /////////////////////////////////////////////////////////////////////////////
 // undoReturnByRef()
