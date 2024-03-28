@@ -684,12 +684,13 @@ inline bool unsafeExprInBetween(Expr* e1, Expr* e2, Expr* exprToMove,
 /////////////////////////////////////////////////////////////////////////////
 // addInIntentFormalTemps()
 //
-// As of this writing, LLVM codegen does not stack-allocate numeric in-intent formals
-// of export procs. Passing such a formal to __primitive("=") for assignment crashes
-// in codegen; passing it to a ref formal incorrectly passes a stack-allocated copy.
-// Therefore, ahead of codegen, replace all uses of such a formal with a temp.
+// Codegen does not stack-allocate numeric in-intent formals of export procs
+// when generating LLVM code, as of this writing. As a result, passing
+// such a formal to __primitive("=") for assignment crashes the codegen.
+// Passing it to a ref formal incorrectly passes a stack-allocated copy.
+// Therefore redirect all uses of such a formal to a temp, ahead of codegen.
 // Ideally, fix codegen directly instead of this.
-
+//
 static void addInIntentFormalTemps(FnSymbol* fn) {
   for_formals(formal, fn) {
     // in-intent formals of record types are handled properly already
@@ -708,7 +709,6 @@ static void addInIntentFormalTemps(FnSymbol* fn) {
     }
   }
 }
-
 
 /////////////////////////////////////////////////////////////////////////////
 // undoReturnByRef()
