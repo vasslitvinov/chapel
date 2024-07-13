@@ -1558,8 +1558,8 @@ static BlockStmt* getGpuPrimitivesBlock(BlockStmt* loopBody) {
 void GpuKernel::findGpuPrimitives() {
   // wass todo replace GPBlock with gpuPrimitivesBlock_
   // then see my assert in generateGPUKernelCall()
-  BlockStmt* GPBlock = getGpuPrimitivesBlock(gpuLoop.gpuLoop());
-  for_alist(node, GPBlock->body) {
+  gpuPrimitivesBlock_ = getGpuPrimitivesBlock(gpuLoop.gpuLoop());
+  for_alist(node, gpuPrimitivesBlock_->body) {
    if (CallExpr* callExpr = toCallExpr(node)) {
 
     if (callExpr->isPrimitive(PRIM_GPU_SET_BLOCKSIZE)) {
@@ -1980,7 +1980,6 @@ static void generateGPUKernelCall(const GpuizableLoop &gpuLoop,
   // We need to lift them, too. Since we're "consuming" the GPU loop,
   // just modify the parent block in place.
   if (auto primitivesBlock = kernel.gpuPrimitivesBlock()) {
-INT_ASSERT("WASS: UNEXPECTED"); //wass
     INT_ASSERT(primitivesBlock->isGpuPrimitivesBlock());
     for_alist(expr, primitivesBlock->body) {
       if (isCallToPrimitiveWeShouldNotCopyIntoKernel(toCallExpr(expr))) {
@@ -2244,6 +2243,9 @@ static void reportErrorsForBadBlockSizeCalls() {
       }
 
       if (callExpr->isPrimitive(PRIM_GPU_PRIMITIVE_BLOCK)) {
+if (::getenv("CHPL_VASS_gdb"))
+printf("setting aside the block for %d  %s\n",
+callExpr->id, debugLoc(callExpr));
         gpuPrimBlocks.push_back(toBlockStmt(callExpr->parentExpr));
         continue;
       }
