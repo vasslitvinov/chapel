@@ -1,0 +1,2 @@
+assertOnGpuIneligibleLoop.chpl:12: In function 'main':
+assertOnGpuIneligibleLoop.chpl:14: error: using @gpu.blockSize, 'setBlockSize', @gpu.itersPerThread, or @assertOnGpu on a non-GPU-eligible loop

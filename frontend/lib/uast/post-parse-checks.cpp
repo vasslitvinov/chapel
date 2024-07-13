@@ -1609,9 +1609,8 @@ void Visitor::checkAttributeNameRecognizedOrToolSpaced(const Attribute* node) {
   } else if (node->fullyQualifiedAttributeName().find('.') == std::string::npos) {
     // we don't recognize the top-level attribute that we found (no toolspace)
     error(node, "Unknown top-level attribute '%s'", node->name().c_str());
-  } else {
+  } else if (isFlagSet(CompilerFlags::WARN_UNKNOWN_TOOL_SPACED_ATTRS)) {
     // Check for other possible tool name given from command line
-    bool doWarn = isFlagSet(CompilerFlags::WARN_UNKNOWN_TOOL_SPACED_ATTRS);
     auto toolNames = chpl::parsing::AttributeToolNames(this->context_);
     for (auto toolName : toolNames) {
       auto nameDot = UniqueString::getConcat(this->context_, toolName.c_str(), ".");
@@ -1620,9 +1619,11 @@ void Visitor::checkAttributeNameRecognizedOrToolSpaced(const Attribute* node) {
         return;
       }
     }
-    if (doWarn) {
-      auto pos = node->fullyQualifiedAttributeName().find_last_of('.');
-      auto toolName = node->fullyQualifiedAttributeName().substr(0, pos);
+    auto pos = node->fullyQualifiedAttributeName().find_last_of('.');
+    auto toolName = node->fullyQualifiedAttributeName().substr(0, pos);
+    if (toolName == "gpu") {
+      warn(node, "Unknown gpu attribute '%s'", node->name().c_str());
+    } else {
       warn(node, "Unknown attribute tool name '%s'", toolName.c_str());
     }
   }

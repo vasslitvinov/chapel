@@ -2031,6 +2031,9 @@ INT_ASSERT("WASS: UNEXPECTED"); //wass
 
   gpuBlock->insertAtTail(gpuCall);
   gpuBlock->insertAtTail(new CallExpr(PRIM_GPU_DEINIT_KERNEL_CFG, cfg));
+//wass
+//printf("replacing gpuLoop %d   %s\n",
+//       gpuLoop.gpuLoop()->id, debugLoc(gpuLoop.gpuLoop()));
   gpuLoop.gpuLoop()->replace(gpuBlock);
 
   FnSymbol *fnContainingLoop = gpuBlock->getFunction();
@@ -2095,6 +2098,9 @@ static void outlineGpuKernelsInFn(FnSymbol *fn) {
       // Even though the original eligible loops are not in the GPU specialized
       // copies, they need to be outlined to account for virtual dispatch.
       auto& eligibleLoop = foundLoop->second;
+//wass
+//printf("%s[%d] : loop1 %d   %s\n", fn->name, fn->id, loop->id, debugLoc(loop));
+//gpuLoop.gpuLoop()->id, debugLoc(gpuLoop.gpuLoop())
       outlineEligibleLoop(fn, eligibleLoop);
     } else if (fGpuSpecialization && getGpuEligibleMarker(loop)) {
       // Even if this wasn't a loop originally marked eligible, it could
@@ -2105,11 +2111,18 @@ static void outlineGpuKernelsInFn(FnSymbol *fn) {
       // other transformations. Is that okay?
       auto gpuLoop = GpuizableLoop::fromEligibleClone(loop);
       if (gpuLoop.isEligible()) {
+//wass
+//printf("%s[%d] : loop2 %d   %s\n", fn->name, fn->id, loop->id, debugLoc(loop));
         outlineEligibleLoop(fn, gpuLoop);
       } else {
+//wass
+//printf("%s[%d] : loop3 %d   %s\n", fn->name, fn->id, loop->id, debugLoc(loop));
         gpuLoop.makeCpuOnly();
       }
     }
+//else //wass
+//wass
+//printf("%s[%d] : loop- %d   %s\n", fn->name, fn->id, loop->id, debugLoc(loop));
   }
 }
 
@@ -2216,18 +2229,26 @@ static void cleanupTaskIndependentCapturePrimitives() {
 }
 
 static void reportErrorsForBadBlockSizeCalls() {
-  CallExpr* explainAnchor = nullptr;
+  std::vector<BlockStmt*> gpuPrimBlocks;
   for_alive_in_Vec(CallExpr, callExpr, gCallExprs) {
-    if(callExpr->isPrimitive(PRIM_GPU_SET_BLOCKSIZE)) {
-      if (callExpr->getFunction()->hasFlag(FLAG_GPU_SPECIALIZATION)) {
+    if (callExpr->isPrimitive(PRIM_GPU_SET_BLOCKSIZE) ||
+        callExpr->isPrimitive(PRIM_GPU_SET_ITERS_PER_THREAD) ||
+        callExpr->isPrimitive(PRIM_ASSERT_ON_GPU) ||
+        callExpr->isPrimitive(PRIM_GPU_PRIMITIVE_BLOCK)) {
+
+      if (isFnGpuSpecialized(callExpr->getFunction())) {
         // Assume that this primitive got here by being copied, and that the
         // other location will error about it. Since both copies of the primitive
         // will have the same location, erroring here would lead to duplicates.
         continue;
       }
 
-      USR_FATAL_CONT(callExpr, "'setBlockSize' can only be used in bodies of GPU-eligible loops");
-      explainAnchor = callExpr;
+      if (callExpr->isPrimitive(PRIM_GPU_PRIMITIVE_BLOCK)) {
+        gpuPrimBlocks.push_back(toBlockStmt(callExpr->parentExpr));
+        continue;
+      }
+
+      USR_FATAL_CONT(callExpr, "using @gpu.blockSize, 'setBlockSize', @gpu.itersPerThread, or @assertOnGpu on a non-GPU-eligible loop");
 
       // Search forward to try find the CForLoop corresponding to the GPU loop.
       // This is just a heuristic to detect common erroneous uses for setBlockSize.
@@ -2249,8 +2270,10 @@ static void reportErrorsForBadBlockSizeCalls() {
       }
     }
   }
-  if (explainAnchor) {}
   USR_STOP();
+
+  for_vector(BlockStmt, block, gpuPrimBlocks)
+    block->remove();
 }
 
 // ----------------------------------------------------------------------------
