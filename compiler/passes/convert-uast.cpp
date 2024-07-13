@@ -120,6 +120,7 @@ struct ConvertedSymbolsMap {
 struct Converter;
 
 struct LoopAttributeInfo {
+ friend Converter;
  public:
   // LLVM metadata from various @llvm attributes.
   LLVMMetadataList llvmMetadata;
@@ -127,6 +128,8 @@ struct LoopAttributeInfo {
   const uast::Attribute* assertOnGpuAttr = nullptr;
   // The @gpu.blockSize attribute, if one is provided by the user.
   const uast::Attribute* blockSizeAttr = nullptr;
+  // The @gpu.itersPerThread attribute, if one is provided by the user.
+  const uast::Attribute* itersPerThreadAttr = nullptr;
 
  private:
   LLVMMetadataPtr tupleToLLVMMetadata(Context* context,
@@ -207,6 +210,13 @@ struct LoopAttributeInfo {
   void readNativeGpuAttributes(const uast::AttributeGroup* attrs) {
     this->assertOnGpuAttr = attrs->getAttributeNamed(USTR("assertOnGpu"));
     this->blockSizeAttr = attrs->getAttributeNamed(USTR("gpu.blockSize"));
+    this->itersPerThreadAttr = attrs->getAttributeNamed(USTR("gpu.itersPerThread"));
+//wass
+    if (this->itersPerThreadAttr) {
+      printf("got itersPerThreadAttr in LoopAttributeInfo\n");
+      this->itersPerThreadAttr->dump();
+      //gdbShouldBreakHere(); //wass
+    }
   }
 
  public:
@@ -237,6 +247,7 @@ struct LoopAttributeInfo {
   bool empty() const {
     return llvmMetadata.size() == 0 &&
            assertOnGpuAttr == nullptr &&
+           itersPerThreadAttr == nullptr &&
            blockSizeAttr == nullptr;
   }
 
@@ -246,6 +257,7 @@ struct LoopAttributeInfo {
 
   bool insertGpuEligibilityAssertion(BlockStmt* body);
   bool insertBlockSizeCall(Converter& converter, BlockStmt* body);
+  bool insertItersPerThreadCall(Converter& converter, BlockStmt* body);
   BlockStmt* createPrimitivesBlock(Converter& converter);
   void insertPrimitivesBlockAtHead(Converter& converter, BlockStmt* body);
 };
@@ -463,8 +475,18 @@ struct Converter {
 
   void readNativeGpuAttributes(LoopAttributeInfo& into,
                                const uast::AttributeGroup* attrs) {
+    into.readNativeGpuAttributes(attrs);
+#if 0 //wass
     into.assertOnGpuAttr = attrs->getAttributeNamed(USTR("assertOnGpu"));
     into.blockSizeAttr = attrs->getAttributeNamed(USTR("gpu.blockSize"));
+    into.itersPerThreadAttr = attrs->getAttributeNamed(USTR("gpu.itersPerThread"));
+//wass
+    if (into.itersPerThreadAttr) {
+      printf("got itersPerThreadAttr in Converter\n");
+      into.itersPerThreadAttr->dump();
+      //gdbShouldBreakHere(); //wass
+    }
+#endif //wass
   }
 
   Expr* visit(const uast::AttributeGroup* node) {
@@ -4274,22 +4296,40 @@ bool LoopAttributeInfo::insertBlockSizeCall(Converter& converter, BlockStmt* bod
   return false;
 }
 
+bool LoopAttributeInfo::insertItersPerThreadCall(Converter& converter, BlockStmt* body) {
+  static int counter = 0;   // see comment in insertBlockSizeCall()
+
+  if (itersPerThreadAttr) {
+    if (itersPerThreadAttr->numActuals() != 1) {
+      USR_FATAL(itersPerThreadAttr->id(),
+        "'@gpu.itersPerThread' attribute must have exactly one argument: "
+        "the number of iterations per GPU thread");
+    }
+
+    Expr* itersPerThread = converter.convertAST(itersPerThreadAttr->actual(0));
+    body->insertAtTail(new CallExpr(PRIM_GPU_SET_ITERS_PER_THREAD,
+                                    itersPerThread,
+                                    new_IntSymbol(counter++)));
+    return true;
+  }
+  return false;
+}
+
 BlockStmt* LoopAttributeInfo::createPrimitivesBlock(Converter& converter) {
   auto primBlock = new BlockStmt(BLOCK_SCOPELESS);
   primBlock->insertAtTail(new CallExpr(PRIM_GPU_PRIMITIVE_BLOCK));
 
-  bool insertedAny = false;
-  insertedAny |= insertGpuEligibilityAssertion(primBlock);
-  insertedAny |= insertBlockSizeCall(converter, primBlock);
+  insertGpuEligibilityAssertion(primBlock);
+  insertBlockSizeCall(converter, primBlock);
+  insertItersPerThreadCall(converter, primBlock);
 
-  return insertedAny ? primBlock : nullptr;
+  return primBlock;
 }
 
 void LoopAttributeInfo::insertPrimitivesBlockAtHead(Converter& converter,
                                                     BlockStmt* body) {
-  if (auto primBlock = createPrimitivesBlock(converter)) {
-    body->insertAtHead(primBlock);
-  }
+  BlockStmt* primBlock = createPrimitivesBlock(converter);
+  body->insertAtHead(primBlock);
 }
 
 /// Generic conversion calling the above functions ///

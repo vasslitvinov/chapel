@@ -1064,9 +1064,11 @@ class GpuKernel {
   std::vector<KernelArg> kernelActuals_;
   SymbolMap copyMap_;
   bool lateGpuizationFailure_;
-  CallExpr* blockSizeCall_;
   BlockStmt* gpuPrimitivesBlock_;
+  CallExpr* blockSizeCall_;
   Symbol* blockSize_;
+  CallExpr* itersPerThreadCall_;
+  Symbol* itersPerThread_;
   std::string name_;
 
   int nReductionBufs_ = 0;
@@ -1081,9 +1083,11 @@ class GpuKernel {
   std::string name();
   const std::vector<KernelArg>& kernelActuals() { return kernelActuals_; }
   bool lateGpuizationFailure() const { return lateGpuizationFailure_; }
-  CallExpr* blockSizeCall() const {return blockSizeCall_; }
   BlockStmt* gpuPrimitivesBlock() const { return gpuPrimitivesBlock_; }
+  CallExpr* blockSizeCall() const {return blockSizeCall_; }
   Symbol* blockSize() const {return blockSize_; }
+  CallExpr* itersPerThreadCall() const {return itersPerThreadCall_; }
+  Symbol* itersPerThread() const {return itersPerThread_; }
   int nReductionBufs() const {return nReductionBufs_; }
 
   private:
@@ -1107,9 +1111,11 @@ class GpuKernel {
 GpuKernel::GpuKernel(GpuizableLoop &gpuLoop, DefExpr* insertionPoint)
   : gpuLoop(gpuLoop)
   , lateGpuizationFailure_(false)
-  , blockSizeCall_(nullptr)
   , gpuPrimitivesBlock_(nullptr)
+  , blockSizeCall_(nullptr)
   , blockSize_(nullptr)
+  , itersPerThreadCall_(nullptr)
+  , itersPerThread_(nullptr)
   , name_("")
 {
   buildStubOutlinedFunction(insertionPoint);
@@ -1534,13 +1540,28 @@ void GpuKernel::generatePostBody() {
   fn_->insertAtTail(this->postBody_);
 }
 
-void GpuKernel::findGpuPrimitives() {
-  std::vector<CallExpr*> callExprsInBody;
-  for_alist(node, gpuLoop.gpuLoop()->body) {
-    collectCallExprs(node, callExprsInBody);
-  }
+static BlockStmt* getGpuPrimitivesBlock(BlockStmt* loopBody) {
+  for_alist(node, loopBody->body)
+    if (BlockStmt* nestedB = toBlockStmt(node))
+      if (nestedB->isGpuPrimitivesBlock())
+        return nestedB;
+#if 0 //wass
+      for_alist(nestedN, nestedB->body)
+        if (CallExpr* call = toCallExpr(nestedN))
+          if (call->isPrimitive(PRIM_GPU_PRIMITIVE_BLOCK))
+            return nestedB;
+#endif
+  INT_FATAL(loopBody, "did not find PRIM_GPU_PRIMITIVE_BLOCK");
+  return 0;
+}
 
-  for_vector(CallExpr, callExpr, callExprsInBody) {
+void GpuKernel::findGpuPrimitives() {
+  // wass todo replace GPBlock with gpuPrimitivesBlock_
+  // then see my assert in generateGPUKernelCall()
+  BlockStmt* GPBlock = getGpuPrimitivesBlock(gpuLoop.gpuLoop());
+  for_alist(node, GPBlock->body) {
+   if (CallExpr* callExpr = toCallExpr(node)) {
+
     if (callExpr->isPrimitive(PRIM_GPU_SET_BLOCKSIZE)) {
       if (blockSizeCall_ != nullptr) {
         // Check if the blockSize calls are clones of each other by comparing
@@ -1559,9 +1580,23 @@ void GpuKernel::findGpuPrimitives() {
       }
       blockSizeCall_ = callExpr;
       blockSize_ = toSymExpr(callExpr->get(1))->symbol();
-    } else if (callExpr->isPrimitive(PRIM_GPU_PRIMITIVE_BLOCK)) {
-      gpuPrimitivesBlock_ = toBlockStmt(callExpr->parentExpr);
+
+    } else if (callExpr->isPrimitive(PRIM_GPU_SET_ITERS_PER_THREAD)) {
+      if (itersPerThreadCall_ != nullptr) {
+        // see the comment above for PRIM_GPU_SET_BLOCKSIZE
+        if (itersPerThreadCall_->numActuals() == 2 &&
+            callExpr->numActuals() == 2) {
+          auto sym1 = toSymExpr(itersPerThreadCall_->get(2))->symbol();
+          auto sym2 = toSymExpr(callExpr->get(2))->symbol();
+          if (sym1 == sym2) continue;
+        }
+
+        USR_FATAL(callExpr, "can set GPU iterations per thread only once per GPU-eligible loop.");
+      }
+      itersPerThreadCall_ = callExpr;
+      itersPerThread_ = toSymExpr(callExpr->get(1))->symbol();
     }
+   }
   }
 
   if (blockSize_ == nullptr) {
@@ -1569,6 +1604,7 @@ void GpuKernel::findGpuPrimitives() {
   }
 
   INT_ASSERT(blockSize_ != nullptr);
+  // itersPerThread_ can be null
 }
 
 bool isCallToPrimitiveWeShouldNotCopyIntoKernel(CallExpr *call) {
@@ -1576,6 +1612,7 @@ bool isCallToPrimitiveWeShouldNotCopyIntoKernel(CallExpr *call) {
 
   return call->isPrimitive(PRIM_ASSERT_ON_GPU) ||
          call->isPrimitive(PRIM_GPU_SET_BLOCKSIZE) ||
+         call->isPrimitive(PRIM_GPU_SET_ITERS_PER_THREAD) ||
          call->isPrimitive(PRIM_GPU_PRIMITIVE_BLOCK);
 }
 
@@ -1890,6 +1927,7 @@ const std::unordered_map<PrimitiveTag, const char *>
 const std::unordered_set<PrimitiveTag>
     CpuBoundLoopCleanup::gpuPrimitivesStripOnHost = {
       PRIM_GPU_SET_BLOCKSIZE
+    , PRIM_GPU_SET_ITERS_PER_THREAD
     };
 
 // ----------------------------------------------------------------------------
@@ -1942,6 +1980,7 @@ static void generateGPUKernelCall(const GpuizableLoop &gpuLoop,
   // We need to lift them, too. Since we're "consuming" the GPU loop,
   // just modify the parent block in place.
   if (auto primitivesBlock = kernel.gpuPrimitivesBlock()) {
+INT_ASSERT("WASS: UNEXPECTED"); //wass
     INT_ASSERT(primitivesBlock->isGpuPrimitivesBlock());
     for_alist(expr, primitivesBlock->body) {
       if (isCallToPrimitiveWeShouldNotCopyIntoKernel(toCallExpr(expr))) {

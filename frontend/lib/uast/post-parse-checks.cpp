@@ -1601,6 +1601,7 @@ void Visitor::checkAttributeNameRecognizedOrToolSpaced(const Attribute* node) {
              node->name() == USTR("functionStatic") ||
              node->name() == USTR("assertOnGpu") ||
              node->name() == USTR("gpu.blockSize") ||
+             node->name() == USTR("gpu.itersPerThread") ||
              node->name().startsWith(USTR("chpldoc.")) ||
              node->name().startsWith(USTR("llvm."))) {
     // TODO: should we match chpldoc.nodoc or anything toolspaced with chpldoc.?
@@ -1632,7 +1633,9 @@ void Visitor::checkAttributeAppliedToCorrectNode(const Attribute* attr) {
   auto attributeGroup = parents_[parents_.size() - 1];
   CHPL_ASSERT(attributeGroup->isAttributeGroup());
   auto node = parents_[parents_.size() - 2];
-  if (attr->name() == USTR("assertOnGpu") || attr->name() == USTR("gpu.blockSize")) {
+  if (attr->name() == USTR("assertOnGpu") ||
+      attr->name() == USTR("gpu.blockSize") ||
+      attr->name() == USTR("gpu.itersPerThread")) {
     if (node->isForall() || node->isForeach()) return;
     if (auto var = node->toVariable()) {
        if (!var->isField()) return;
@@ -1641,7 +1644,8 @@ void Visitor::checkAttributeAppliedToCorrectNode(const Attribute* attr) {
     if (attr->name() == USTR("assertOnGpu")) {
       CHPL_REPORT(context_, InvalidGpuAssertion, node, attr);
     } else {
-      CHPL_ASSERT(attr->name() == USTR("gpu.blockSize"));
+      CHPL_ASSERT(attr->name() == USTR("gpu.blockSize") ||
+                  attr->name() == USTR("gpu.itersPerThread"));
       CHPL_REPORT(context_, InvalidBlockSize, node, attr);
     }
   } else if (attr->name() == USTR("functionStatic")) {
