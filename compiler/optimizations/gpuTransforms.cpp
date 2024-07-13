@@ -1036,9 +1036,11 @@ class GpuKernel {
   std::vector<KernelArg> kernelActuals_;
   SymbolMap copyMap_;
   bool lateGpuizationFailure_;
-  CallExpr* blockSizeCall_;
   BlockStmt* gpuPrimitivesBlock_;
+  CallExpr* blockSizeCall_;
   Symbol* blockSize_;
+  CallExpr* itersPerThreadCall_;
+  Symbol* itersPerThread_;
   std::string name_;
 
   int nReductionBufs_ = 0;
@@ -1054,9 +1056,11 @@ class GpuKernel {
   std::string name();
   const std::vector<KernelArg>& kernelActuals() { return kernelActuals_; }
   bool lateGpuizationFailure() const { return lateGpuizationFailure_; }
-  CallExpr* blockSizeCall() const {return blockSizeCall_; }
   BlockStmt* gpuPrimitivesBlock() const { return gpuPrimitivesBlock_; }
+  CallExpr* blockSizeCall() const {return blockSizeCall_; }
   Symbol* blockSize() const {return blockSize_; }
+  CallExpr* itersPerThreadCall() const {return itersPerThreadCall_; }
+  Symbol* itersPerThread() const {return itersPerThread_; }
   int nReductionBufs() const {return nReductionBufs_; }
   int nHostRegisteredVars() const {return nHostRegisteredVars_; }
   void incNumHostRegisteredVars() { nHostRegisteredVars_ += 1; }
@@ -1089,9 +1093,11 @@ class GpuKernel {
 GpuKernel::GpuKernel(GpuizableLoop &gpuLoop, DefExpr* insertionPoint)
   : gpuLoop(gpuLoop)
   , lateGpuizationFailure_(false)
-  , blockSizeCall_(nullptr)
   , gpuPrimitivesBlock_(nullptr)
+  , blockSizeCall_(nullptr)
   , blockSize_(nullptr)
+  , itersPerThreadCall_(nullptr)
+  , itersPerThread_(nullptr)
   , name_("")
 {
   buildStubOutlinedFunction(insertionPoint);
@@ -1558,6 +1564,9 @@ void GpuKernel::processGpuPrimitivesBlock(BlockStmt* block) {
     // block
     if (CallExpr* call = toCallExpr(expr)) {
       if (call->isPrimitive(PRIM_GPU_SET_BLOCKSIZE)) {
+//wass
+if (::getenv("CHPL_VASS_gdb"))
+printf("got blockSize %7d  %s\n", call->id, debugLoc(call));
         if (blockSizeCall_ != nullptr) {
           // Check if the blockSize calls are clones of each other by comparing
           // their unique identifier actuals. blockSize calls created for
@@ -1567,14 +1576,30 @@ void GpuKernel::processGpuPrimitivesBlock(BlockStmt* block) {
               call->numActuals() == 2) {
             auto sym1 = toSymExpr(blockSizeCall_->get(2))->symbol();
             auto sym2 = toSymExpr(call->get(2))->symbol();
-
             if (sym1 == sym2) continue;
           }
-
           USR_FATAL(call, "Can only set GPU block size once per GPU-eligible loop.");
         }
+
         blockSizeCall_ = call;
         blockSize_ = toSymExpr(call->get(1))->symbol();
+      } else if (call->isPrimitive(PRIM_GPU_SET_ITERS_PER_THREAD)) {
+//wass
+if (::getenv("CHPL_VASS_gdb"))
+printf("got itersPerT %7d  %s\n", call->id, debugLoc(call));
+        if (itersPerThreadCall_ != nullptr) {
+          // See the comment above for PRIM_GPU_SET_BLOCKSIZE
+          if (itersPerThreadCall_->numActuals() == 2 &&
+              call->numActuals() == 2) {
+            auto sym1 = toSymExpr(itersPerThreadCall_->get(2))->symbol();
+            auto sym2 = toSymExpr(call->get(2))->symbol();
+            if (sym1 == sym2) continue;
+          }
+          USR_FATAL(call, "can set GPU itersPerThread only once per GPU-eligible loop");
+        }
+
+        itersPerThreadCall_ = call;
+        itersPerThread_ = toSymExpr(call->get(1))->symbol();
       }
     }
 
@@ -1592,6 +1617,7 @@ bool isCallToPrimitiveWeShouldNotCopyIntoKernel(CallExpr *call) {
   return call->isPrimitive(PRIM_ASSERT_ON_GPU) ||
          call->isPrimitive(PRIM_ASSERT_GPU_ELIGIBLE) ||
          call->isPrimitive(PRIM_GPU_SET_BLOCKSIZE) ||
+         call->isPrimitive(PRIM_GPU_SET_ITERS_PER_THREAD) ||
          call->isPrimitive(PRIM_GPU_PRIMITIVE_BLOCK);
 }
 
@@ -1907,6 +1933,7 @@ const std::unordered_map<PrimitiveTag, const char *>
 const std::unordered_set<PrimitiveTag>
     CpuBoundLoopCleanup::gpuPrimitivesStripOnHost = {
       PRIM_GPU_SET_BLOCKSIZE
+    , PRIM_GPU_SET_ITERS_PER_THREAD
     };
 
 // ----------------------------------------------------------------------------

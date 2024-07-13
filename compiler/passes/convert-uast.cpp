@@ -131,6 +131,8 @@ struct LoopAttributeInfo {
   const uast::Attribute* assertEligibleAttr = nullptr;
   // The @gpu.blockSize attribute, if one is provided by the user.
   const uast::Attribute* blockSizeAttr = nullptr;
+  // The @gpu.itersPerThread attribute, if one is provided by the user.
+  const uast::Attribute* itersPerThreadAttr = nullptr;
 
  private:
   LLVMMetadataPtr tupleToLLVMMetadata(Context* context,
@@ -212,6 +214,13 @@ struct LoopAttributeInfo {
     this->assertOnGpuAttr = attrs->getAttributeNamed(USTR("assertOnGpu"));
     this->assertEligibleAttr = attrs->getAttributeNamed(USTR("gpu.assertEligible"));
     this->blockSizeAttr = attrs->getAttributeNamed(USTR("gpu.blockSize"));
+    this->itersPerThreadAttr = attrs->getAttributeNamed(USTR("gpu.itersPerThread"));
+//wass
+    if (this->itersPerThreadAttr) {
+      printf("got itersPerThreadAttr in LoopAttributeInfo\n");
+      this->itersPerThreadAttr->dump();
+      //gdbShouldBreakHere(); //wass
+    }
   }
 
  public:
@@ -243,6 +252,7 @@ struct LoopAttributeInfo {
     return llvmMetadata.size() == 0 &&
            assertOnGpuAttr == nullptr &&
            assertEligibleAttr == nullptr &&
+           itersPerThreadAttr == nullptr &&
            blockSizeAttr == nullptr;
   }
 
@@ -252,6 +262,7 @@ struct LoopAttributeInfo {
 
   bool insertGpuEligibilityAssertion(BlockStmt* body);
   bool insertBlockSizeCall(Converter& converter, BlockStmt* body);
+  bool insertItersPerThreadCall(Converter& converter, BlockStmt* body);
   BlockStmt* createPrimitivesBlock(Converter& converter);
   void insertPrimitivesBlockAtHead(Converter& converter, BlockStmt* body);
 };
@@ -4400,6 +4411,25 @@ bool LoopAttributeInfo::insertBlockSizeCall(Converter& converter, BlockStmt* bod
   return false;
 }
 
+bool LoopAttributeInfo::insertItersPerThreadCall(Converter& converter, BlockStmt* body) {
+  static int counter = 0;   // see comment in insertBlockSizeCall()
+
+  if (itersPerThreadAttr) {
+    if (itersPerThreadAttr->numActuals() != 1) {
+      USR_FATAL(itersPerThreadAttr->id(),
+        "'@gpu.itersPerThread' attribute must have exactly one argument: "
+        "the number of iterations per GPU thread");
+    }
+
+    Expr* itersPerThread = converter.convertAST(itersPerThreadAttr->actual(0));
+    body->insertAtTail(new CallExpr(PRIM_GPU_SET_ITERS_PER_THREAD,
+                                    itersPerThread,
+                                    new_IntSymbol(counter++)));
+    return true;
+  }
+  return false;
+}
+
 BlockStmt* LoopAttributeInfo::createPrimitivesBlock(Converter& converter) {
   auto primBlock = new BlockStmt(BLOCK_SCOPELESS);
   primBlock->insertAtTail(new CallExpr(PRIM_GPU_PRIMITIVE_BLOCK));
@@ -4407,6 +4437,7 @@ BlockStmt* LoopAttributeInfo::createPrimitivesBlock(Converter& converter) {
   bool insertedAny = false;
   insertedAny |= insertGpuEligibilityAssertion(primBlock);
   insertedAny |= insertBlockSizeCall(converter, primBlock);
+  insertedAny |= insertItersPerThreadCall(converter, primBlock);
 
   return insertedAny ? primBlock : nullptr;
 }
