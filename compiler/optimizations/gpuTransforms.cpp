@@ -1551,14 +1551,17 @@ static BlockStmt* getGpuPrimitivesBlock(BlockStmt* loopBody) {
           if (call->isPrimitive(PRIM_GPU_PRIMITIVE_BLOCK))
             return nestedB;
 #endif
-  INT_FATAL(loopBody, "did not find PRIM_GPU_PRIMITIVE_BLOCK");
-  return 0;
+  //wass: INT_FATAL(loopBody, "did not find PRIM_GPU_PRIMITIVE_BLOCK");
+  return nullptr;
 }
 
 void GpuKernel::findGpuPrimitives() {
-  // wass todo replace GPBlock with gpuPrimitivesBlock_
-  // then see my assert in generateGPUKernelCall()
   gpuPrimitivesBlock_ = getGpuPrimitivesBlock(gpuLoop.gpuLoop());
+//wass
+if (gpuPrimitivesBlock_ && ::getenv("CHPL_VASS_gdb"))
+printf("got gpuPrims  %d  %s\n", gpuPrimitivesBlock_->id,
+debugLoc(gpuPrimitivesBlock_));
+  if (gpuPrimitivesBlock_)   //wass formatting; {}
   for_alist(node, gpuPrimitivesBlock_->body) {
    if (CallExpr* callExpr = toCallExpr(node)) {
 
@@ -1578,6 +1581,10 @@ void GpuKernel::findGpuPrimitives() {
 
         USR_FATAL(callExpr, "Can only set GPU block size once per GPU-eligible loop.");
       }
+//wass
+if (::getenv("CHPL_VASS_gdb"))
+printf("got blockSize %d %d  %s\n", gpuPrimitivesBlock_->id,
+callExpr->id, debugLoc(callExpr));
       blockSizeCall_ = callExpr;
       blockSize_ = toSymExpr(callExpr->get(1))->symbol();
 
@@ -2228,29 +2235,18 @@ static void cleanupTaskIndependentCapturePrimitives() {
 }
 
 static void reportErrorsForBadBlockSizeCalls() {
-  std::vector<BlockStmt*> gpuPrimBlocks;
+  CallExpr* explainAnchor = nullptr;
   for_alive_in_Vec(CallExpr, callExpr, gCallExprs) {
-    if (callExpr->isPrimitive(PRIM_GPU_SET_BLOCKSIZE) ||
-        callExpr->isPrimitive(PRIM_GPU_SET_ITERS_PER_THREAD) ||
-        callExpr->isPrimitive(PRIM_ASSERT_ON_GPU) ||
-        callExpr->isPrimitive(PRIM_GPU_PRIMITIVE_BLOCK)) {
-
-      if (isFnGpuSpecialized(callExpr->getFunction())) {
+    if(callExpr->isPrimitive(PRIM_GPU_SET_BLOCKSIZE)) {
+      if (callExpr->getFunction()->hasFlag(FLAG_GPU_SPECIALIZATION)) {
         // Assume that this primitive got here by being copied, and that the
         // other location will error about it. Since both copies of the primitive
         // will have the same location, erroring here would lead to duplicates.
         continue;
       }
 
-      if (callExpr->isPrimitive(PRIM_GPU_PRIMITIVE_BLOCK)) {
-if (::getenv("CHPL_VASS_gdb"))
-printf("setting aside the block for %d  %s\n",
-callExpr->id, debugLoc(callExpr));
-        gpuPrimBlocks.push_back(toBlockStmt(callExpr->parentExpr));
-        continue;
-      }
-
-      USR_FATAL_CONT(callExpr, "using @gpu.blockSize, 'setBlockSize', @gpu.itersPerThread, or @assertOnGpu on a non-GPU-eligible loop");
+      USR_FATAL_CONT(callExpr, "'setBlockSize' can only be used in bodies of GPU-eligible loops");
+      explainAnchor = callExpr;
 
       // Search forward to try find the CForLoop corresponding to the GPU loop.
       // This is just a heuristic to detect common erroneous uses for setBlockSize.
@@ -2272,10 +2268,8 @@ callExpr->id, debugLoc(callExpr));
       }
     }
   }
+  if (explainAnchor) {}
   USR_STOP();
-
-  for_vector(BlockStmt, block, gpuPrimBlocks)
-    block->remove();
 }
 
 // ----------------------------------------------------------------------------

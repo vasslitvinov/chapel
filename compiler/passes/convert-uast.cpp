@@ -4319,17 +4319,19 @@ BlockStmt* LoopAttributeInfo::createPrimitivesBlock(Converter& converter) {
   auto primBlock = new BlockStmt(BLOCK_SCOPELESS);
   primBlock->insertAtTail(new CallExpr(PRIM_GPU_PRIMITIVE_BLOCK));
 
-  insertGpuEligibilityAssertion(primBlock);
-  insertBlockSizeCall(converter, primBlock);
-  insertItersPerThreadCall(converter, primBlock);
+  bool insertedAny = false;
+  insertedAny |= insertGpuEligibilityAssertion(primBlock);
+  insertedAny |= insertBlockSizeCall(converter, primBlock);
+  insertedAny |= insertItersPerThreadCall(converter, primBlock);
 
-  return primBlock;
+  return insertedAny ? primBlock : nullptr;
 }
 
 void LoopAttributeInfo::insertPrimitivesBlockAtHead(Converter& converter,
                                                     BlockStmt* body) {
-  BlockStmt* primBlock = createPrimitivesBlock(converter);
-  body->insertAtHead(primBlock);
+  if (auto primBlock = createPrimitivesBlock(converter)) {
+    body->insertAtHead(primBlock);
+  }
 }
 
 /// Generic conversion calling the above functions ///
