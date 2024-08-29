@@ -1540,32 +1540,17 @@ void GpuKernel::generatePostBody() {
   fn_->insertAtTail(this->postBody_);
 }
 
-static BlockStmt* getGpuPrimitivesBlock(BlockStmt* loopBody) {
-  for_alist(node, loopBody->body)
-    if (BlockStmt* nestedB = toBlockStmt(node))
-      if (nestedB->isGpuPrimitivesBlock())
-        return nestedB;
-#if 0 //wass
-      for_alist(nestedN, nestedB->body)
-        if (CallExpr* call = toCallExpr(nestedN))
-          if (call->isPrimitive(PRIM_GPU_PRIMITIVE_BLOCK))
-            return nestedB;
-#endif
-  //wass: INT_FATAL(loopBody, "did not find PRIM_GPU_PRIMITIVE_BLOCK");
-  return nullptr;
-}
-
 void GpuKernel::findGpuPrimitives() {
-  gpuPrimitivesBlock_ = getGpuPrimitivesBlock(gpuLoop.gpuLoop());
-//wass
-if (gpuPrimitivesBlock_ && ::getenv("CHPL_VASS_gdb"))
-printf("got gpuPrims  %d  %s\n", gpuPrimitivesBlock_->id,
-debugLoc(gpuPrimitivesBlock_));
-  if (gpuPrimitivesBlock_)   //wass formatting; {}
-  for_alist(node, gpuPrimitivesBlock_->body) {
-   if (CallExpr* callExpr = toCallExpr(node)) {
+  std::vector<CallExpr*> callExprsInBody;
+  for_alist(node, gpuLoop.gpuLoop()->body) {
+    collectCallExprs(node, callExprsInBody);
+  }
 
+  for_vector(CallExpr, callExpr, callExprsInBody) {
     if (callExpr->isPrimitive(PRIM_GPU_SET_BLOCKSIZE)) {
+//wass
+if (::getenv("CHPL_VASS_gdb"))
+printf("got blockSize %7d  %s\n", callExpr->id, debugLoc(callExpr));
       if (blockSizeCall_ != nullptr) {
         // Check if the blockSize calls are clones of each other by comparing
         // their unique identifier actuals. blockSize calls created for
@@ -1578,17 +1563,16 @@ debugLoc(gpuPrimitivesBlock_));
 
           if (sym1 == sym2) continue;
         }
-
         USR_FATAL(callExpr, "Can only set GPU block size once per GPU-eligible loop.");
       }
-//wass
-if (::getenv("CHPL_VASS_gdb"))
-printf("got blockSize %d %d  %s\n", gpuPrimitivesBlock_->id,
-callExpr->id, debugLoc(callExpr));
+
       blockSizeCall_ = callExpr;
       blockSize_ = toSymExpr(callExpr->get(1))->symbol();
 
     } else if (callExpr->isPrimitive(PRIM_GPU_SET_ITERS_PER_THREAD)) {
+//wass
+if (::getenv("CHPL_VASS_gdb"))
+printf("got itersPerT %7d  %s\n", callExpr->id, debugLoc(callExpr));
       if (itersPerThreadCall_ != nullptr) {
         // see the comment above for PRIM_GPU_SET_BLOCKSIZE
         if (itersPerThreadCall_->numActuals() == 2 &&
@@ -1597,13 +1581,18 @@ callExpr->id, debugLoc(callExpr));
           auto sym2 = toSymExpr(callExpr->get(2))->symbol();
           if (sym1 == sym2) continue;
         }
-
         USR_FATAL(callExpr, "can set GPU iterations per thread only once per GPU-eligible loop.");
       }
+
       itersPerThreadCall_ = callExpr;
       itersPerThread_ = toSymExpr(callExpr->get(1))->symbol();
+
+    } else if (callExpr->isPrimitive(PRIM_GPU_PRIMITIVE_BLOCK)) {
+//wass
+if (::getenv("CHPL_VASS_gdb"))
+printf("got gpuPrims  %7d  %s\n", callExpr->id, debugLoc(callExpr));
+      gpuPrimitivesBlock_ = toBlockStmt(callExpr->parentExpr);
     }
-   }
   }
 
   if (blockSize_ == nullptr) {
@@ -1611,7 +1600,7 @@ callExpr->id, debugLoc(callExpr));
   }
 
   INT_ASSERT(blockSize_ != nullptr);
-  // itersPerThread_ can be null
+  // itersPerThread_ == nullptr is OK
 }
 
 bool isCallToPrimitiveWeShouldNotCopyIntoKernel(CallExpr *call) {
