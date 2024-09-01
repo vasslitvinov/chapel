@@ -215,12 +215,13 @@ struct LoopAttributeInfo {
     this->assertEligibleAttr = attrs->getAttributeNamed(USTR("gpu.assertEligible"));
     this->blockSizeAttr = attrs->getAttributeNamed(USTR("gpu.blockSize"));
     this->itersPerThreadAttr = attrs->getAttributeNamed(USTR("gpu.itersPerThread"));
-//wass
+#if 0 //wass
     if (this->itersPerThreadAttr) {
       printf("got itersPerThreadAttr in LoopAttributeInfo\n");
       this->itersPerThreadAttr->dump();
       //gdbShouldBreakHere(); //wass
     }
+#endif
   }
 
  public:
