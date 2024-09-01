@@ -1245,6 +1245,7 @@ FnSymbol* KernelArg::generateFinalReductionWrapper() {
   FnSymbol* ret = new FnSymbol(fnName.c_str());
   ret->addFlag(FLAG_RESOLVED);
   ret->addFlag(FLAG_EXPORT);
+  ret->addFlag(FLAG_LOCAL_ARGS);
 
   ArgSymbol* inData = new ArgSymbol(INTENT_IN, "in_data", dtCVoidPtr);
   ArgSymbol* numElems = new ArgSymbol(INTENT_IN, "num_elems",
@@ -1333,6 +1334,7 @@ KernelArg::KernelArg(Symbol* symInLoop, GpuKernel* kernel, bool isCompilerGenera
     this->kind_ |= GpuArgKind::REDUCE;
 
     this->redInfo_.symInLoop = symInLoop;
+    // note that this ref type violates check_afterInlineFunctions()
     this->redInfo_.buffer = new ArgSymbol(INTENT_IN,
                                          astr(symInLoop->name, "_interim"),
                                          symInLoop->getRefType());
