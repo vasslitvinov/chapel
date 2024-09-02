@@ -1521,7 +1521,7 @@ void GpuKernel::generateIndexComputation() {
     Symbol* startOffset = maybeAddCompilerGeneratedKernelArgument(lowerBound,
                                                            "chpl_lowerBound");
     VarSymbol* index = insertNewVarAndDef(fn_->body, "chpl_simt_index",
-                                          dtInt[INT_SIZE_64]);
+                                          loopIndex->type);
     fn_->insertAtTail(new CallExpr(PRIM_MOVE, index, new CallExpr(
       PRIM_ADD, tempVar1, startOffset)));
 
@@ -1578,7 +1578,7 @@ void GpuKernel::generateOobCondNoIPT(Symbol* localUpperBound) {
  *   index, lowerBound, upperBound
  */
 void GpuKernel::generateOobCondWithIPT(Symbol* upperBound) {
-  CONTINUE HERE //wass
+  gdbShouldBreakHere(); //wass
 }
 
 void GpuKernel::generatePostBody() {
