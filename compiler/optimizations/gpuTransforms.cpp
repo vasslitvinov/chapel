@@ -1065,15 +1065,13 @@ class GpuKernel {
   void generateGpuAndNonGpuPaths();
 
   private:
+  void processGpuPrimitivesBlock();
   void buildStubOutlinedFunction(DefExpr* insertionPoint);
-  void buildStubKernelLaunchBlock();
   void generateKernelLaunch();
   void populateBody();
   void normalizeOutlinedFunction();
   void setLateGpuizationFailure(bool flag);
   void finalize();
-
-  void processGpuPrimitivesBlock(BlockStmt* block);
 
   void generateIndexComputation();
   void generateOobCond();
@@ -1098,12 +1096,12 @@ GpuKernel::GpuKernel(GpuizableLoop &gpuLoop, DefExpr* insertionPoint)
   , itersPerThreadCall_(nullptr)
   , itersPerThread_(nullptr)
   , name_("")
-  , launchBlock_(nullptr)
+  , launchBlock_(new BlockStmt())
   , userBody_(nullptr)
   , postBody_(nullptr)
 {
+  processGpuPrimitivesBlock();
   buildStubOutlinedFunction(insertionPoint);
-  buildStubKernelLaunchBlock();
   normalizeOutlinedFunction();
   populateBody();
   if(!lateGpuizationFailure_) {
@@ -1565,6 +1563,12 @@ void GpuKernel::generateOobCondNoIPT(Symbol* localUpperBound) {
   fn_->insertAtTail(new CondStmt(new SymExpr(isInBounds), this->userBody_));
 }
 
+// wass TODO
+static BlockStmt* headerBlock() {
+  BlockStmt* result = new BlockStmt();
+  return result;
+}
+
 /* Adds the following AST to a GPU kernel
  *
  * def chpl_threadLow = lowerBound + `global thread idx` * itersPerThread
@@ -1578,6 +1582,16 @@ void GpuKernel::generateOobCondNoIPT(Symbol* localUpperBound) {
  *   index, lowerBound, upperBound
  */
 void GpuKernel::generateOobCondWithIPT(Symbol* upperBound) {
+  CForLoop* cloop = 0;//WASS TODO = new CForLoop(this->userBody_);
+  cloop->loopHeaderSet(
+    headerBlock(), // init
+    headerBlock(), // test
+    headerBlock() ); // incr
+#if 0 //wass
+    headerBlock(index = low), // init
+    headerBlock(index < high), // test
+    headerBlock(index += 1) ); // incr
+#endif //wass
   gdbShouldBreakHere(); //wass
 }
 
@@ -1586,13 +1600,33 @@ void GpuKernel::generatePostBody() {
   fn_->insertAtTail(this->postBody_);
 }
 
-void GpuKernel::processGpuPrimitivesBlock(BlockStmt* block) {
-  INT_ASSERT(block);
-  INT_ASSERT(block->isGpuPrimitivesBlock());
+// Detect attributes if any, store them in 'this', remove them from the tree.
+void GpuKernel::processGpuPrimitivesBlock() {
+  BlockStmt* block = nullptr; // this will be the primitives block
+
+  // find the primitives block
+  std::vector<BlockStmt*> blocksInBody;
+  collectBlockStmts(gpuLoop.loop(), blocksInBody);
+  for (auto block2 : blocksInBody) {
+    if (block2->isGpuPrimitivesBlock()) {
+      block = block2;
+      break;
+    }
+  }
+
+  if (block == nullptr) return; // did not find it
+
+  // wass: if this holds, replace the above search with `for_alist`
+  INT_ASSERT(block->parentExpr == gpuLoop.loop());
 
   // to make sure that DefExprs are also properly copied
+#if 0 //wass
   BlockStmt* newGpuPrimBlock = block->copy();
   launchBlock_->insertAtTail(newGpuPrimBlock);
+#else
+  BlockStmt* newGpuPrimBlock = block;
+  launchBlock_->insertAtTail(newGpuPrimBlock->remove());
+#endif //wass
   for_alist(expr, newGpuPrimBlock->body) {
     // process any important primitives before we remove them from this new
     // block
@@ -1636,10 +1670,9 @@ printf("got itersPerT %7d  %s\n", call->id, debugLoc(call));
         itersPerThreadCall_ = call;
         itersPerThread_ = toSymExpr(call->get(1))->symbol();
       }
-    }
 
-    if (isCallToPrimitiveWeShouldNotCopyIntoKernel(toCallExpr(expr))) {
-      expr->remove();
+      if (isCallToPrimitiveWeShouldNotCopyIntoKernel(call))
+        call->remove();
     }
   }
 
@@ -2008,25 +2041,6 @@ static VarSymbol* generateNumThreads(BlockStmt* gpuLaunchBlock,
   gpuLaunchBlock->insertAtTail(c2);
 
   return numThreads;
-}
-
-void GpuKernel::buildStubKernelLaunchBlock() {
-  launchBlock_ = new BlockStmt();
-
-  std::vector<BlockStmt*> blocksInBody;
-  collectBlockStmts(gpuLoop.loop(), blocksInBody);
-
-  for (auto block : blocksInBody) {
-    if (block->isGpuPrimitivesBlock()) {
-      processGpuPrimitivesBlock(block);
-    }
-  }
-
-  // we are done with the call, now remove it.
-  if (auto bsc = blockSizeCall())
-    if (bsc->inTree()) bsc->remove();
-  if (auto bsc = itersPerThreadCall())
-    if (bsc->inTree()) bsc->remove();
 }
 
 void GpuKernel::generateKernelLaunch() {
