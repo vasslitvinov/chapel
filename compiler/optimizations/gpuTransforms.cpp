@@ -982,10 +982,10 @@ class GpuKernel;
 
 class KernelArg {
   private:
-    Symbol* actual_;
+    Symbol*    actual_;  // pre-existing AST
     GpuKernel* kernel_;
-    ArgSymbol* formal_;
-    int8_t kind_; // formed by |'ing values of GpuArgKind
+    ArgSymbol* formal_;  // newly-created for this kernel / outlined function
+    int8_t     kind_;    // formed by |'ing values of GpuArgKind
     ReductionInfo redInfo_;
 
   public:
@@ -1024,25 +1024,26 @@ static bool isCallToPrimitiveWithHostRuntimeEffect(CallExpr *call);
 //    - Passes in any variables that are declared outside of the loop as
 //      parameters to this new function.
 class GpuKernel {
-  GpuizableLoop &gpuLoop;
-  FnSymbol* fn_;
+  // these fields reference pre-existing AST nodes
+  GpuizableLoop& gpuLoop;
+  BlockStmt*     gpuPrimitivesBlock_;
+  CallExpr*      blockSizeCall_;
+  Symbol*        blockSize_;
+  CallExpr*      itersPerThreadCall_;
+  Symbol*        itersPerThread_;
+  // these fields reference newly-created AST nodes 
+  std::string name_;
+  FnSymbol*  fn_;
   BlockStmt* launchBlock_;
   std::vector<Symbol*> kernelIndices_;
   std::vector<KernelArg> kernelActuals_;
-  SymbolMap copyMap_;
-  bool lateGpuizationFailure_;
-  BlockStmt* gpuPrimitivesBlock_;
-  CallExpr* blockSizeCall_;
-  Symbol* blockSize_;
-  CallExpr* itersPerThreadCall_;
-  Symbol* itersPerThread_;
-  std::string name_;
+  SymbolMap  copyMap_;
+  BlockStmt* userBody_; // where the loop's body goes
+  BlockStmt* postBody_; // executed by all GPU threads (even if oob) at the end
 
   int nReductionBufs_ = 0;
   int nHostRegisteredVars_ = 0;
-
-  BlockStmt* userBody_; // where the loop's body goes
-  BlockStmt* postBody_; // executed by all GPU threads (even if oob) at the end
+  bool lateGpuizationFailure_ = false;
 
   public:
   GpuKernel(GpuizableLoop &gpuLoop, DefExpr* insertionPoint);
@@ -1091,13 +1092,15 @@ class GpuKernel {
 
 GpuKernel::GpuKernel(GpuizableLoop &gpuLoop, DefExpr* insertionPoint)
   : gpuLoop(gpuLoop)
-  , lateGpuizationFailure_(false)
   , gpuPrimitivesBlock_(nullptr)
   , blockSizeCall_(nullptr)
   , blockSize_(nullptr)
   , itersPerThreadCall_(nullptr)
   , itersPerThread_(nullptr)
   , name_("")
+  , launchBlock_(nullptr)
+  , userBody_(nullptr)
+  , postBody_(nullptr)
 {
   buildStubOutlinedFunction(insertionPoint);
   buildStubKernelLaunchBlock();
@@ -1481,8 +1484,8 @@ Symbol* GpuKernel::addLocalVariable(Symbol* symInLoop) {
  *  blockDimX  = __primitive('gpu blockDim x')
  *  threadIdxX = __primitive('gpu threadIdx x')
  *  t0 = varBlockIdxX * varBlockDimX
- *  t1 = t0 + threadIdxX
- *  index = t1 + lowerBound
+ *  t1 = t0 + threadIdxX      // aka `global thread idx`
+ *  index = t1 + lowerBound   // aka `calculated thread idx`
  *
  *  Also adds the loopIndex->index to the copyMap_
  **/
@@ -1562,12 +1565,20 @@ void GpuKernel::generateOobCondNoIPT(Symbol* localUpperBound) {
   fn_->insertAtTail(new CondStmt(new SymExpr(isInBounds), this->userBody_));
 }
 
-/*
- * def chpl_threadLow = lowerBound
-WASS CONTINUE HERE
-*/
+/* Adds the following AST to a GPU kernel
+ *
+ * def chpl_threadLow = lowerBound + `global thread idx` * itersPerThread
+ * def chpl_threadHigh = min(chpl_threadLow + itersPerThread, upperBound - 1)
+ *
+ * CForLoop index in chpl_threadLow ..< chpl_threadHigh {
+ *   // newly-created empty block, stored in this->userBody_
+ * }
+ *
+ * With multiple indices, the following are taken for the first index:
+ *   index, lowerBound, upperBound
+ */
 void GpuKernel::generateOobCondWithIPT(Symbol* upperBound) {
-  gdbShouldBreakHere(); //wass
+  CONTINUE HERE //wass
 }
 
 void GpuKernel::generatePostBody() {
