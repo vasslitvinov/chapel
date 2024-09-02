@@ -4416,16 +4416,11 @@ bool LoopAttributeInfo::insertItersPerThreadCall(Converter& converter, BlockStmt
   static int counter = 0;   // see comment in insertBlockSizeCall()
 
   if (itersPerThreadAttr) {
-    if (itersPerThreadAttr->numActuals() != 1) {
-      USR_FATAL(itersPerThreadAttr->id(),
-        "'@gpu.itersPerThread' attribute must have exactly one argument: "
-        "the number of iterations per GPU thread");
+    auto newCall = new CallExpr("chpl__gpuItersPerThreadAttr", new_IntSymbol(counter++));
+    for (auto actual : itersPerThreadAttr->actuals()) {
+      newCall->insertAtTail(converter.convertAST(actual));
     }
-
-    Expr* itersPerThread = converter.convertAST(itersPerThreadAttr->actual(0));
-    body->insertAtTail(new CallExpr(PRIM_GPU_SET_ITERS_PER_THREAD,
-                                    itersPerThread,
-                                    new_IntSymbol(counter++)));
+    body->insertAtTail(newCall);
     return true;
   }
   return false;

@@ -1605,6 +1605,8 @@ void GpuKernel::processGpuPrimitivesBlock() {
   BlockStmt* block = nullptr; // this will be the primitives block
 
   // find the primitives block
+  // Note: this looks inside nested CForLoops, which can be userful with
+  // multi-dim arrays, ex: var A: [1..n,1..n] int; @gpu.blockSize foreach A {}
   std::vector<BlockStmt*> blocksInBody;
   collectBlockStmts(gpuLoop.loop(), blocksInBody);
   for (auto block2 : blocksInBody) {
@@ -1615,9 +1617,6 @@ void GpuKernel::processGpuPrimitivesBlock() {
   }
 
   if (block == nullptr) return; // did not find it
-
-  // wass: if this holds, replace the above search with `for_alist`
-  INT_ASSERT(block->parentExpr == gpuLoop.loop());
 
   // to make sure that DefExprs are also properly copied
 #if 0 //wass
