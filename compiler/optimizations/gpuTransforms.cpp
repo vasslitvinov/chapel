@@ -47,10 +47,6 @@ static Timer gpuTransformTimer;
 static bool debugPrintGPUChecks = false;
 static bool allowFnCallsFromGPU = true;
 static int indentGPUChecksLevel = 0;
-#if 0 //wass
-static Symbol* globalThreadIdxInCopyMap = nullptr;
-static Symbol* lowerBoundInCopyMap      = nullptr;
-#endif
 
 // Ideally, if we do gpuSpecialization, we could safely assume that any function
 // that isn't marked with FLAG_GPU_SPECIALIZE would be executed on a CPU locale.
@@ -184,7 +180,7 @@ static bool isDegenerateOuterRef(Symbol* sym, CForLoop* loop) {
   }
 
   for_SymbolSymExprs(use, sym) {
-    INT_ASSERT(use, isDefAndOrUse(use) > 0);//wass: should not matter remove this
+    INT_ASSERT(use, isDefAndOrUse(use) > 0);//wass: should not matter; remove this
     if (LoopStmt::findEnclosingLoop(use) != loop) {
       return false;
     }
@@ -1527,12 +1523,6 @@ void GpuKernel::generateIndexComputation() {
                                itersPerThread_, "chpl_itersPerThread");
   }
 
-#if 0
-  // wass not needed; remove globalThreadIdxInCopyMap
-  if (hasItersPerThread())
-    copyMap_.put(globalThreadIdxInCopyMap, tempVar1);
-#endif
-
   for (std::vector<Symbol*>::size_type i=0 ; i<numIndices ; i++) {
     Symbol* loopIndex  = gpuLoop.loopIndices()[i];
     Symbol* lowerBound = gpuLoop.lowerBounds()[i];
@@ -1547,10 +1537,6 @@ void GpuKernel::generateIndexComputation() {
         PRIM_MULT, tempVar1, localItersPerThread_)));
 
       addend = tempVar2;
-#if 0
-      //wass not needed??
-      copyMap_.put(lowerBoundInCopyMap, startOffset);
-#endif
     }
 
     VarSymbol* index = insertNewVarAndDef(fn_->body, "chpl_simt_index",
@@ -1598,13 +1584,6 @@ void GpuKernel::generateOobCondNoIPT(Symbol* localUpperBound) {
   fn_->insertAtTail(new CondStmt(new SymExpr(isInBounds), this->userBody_));
 }
 
-#if 0// wass
-static BlockStmt* headerBlock() {
-  BlockStmt* result = new BlockStmt();
-  return result;
-}
-#endif
-
 /* Adds the following AST to a GPU kernel
  *
  * // recall index[0] = lowerBound + `global thread idx` * itersPerThread
@@ -1623,7 +1602,6 @@ void GpuKernel::generateLoopOverIPT(Symbol* upperBound) {
 
   // testBlock tests only for index[0], like in generateOobCondNoIPT()
   Symbol* index0 = kernelIndices_[0];
-  printf("index0 %s[%d]\n", index0->name, index0->id);//wass
 
   VarSymbol* iptMinus1 = insertNewVarAndDef(fn_->body, "iptMinus1",
                                             localItersPerThread_->type);
@@ -1644,16 +1622,6 @@ void GpuKernel::generateLoopOverIPT(Symbol* upperBound) {
   BlockStmt* testBlock = new BlockStmt();
   testBlock->insertAtTail("'<='(%S,%S)", index0, threadBound);
 
-#if 0 //wass
-  Symbol* lowerBound = new VarSymbol("lll", dtBool);
-  //Symbol* upperBound = new VarSymbol("uuu", dtBool);
-  Symbol* index = copyMap_.get(gpuLoop.loopIndices()[0]);
-
-      new CallExpr(PRIM_ASSIGN, index, lowerBound),
-      new CallExpr(PRIM_LESSOREQUAL, index, upperBound),
-      new CallExpr(PRIM_ADD_ASSIGN, index, new_IntSymbol(1))),
-#endif
-
   // incrBlock increments all indices
   BlockStmt* incrBlock = new BlockStmt();
   for_vector(Symbol, index, kernelIndices_) {
@@ -1665,11 +1633,6 @@ void GpuKernel::generateLoopOverIPT(Symbol* upperBound) {
       ->body.head->remove());
   iptLoop->loopHeaderSet(initBlock, testBlock, incrBlock);
   fn_->insertAtTail(iptLoop);
-
-if (::getenv("CHPL_VASS_gdb")) {//wass
-  list_view(fn_);
-  gdbShouldBreakHere();
-}
 }
 
 void GpuKernel::generatePostBody() {
@@ -2218,28 +2181,10 @@ static void cleanupForeachLoopsGuaranteedToRunOnCpu(FnSymbol *fn) {
   }
 }
 
-//wass not needed?
-static void setupHelper() {
-#if 0 //wass need SET_LINENO
-  globalThreadIdxInCopyMap = new VarSymbol("globalThreadIdxInCopyMap");
-  lowerBoundInCopyMap      = new VarSymbol("lowerBoundInCopyMap");
-#endif
-}
-
-//wass not needed?
-static void cleanupHelper() {
-#if 0 //wass need SET_LINENO
-  globalThreadIdxInCopyMap = nullptr;
-  lowerBoundInCopyMap      = nullptr;
-#endif
-}
-
 static void doGpuTransforms() {
   if(fGpuSpecialization) {
     CreateGpuFunctionSpecializations().doit();
   }
-
-  setupHelper();
 
   // Outline all eligible loops; cleanup CPU bound loops
   forv_Vec(FnSymbol*, fn, gFnSymbols) {
@@ -2260,8 +2205,6 @@ static void doGpuTransforms() {
       cleanupForeachLoopsGuaranteedToRunOnCpu(fn);
     }
   }
-
-  cleanupHelper();
 }
 
 static void logGpuizableLoops() {
@@ -2367,10 +2310,6 @@ bool isLoopGpuBound(CForLoop* loop) {
 
 void GpuKernel::generateGpuAndNonGpuPaths() {
   SET_LINENO(gpuLoop.loop());
-//wass
-if (::getenv("CHPL_VASS_gdb"))
-printf("generateGpuAndNonGpuPaths %d  %s\n", gpuLoop.loop()->id,
-       debugLoc(gpuLoop.loop()));
 
   // Without GPU specialization, every time, before doing a kernel launch, we
   // need to check and see if we are on a GPU sublocale. The code to do this
