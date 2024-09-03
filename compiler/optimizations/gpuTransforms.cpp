@@ -1619,13 +1619,9 @@ void GpuKernel::processGpuPrimitivesBlock() {
   if (block == nullptr) return; // did not find it
 
   // to make sure that DefExprs are also properly copied
-#if 0 //wass
+  // (in most cases we can move 'block' instead of creating the copy)
   BlockStmt* newGpuPrimBlock = block->copy();
   launchBlock_->insertAtTail(newGpuPrimBlock);
-#else
-  BlockStmt* newGpuPrimBlock = block;
-  launchBlock_->insertAtTail(newGpuPrimBlock->remove());
-#endif //wass
   for_alist(expr, newGpuPrimBlock->body) {
     // process any important primitives before we remove them from this new
     // block
