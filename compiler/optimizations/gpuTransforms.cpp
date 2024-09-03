@@ -47,6 +47,10 @@ static Timer gpuTransformTimer;
 static bool debugPrintGPUChecks = false;
 static bool allowFnCallsFromGPU = true;
 static int indentGPUChecksLevel = 0;
+#if 0 //wass
+static Symbol* globalThreadIdxInCopyMap = nullptr;
+static Symbol* lowerBoundInCopyMap      = nullptr;
+#endif
 
 // Ideally, if we do gpuSpecialization, we could safely assume that any function
 // that isn't marked with FLAG_GPU_SPECIALIZE would be executed on a CPU locale.
@@ -1038,6 +1042,7 @@ class GpuKernel {
   std::vector<Symbol*> kernelIndices_;
   std::vector<KernelArg> kernelActuals_;
   SymbolMap  copyMap_;
+  Symbol*    localItersPerThread_;
   BlockStmt* userBody_; // where the loop's body goes
   BlockStmt* postBody_; // executed by all GPU threads (even if oob) at the end
 
@@ -1075,7 +1080,7 @@ class GpuKernel {
 
   void generateIndexComputation();
   void generateOobCond();
-  void generateOobCondWithIPT(Symbol* upperBound);
+  void generateLoopOverIPT(Symbol* upperBound);
   void generateOobCondNoIPT(Symbol* upperBound);
   void generatePostBody();
   void markGPUSubCalls(FnSymbol* fn);
@@ -1097,6 +1102,7 @@ GpuKernel::GpuKernel(GpuizableLoop &gpuLoop, DefExpr* insertionPoint)
   , itersPerThread_(nullptr)
   , name_("")
   , launchBlock_(new BlockStmt())
+  , localItersPerThread_(nullptr)
   , userBody_(nullptr)
   , postBody_(nullptr)
 {
@@ -1485,6 +1491,10 @@ Symbol* GpuKernel::addLocalVariable(Symbol* symInLoop) {
  *  t1 = t0 + threadIdxX      // aka `global thread idx`
  *  index = t1 + lowerBound   // aka `calculated thread idx`
  *
+ *  If we have gpu.itersPerThread, instead generates:
+ *
+ *  index = lowerBound + t1 * itersPerThread
+ *
  *  Also adds the loopIndex->index to the copyMap_
  **/
 void GpuKernel::generateIndexComputation() {
@@ -1512,16 +1522,41 @@ void GpuKernel::generateIndexComputation() {
     PRIM_ADD, tempVar, varThreadIdxX));
   fn_->insertAtTail(c2);
 
+  if (hasItersPerThread()) {
+    localItersPerThread_ = maybeAddCompilerGeneratedKernelArgument(
+                               itersPerThread_, "chpl_itersPerThread");
+  }
+
+#if 0
+  // wass not needed; remove globalThreadIdxInCopyMap
+  if (hasItersPerThread())
+    copyMap_.put(globalThreadIdxInCopyMap, tempVar1);
+#endif
+
   for (std::vector<Symbol*>::size_type i=0 ; i<numIndices ; i++) {
     Symbol* loopIndex  = gpuLoop.loopIndices()[i];
     Symbol* lowerBound = gpuLoop.lowerBounds()[i];
-
     Symbol* startOffset = maybeAddCompilerGeneratedKernelArgument(lowerBound,
                                                            "chpl_lowerBound");
+    VarSymbol* addend = tempVar1;
+
+    if (hasItersPerThread()) {
+      VarSymbol* tempVar2 = insertNewVarAndDef(fn_->body, "t2",
+                                               tempVar1->type);
+      fn_->insertAtTail(new CallExpr(PRIM_MOVE, tempVar2, new CallExpr(
+        PRIM_MULT, tempVar1, localItersPerThread_)));
+
+      addend = tempVar2;
+#if 0
+      //wass not needed??
+      copyMap_.put(lowerBoundInCopyMap, startOffset);
+#endif
+    }
+
     VarSymbol* index = insertNewVarAndDef(fn_->body, "chpl_simt_index",
                                           loopIndex->type);
     fn_->insertAtTail(new CallExpr(PRIM_MOVE, index, new CallExpr(
-      PRIM_ADD, tempVar1, startOffset)));
+      PRIM_ADD, addend, startOffset)));
 
     kernelIndices_.push_back(index);
     copyMap_.put(loopIndex, index);
@@ -1536,7 +1571,7 @@ void GpuKernel::generateOobCond() {
   this->userBody_ = new BlockStmt();
 
   if (hasItersPerThread())
-    generateOobCondWithIPT(localUpperBound);
+    generateLoopOverIPT(localUpperBound);
   else
     generateOobCondNoIPT(localUpperBound);
 }
@@ -1547,7 +1582,7 @@ void GpuKernel::generateOobCond() {
  * def chpl_is_in_bounds;
  * chpl_is_in_bounds = `calculated thread idx` <= upperBound
  * if (chpl_is_in_bounds) {
- *   // newly-created empty block, stored in this->userBody_
+ *   // empty block stored in this->userBody_
  * }
  *
  */
@@ -1563,36 +1598,78 @@ void GpuKernel::generateOobCondNoIPT(Symbol* localUpperBound) {
   fn_->insertAtTail(new CondStmt(new SymExpr(isInBounds), this->userBody_));
 }
 
-// wass TODO
+#if 0// wass
 static BlockStmt* headerBlock() {
   BlockStmt* result = new BlockStmt();
   return result;
 }
+#endif
 
 /* Adds the following AST to a GPU kernel
  *
- * def chpl_threadLow = lowerBound + `global thread idx` * itersPerThread
- * def chpl_threadHigh = min(chpl_threadLow + itersPerThread, upperBound - 1)
+ * // recall index[0] = lowerBound + `global thread idx` * itersPerThread
+ * def threadBound = min(index[0] + itersPerThread - 1, upperBound)
  *
- * CForLoop index in chpl_threadLow ..< chpl_threadHigh {
- *   // newly-created empty block, stored in this->userBody_
+ * CForLoop(; index[0] <= threadBound; for all i: index[i] += 1) {
+ *   // empty block stored in this->userBody_
  * }
  *
  * With multiple indices, the following are taken for the first index:
  *   index, lowerBound, upperBound
  */
-void GpuKernel::generateOobCondWithIPT(Symbol* upperBound) {
-  CForLoop* cloop = 0;//WASS TODO = new CForLoop(this->userBody_);
-  cloop->loopHeaderSet(
-    headerBlock(), // init
-    headerBlock(), // test
-    headerBlock() ); // incr
+void GpuKernel::generateLoopOverIPT(Symbol* upperBound) {
+  // initBlock is empty, inits are added in generateIndexComputation()
+  BlockStmt* initBlock = new BlockStmt();
+
+  // testBlock tests only for index[0], like in generateOobCondNoIPT()
+  Symbol* index0 = kernelIndices_[0];
+  printf("index0 %s[%d]\n", index0->name, index0->id);//wass
+
+  VarSymbol* iptMinus1 = insertNewVarAndDef(fn_->body, "iptMinus1",
+                                            localItersPerThread_->type);
+  fn_->insertAtTail("'='(%S,'-'(%S,%S))", iptMinus1,
+                    localItersPerThread_, new_IntSymbol(1));
+
+  VarSymbol* threadBound = insertNewVarAndDef(fn_->body, "threadBound",
+                                              index0->type);
+  fn_->insertAtTail("'='(%S,'+'(%S,%S))", threadBound, index0, iptMinus1);
+
+  VarSymbol* switchToLB = insertNewVarAndDef(fn_->body, "switchToLB", dtBool);
+  fn_->insertAtTail("'='(%S,'<'(%S,%S))", switchToLB, upperBound, threadBound);
+
+  BlockStmt* switchBlock = new BlockStmt();
+  switchBlock->insertAtTail("'='(%S,%S)", threadBound, upperBound);
+  fn_->insertAtTail(new CondStmt(new SymExpr(switchToLB), switchBlock));
+
+  BlockStmt* testBlock = new BlockStmt();
+  testBlock->insertAtTail("'<='(%S,%S)", index0, threadBound);
+
 #if 0 //wass
-    headerBlock(index = low), // init
-    headerBlock(index < high), // test
-    headerBlock(index += 1) ); // incr
-#endif //wass
-  gdbShouldBreakHere(); //wass
+  Symbol* lowerBound = new VarSymbol("lll", dtBool);
+  //Symbol* upperBound = new VarSymbol("uuu", dtBool);
+  Symbol* index = copyMap_.get(gpuLoop.loopIndices()[0]);
+
+      new CallExpr(PRIM_ASSIGN, index, lowerBound),
+      new CallExpr(PRIM_LESSOREQUAL, index, upperBound),
+      new CallExpr(PRIM_ADD_ASSIGN, index, new_IntSymbol(1))),
+#endif
+
+  // incrBlock increments all indices
+  BlockStmt* incrBlock = new BlockStmt();
+  for_vector(Symbol, index, kernelIndices_) {
+    incrBlock->insertAtTail("'+='(%S,%S)", index, new_IntSymbol(1));
+  }
+
+  CForLoop* iptLoop = toCForLoop(
+    CForLoop::buildCForLoop(nullptr, this->userBody_) // returns a BlockStmt
+      ->body.head->remove());
+  iptLoop->loopHeaderSet(initBlock, testBlock, incrBlock);
+  fn_->insertAtTail(iptLoop);
+
+if (::getenv("CHPL_VASS_gdb")) {//wass
+  list_view(fn_);
+  gdbShouldBreakHere();
+}
 }
 
 void GpuKernel::generatePostBody() {
@@ -1605,8 +1682,8 @@ void GpuKernel::processGpuPrimitivesBlock() {
   BlockStmt* block = nullptr; // this will be the primitives block
 
   // find the primitives block
-  // Note: this looks inside nested CForLoops, which can be userful with
-  // multi-dim arrays, ex: var A: [1..n,1..n] int; @gpu.blockSize foreach A {}
+  // Note: this searches inside nested loops, needed for multi-dim arrays
+  // ex:  var A: [1..n,1..n] int; @gpu.blockSize foreach A {}
   std::vector<BlockStmt*> blocksInBody;
   collectBlockStmts(gpuLoop.loop(), blocksInBody);
   for (auto block2 : blocksInBody) {
@@ -1619,7 +1696,7 @@ void GpuKernel::processGpuPrimitivesBlock() {
   if (block == nullptr) return; // did not find it
 
   // to make sure that DefExprs are also properly copied
-  // (in most cases we can move 'block' instead of creating the copy)
+  // (in most cases we can move 'block' instead of creating a copy)
   BlockStmt* newGpuPrimBlock = block->copy();
   launchBlock_->insertAtTail(newGpuPrimBlock);
   for_alist(expr, newGpuPrimBlock->body) {
@@ -2141,10 +2218,28 @@ static void cleanupForeachLoopsGuaranteedToRunOnCpu(FnSymbol *fn) {
   }
 }
 
+//wass not needed?
+static void setupHelper() {
+#if 0 //wass need SET_LINENO
+  globalThreadIdxInCopyMap = new VarSymbol("globalThreadIdxInCopyMap");
+  lowerBoundInCopyMap      = new VarSymbol("lowerBoundInCopyMap");
+#endif
+}
+
+//wass not needed?
+static void cleanupHelper() {
+#if 0 //wass need SET_LINENO
+  globalThreadIdxInCopyMap = nullptr;
+  lowerBoundInCopyMap      = nullptr;
+#endif
+}
+
 static void doGpuTransforms() {
   if(fGpuSpecialization) {
     CreateGpuFunctionSpecializations().doit();
   }
+
+  setupHelper();
 
   // Outline all eligible loops; cleanup CPU bound loops
   forv_Vec(FnSymbol*, fn, gFnSymbols) {
@@ -2165,6 +2260,8 @@ static void doGpuTransforms() {
       cleanupForeachLoopsGuaranteedToRunOnCpu(fn);
     }
   }
+
+  cleanupHelper();
 }
 
 static void logGpuizableLoops() {
