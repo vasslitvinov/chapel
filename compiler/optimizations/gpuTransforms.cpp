@@ -471,11 +471,13 @@ class GpuAssertionReporter {
   }
 
   void pushCall(CallExpr* enter) {
+printf("%*s%s: pushCall %d\n", indentGPUChecksLevel, "", debugLoc(enter), enter->id); //wass
     callStack_.push_back(enter);
   }
 
   void popCall() {
     callStack_.pop_back();
+printf("%*s  popCall\n", indentGPUChecksLevel, ""); //wass
   }
 
   void fallbackReportGpuizationFailure(BlockStmt* blk) {
@@ -539,6 +541,7 @@ public:
   const std::vector<CallExpr*>& pidGets() const { return pidGets_; }
 
   inline void reportNotGpuizable(BaseAST* ast, const char* msg) {
+debugSummary(ast); printf("%s\n", msg); gdbShouldBreakHere(); //wass
     assertionReporter_.reportNotGpuizable(loop_, ast, msg);
   }
 
@@ -803,17 +806,17 @@ bool GpuizableLoop::callsInBodyAreGpuizable() {
 bool GpuizableLoop::callsInBodyAreGpuizableHelp(BlockStmt* blk,
                                                 std::set<FnSymbol*>& okFns,
                                            std::set<FnSymbol*>& visitedFns) {
-  FnSymbol* fn = blk->getFunction();
+  FnSymbol* parentFn = blk->getFunction();
   if (debugPrintGPUChecks) {
-    printf("W %*s%s: %s[%d]\n", indentGPUChecksLevel, "", //wass
-           debugLoc(fn), fn->name, fn->id);
+    printf("%*s%s: %s[%d]\n", indentGPUChecksLevel, "",
+           debugLoc(parentFn), parentFn->name, parentFn->id);
   }
 
-  if (visitedFns.count(blk->getFunction()) != 0) {
+  if (visitedFns.count(parentFn) != 0) {
     return true; // allow recursive functions
   }
 
-  visitedFns.insert(blk->getFunction());
+  visitedFns.insert(parentFn);
 
   std::vector<CallExpr*> calls;
 
@@ -877,19 +880,22 @@ bool GpuizableLoop::callsInBodyAreGpuizableHelp(BlockStmt* blk,
         return false;
       }
 
-      indentGPUChecksLevel += 2;
-      bool ok = okFns.count(fn) != 0;
-      if (!ok) {
+      if (okFns.count(fn) == 0) {
+        indentGPUChecksLevel += 2;
         assertionReporter_.pushCall(call);
-        ok = callsInBodyAreGpuizableHelp(fn->body, okFns, visitedFns);
+        bool ok = callsInBodyAreGpuizableHelp(fn->body, okFns, visitedFns);
         assertionReporter_.popCall();
-      }
-      if (ok) {
         indentGPUChecksLevel -= 2;
-        okFns.insert(fn);
-      } else {
-        indentGPUChecksLevel -= 2;
-        return false;
+        if (ok) {
+          // If this is a recursive call to 'fn', 'ok' will be true and
+          // insertion will occur though we are not done analyzing 'fn'.
+          // This avoids re-analyzing any subsequent calls to 'fn'.
+          // We will still see bad calls in 'fn', if any, while working
+          // through the first encountered call to 'fn'.
+          okFns.insert(fn);
+        } else {
+          return false;
+        }
       }
     }
   }
