@@ -42,7 +42,7 @@
 
 static Timer gpuTransformTimer;
 
-static bool debugPrintGPUChecks = false;
+static bool debugPrintGPUChecks = true; //wass
 static bool allowFnCallsFromGPU = true;
 static int indentGPUChecksLevel = 0;
 
@@ -542,6 +542,12 @@ public:
     assertionReporter_.reportNotGpuizable(loop_, ast, msg);
   }
 
+  inline void reportNotGpuizableFnCall(CallExpr* call, FnSymbol* fn, const char* msg) {
+    assertionReporter_.pushCall(call);
+    assertionReporter_.reportNotGpuizable(loop_, fn, msg);
+    assertionReporter_.popCall();
+  }
+
 private:
   CallExpr* findCompileTimeGpuAssertions();
   void printNonGpuizableError(CallExpr* assertion, Expr* loc);
@@ -558,7 +564,7 @@ private:
 
   bool callsInBodyAreGpuizableHelp(BlockStmt* blk,
                                    std::set<FnSymbol*>& okFns,
-                                   std::set<FnSymbol*> visitedFns);
+                                   std::set<FnSymbol*>& visitedFns);
 
   FnSymbol* createErroringStubForGpu(FnSymbol* fn);
 };
@@ -675,7 +681,7 @@ bool GpuizableLoop::parentFnAllowsGpuization() {
   FnSymbol *cur = this->parentFn_;
   while (cur) {
     if (cur->hasFlag(FLAG_NO_GPU_CODEGEN)) {
-      assertionReporter_.reportNotGpuizable(loop_, cur, "parent function disallows execution on a GPU");
+      reportNotGpuizable(cur, "parent function disallows execution on a GPU");
       return false;
     }
 
@@ -796,11 +802,11 @@ bool GpuizableLoop::callsInBodyAreGpuizable() {
 
 bool GpuizableLoop::callsInBodyAreGpuizableHelp(BlockStmt* blk,
                                                 std::set<FnSymbol*>& okFns,
-                                                std::set<FnSymbol*> visitedFns) {
+                                           std::set<FnSymbol*>& visitedFns) {
   FnSymbol* fn = blk->getFunction();
   if (debugPrintGPUChecks) {
-    printf("%*s%s:%d: %s[%d]\n", indentGPUChecksLevel, "",
-           fn->fname(), fn->linenum(), fn->name, fn->id);
+    printf("W %*s%s: %s[%d]\n", indentGPUChecksLevel, "", //wass
+           debugLoc(fn), fn->name, fn->id);
   }
 
   if (visitedFns.count(blk->getFunction()) != 0) {
@@ -825,7 +831,7 @@ bool GpuizableLoop::callsInBodyAreGpuizableHelp(BlockStmt* blk,
       bool inLocal = inLocalBlock(call);
       int is = classifyPrimitive(call, inLocal);
       if ((is != FAST_AND_LOCAL)) {
-        assertionReporter_.reportNotGpuizable(loop_, call, "call to a primitive that is not fast and local");
+        reportNotGpuizable(call, "call to a primitive that is not fast and local");
         return false;
       }
     } else if (call->isResolved()) {
@@ -851,9 +857,7 @@ bool GpuizableLoop::callsInBodyAreGpuizableHelp(BlockStmt* blk,
       }
 
       if (fn->hasFlag(FLAG_NO_GPU_CODEGEN)) {
-        assertionReporter_.pushCall(call);
-        assertionReporter_.reportNotGpuizable(loop_, fn, "function is marked as not eligible for GPU execution");
-        assertionReporter_.popCall();
+        reportNotGpuizableFnCall(call, fn, "function is marked as not eligible for GPU execution");
         return false;
       }
 
@@ -864,14 +868,12 @@ bool GpuizableLoop::callsInBodyAreGpuizableHelp(BlockStmt* blk,
         std::string msg = "function calls out to extern function (";
         msg += fn->name;
         msg += "), which is not marked as GPU eligible";
-        assertionReporter_.reportNotGpuizable(loop_, fn, msg.c_str());
+        reportNotGpuizable(fn, msg.c_str());
         return false;
       }
 
       if (hasOuterVarAccesses(fn)) {
-        assertionReporter_.pushCall(call);
-        assertionReporter_.reportNotGpuizable(loop_, fn, "called function has outer var access");
-        assertionReporter_.popCall();
+        reportNotGpuizableFnCall(call, fn, "called function has outer var access");
         return false;
       }
 
@@ -922,7 +924,7 @@ bool GpuizableLoop::extractIndicesAndLowerBounds() {
     INT_ASSERT(bs->body.length == (int)this->loopIndices_.size());
     INT_ASSERT(bs->body.length == (int)this->lowerBounds_.size());
   } else {
-    assertionReporter_.reportNotGpuizable(loop_, loop_, "loop indices do not match expected pattern for GPU execution");
+    reportNotGpuizable(loop_, "loop indices do not match expected pattern for GPU execution");
     return false;
   }
 
@@ -949,7 +951,7 @@ bool GpuizableLoop::extractUpperBound() {
   }
 
   if(upperBound_ == nullptr) {
-    assertionReporter_.reportNotGpuizable(loop_, loop_, "upper bound does not match expected pattern for GPU execution");
+    reportNotGpuizable(loop_, "upper bound does not match expected pattern for GPU execution");
     return false;
   }
   return true;
