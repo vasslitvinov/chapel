@@ -21,7 +21,6 @@
 #ifndef _FN_SYMBOL_H_
 #define _FN_SYMBOL_H_
 
-#include "intents.h"
 #include "library.h"
 #include "symbol.h"
 
