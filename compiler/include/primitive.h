@@ -62,11 +62,11 @@ enum {
 
 class PrimitiveOp { public:
   PrimitiveTag  tag;
+  bool          isEssential; // has effects visible outside of the function
+  bool          passLineno;  // pass line number and filename to this primitive
   const char*   name;
   QualifiedType (*returnInfo)(CallExpr*); // aka qualifiedTypeFn
   void (*codegenFn)(CallExpr*, GenRet&);
-  bool          isEssential; // has effects visible outside of the function
-  bool          passLineno;  // pass line number and filename to this primitive
 
   PrimitiveOp(PrimitiveTag  atag,
               const char*   aname,

@@ -124,8 +124,8 @@ public:
   // What is the visibility distance? This is -1 if it has not been computed.
   int                     visibilityDistance;
 
-  Symbol*                 failingArgument; // actual or formal
   ResolutionCandidateFailureReason reason;
+  Symbol*                 failingArgument; // actual or formal
 
 private:
                           ResolutionCandidate();

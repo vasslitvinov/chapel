@@ -124,15 +124,16 @@ public:
   bool               isKnownToBeGeneric();
   virtual bool       isVisible(BaseAST* scope)                 const;
 
-  // Future: consider merging qual, type into a single
-  // field of type QualifiedType
-  Qualifier          qual;
   Type*              type;
   FlagSet            flags;
   // Tuples can contain ref fields. In that event, a VarSymbol/ArgSymbol
   // needs to be able to track whether the ref field is ref or
   // const ref. It can depend on the variable for ref to arrays.
   Qualifier*         fieldQualifiers;
+
+  // Future: consider merging qual, type into a single
+  // field of type QualifiedType
+  Qualifier          qual;
 
   // these two must be astrs
   const char*        name;
@@ -422,6 +423,9 @@ public:
   // The intent for this variable.
   ForallIntentTag intent;
 
+  // This svar is for a task intent or TPV that is explicit in user code.
+  bool svExplicit;
+
   // Reference to the outer variable. NULL for task-private variables.
   SymExpr* outerVarSE;
 
@@ -432,9 +436,6 @@ public:
   // Corresponding actions to be performed at task startup and teardown.
   BlockStmt* svInitBlock;      // always present
   BlockStmt* svDeinitBlock;    //  "
-
-  // This svar is for a task intent or TPV that is explicit in user code.
-  bool svExplicit;
 };
 
 /******************************** | *********************************

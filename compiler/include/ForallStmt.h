@@ -24,7 +24,7 @@
 #include "stmt.h"
 #include "LoopWithShadowVarsInterface.h"
 
-enum ForallAutoLocalAccessCloneType {
+enum ForallAutoLocalAccessCloneType :uint8_t {
   NOT_CLONE,
   NO_OPTIMIZATION,
   STATIC_ONLY,
@@ -32,7 +32,7 @@ enum ForallAutoLocalAccessCloneType {
 };
 
 // Support for reporting calls that are not optimized for different reasons
-enum CallRejectReason {
+enum CallRejectReason :uint8_t {
   CRR_ACCEPT,
   CRR_NOT_ARRAY_ACCESS_LIKE,
   CRR_NO_CLEAN_INDEX_MATCH,
@@ -75,8 +75,8 @@ class ALACandidate {
     CallExpr *call_;
     int iterandIdx_;
     CallRejectReason reason_;
-    std::vector<Expr*> offsetExprs_;
     bool hasOffset_;
+    std::vector<Expr*> offsetExprs_;
 
     bool argsSupported(const std::vector<Symbol *> &syms);
 
@@ -94,8 +94,6 @@ class ALACandidate {
 
 class ForallOptimizationInfo {
   public:
-    bool infoGathered;
-
     std::vector<Symbol *> iterSym;
     std::vector<Expr *> dotDomIterExpr;
     std::vector<Symbol *> dotDomIterSym;
@@ -120,6 +118,7 @@ class ForallOptimizationInfo {
 
     std::vector<Symbol *> staticCheckSymsForDynamicCandidates;
 
+    bool infoGathered;
     bool autoLocalAccessChecked;
     bool hasAlignedFollowers;
 
@@ -216,8 +215,8 @@ private:
   AList          fIterExprs;
   AList          fShadowVars;  // may be empty
   BlockStmt*     fLoopBody;    // always present
-  bool           fZippered;
   CallExpr*      fZipCall;
+  bool           fZippered;
   bool           fFromForLoop; // see comment below
   bool           fFromReduce;
   bool           fOverTupleExpand;

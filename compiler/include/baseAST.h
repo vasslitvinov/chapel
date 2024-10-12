@@ -150,7 +150,7 @@ typedef std::vector<NameAndSymbol> SymbolNameVec;
 //
 // enumerated type of all AST node types
 //
-enum AstTag {
+enum AstTag :uint8_t {
   E_SymExpr,
   E_UnresolvedSymExpr,
   E_DefExpr,

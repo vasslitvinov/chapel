@@ -106,7 +106,7 @@ protected:
 *                                                                             *
 ************************************** | *************************************/
 
-enum BlockTag {
+enum BlockTag :uint8_t {
   // Bits:
   BLOCK_NORMAL      = 0,
   BLOCK_SCOPELESS   = 1<<0, ///< does not introduce a new scope
@@ -195,12 +195,12 @@ public:
   virtual CallExpr*   blockInfoGet()                               const;
   virtual CallExpr*   blockInfoSet(CallExpr* expr);
 
-  BlockTag            blockTag;
   AList               body;
   CallExpr*           useList;       // module/enum uses for this block
   CallExpr*           modRefs;       // modules referenced directly
   const char*         userLabel;
   CallExpr*           byrefVars;     // task intents - task constructs only
+  BlockTag            blockTag;
 
 private:
   CallExpr*           getMarkerPrimIfExists(PrimitiveTag markerType);
@@ -240,7 +240,7 @@ public:
   BlockStmt* thenStmt;
   BlockStmt* elseStmt;
 
-  bool       isIfExpr() const;
+  bool       isIfExpr() const { return fIsIfExpr; }
 
 private:
   bool       fIsIfExpr;
@@ -251,7 +251,7 @@ private:
 *                                                                             *
 ************************************** | *************************************/
 
-enum GotoTag {
+enum GotoTag :uint8_t {
   GOTO_NORMAL,
   GOTO_BREAK,
   GOTO_CONTINUE,

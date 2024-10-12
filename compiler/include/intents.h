@@ -35,7 +35,7 @@ const int INTENT_FLAG_MAYBE_CONST = 0x80;
 
 // If this enum is modified, ArgSymbol::intentDescrString()
 // and intentDescrString(IntentTag) should also be updated to match
-enum IntentTag {
+enum IntentTag :uint8_t {
   INTENT_IN              = INTENT_FLAG_IN,
   INTENT_OUT             = INTENT_FLAG_OUT,
   INTENT_INOUT           = INTENT_FLAG_IN          | INTENT_FLAG_OUT,
@@ -75,7 +75,7 @@ TFI_REDUCE_*
 
 The remaining tags should be self-explanatory.
 */
-enum ForallIntentTag {
+enum ForallIntentTag :uint8_t {
   // user-specified intents
   TFI_DEFAULT,  // aka TFI_BLANK
   TFI_CONST,                       // ShadowVarSymbol nicknames:
@@ -94,7 +94,7 @@ enum ForallIntentTag {
 
 const char* forallIntentTagDescription(ForallIntentTag tfiTag);
 
-enum RetTag {
+enum RetTag :uint8_t {
   RET_VALUE,
   RET_REF,
   RET_CONST_REF,

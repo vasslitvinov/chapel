@@ -99,8 +99,6 @@ public:
   void                   setSubstitutionWithName(const char* name,
                                                  Symbol* value);
 
-
-
   TypeSymbol*            symbol;
 
   // pointer to references for non-reference types
@@ -159,7 +157,7 @@ const char* toString(Type* type, bool decorateAllClasses=true);
 // a Qualifier allows the compiler to distinguish between
 // different properties of a variable (const or ref-ness in particular)
 // without changing its type to a ref or wide ref type.
-enum Qualifier {
+enum Qualifier :uint8_t {
   // The abstract qualifiers
   QUAL_UNKNOWN,
   QUAL_CONST,
@@ -446,11 +444,11 @@ class FunctionType final : public Type {
 
  private:
   Kind kind_;
+  bool throws_;
+  bool isAnyFormalNamed_;
   std::vector<Formal> formals_;
   RetTag returnIntent_;
   Type* returnType_;
-  bool throws_;
-  bool isAnyFormalNamed_;
   const char* userTypeString_;
 
   static const char*

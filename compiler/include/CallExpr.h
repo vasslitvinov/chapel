@@ -23,7 +23,7 @@
 
 #include "expr.h"
 
-enum TryTag {
+enum TryTag :uint8_t {
   TRY_TAG_NONE,
   TRY_TAG_IN_TRY,
   TRY_TAG_IN_TRYBANG

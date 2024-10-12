@@ -30,13 +30,13 @@
 *                                                                             *
 ************************************** | *************************************/
 
-enum AggregateTag {
+enum AggregateTag :uint8_t {
   AGGREGATE_CLASS,
   AGGREGATE_RECORD,
   AGGREGATE_UNION
 };
 
-enum AggregateResolved {
+enum AggregateResolved :uint8_t {
   UNRESOLVED,
   RESOLVING,
   RESOLVED
@@ -184,21 +184,28 @@ public:
   // Public fields
   //
 
-  AggregateTag                aggregateTag;
+  AggregateType*              instantiatedFrom;
 
   // These fields support differentiating between unmanaged class
   // pointers and borrows. At the present time, borrows are represented
   // by plain AggregateType and unmanaged class pointers use this special type.
   DecoratedClassType*         decoratedClasses[NUM_PACKED_DECORATED_TYPES];
 
+  AggregateTag                aggregateTag;
+
+  // Used to prevent recursive or repeated resolution of this type.
+  AggregateResolved           resolveStatus;
+
   bool                        builtDefaultInit;
   bool                        builtReaderInit;
-
-  AggregateType*              instantiatedFrom;
+  bool                        initializerResolved;
 
   bool                        hasUserDefinedInit;
 
-  bool                        initializerResolved;
+  // Indicates whether we have already tried to look for generic fields.
+  bool                        foundGenericFields;
+  // A list of the generic fields in this type.
+  std::vector<Symbol*>        genericFields;
 
   AList                       fields;
 
@@ -223,15 +230,8 @@ public:
   Vec<AggregateType*>         dispatchParents;    // dispatch hierarchy
   Vec<AggregateType*>         dispatchChildren;   // dispatch hierarchy
 
-  // Used to prevent recursive or repeated resolution of this type.
-  AggregateResolved           resolveStatus;
-
   // String representation of the 'type constructor' for use in error messages
   const char*                 typeSignature;
-  // Indicates whether we have already tried to look for generic fields.
-  bool                        foundGenericFields;
-  // A list of the generic fields in this type.
-  std::vector<Symbol*>        genericFields;
 
 private:
 

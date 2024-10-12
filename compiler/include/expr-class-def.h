@@ -47,7 +47,6 @@ public:
 
   virtual void    prettyPrint(std::ostream* o);
 
-
   bool            isRef();
   bool            isWideRef();
   bool            isRefOrWideRef();

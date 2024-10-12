@@ -29,7 +29,7 @@ class IteratorGroup;     // see iterator.h
 class GenericsCacheInfo; // see caches.h
 void cleanupCacheInfo(FnSymbol* fn);
 
-enum TagGenericResult {
+enum TagGenericResult :uint8_t {
   TGR_ALREADY_TAGGED,
   TGR_NEWLY_TAGGED,
   TGR_TAGGING_ABORTED
@@ -105,6 +105,7 @@ public:
   BlockStmt*                 body;
   IntentTag                  thisTag;
   RetTag                     retTag;
+  int                        codegenUniqueNum;
 
   // If the parenful version of this function is deprecated, the deprecation
   // message.
@@ -141,7 +142,6 @@ public:
   // and used in cullOverReferences)
   FnSymbol*                  valueFunction;
 
-  int                        codegenUniqueNum;
   const char*                doc;
 
   // Used to store the return symbol during partial copying.

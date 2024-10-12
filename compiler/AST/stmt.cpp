@@ -955,10 +955,6 @@ CallExpr* CondStmt::foldConstantCondition(bool addEndOfStatement) {
   return result;
 }
 
-bool CondStmt::isIfExpr() const {
-  return fIsIfExpr;
-}
-
 void CondStmt::verify() {
   Expr::verify();
 
