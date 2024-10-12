@@ -357,8 +357,14 @@ void CreateGpuFunctionSpecializations::doit() {
 }
 
 class GpuAssertionReporter {
- private:
+#if 1 //wass
+public:
   CallExpr* compileTimeGpuAssertion_;
+private:
+#else
+private:
+  CallExpr* compileTimeGpuAssertion_;
+#endif
   std::vector<CallExpr*> callStack_;
 
   // Internal mutable state for printing the trace.
@@ -471,13 +477,13 @@ class GpuAssertionReporter {
   }
 
   void pushCall(CallExpr* enter) {
-printf("%*s%s: pushCall %d\n", indentGPUChecksLevel, "", debugLoc(enter), enter->id); //wass
+printf("%*s{ %s: pushCall %d\n", indentGPUChecksLevel-2, "", debugLoc(enter), enter->id); //wass
     callStack_.push_back(enter);
   }
 
   void popCall() {
     callStack_.pop_back();
-printf("%*s  popCall\n", indentGPUChecksLevel, ""); //wass
+printf("%*s}\n", indentGPUChecksLevel-2, ""); //wass
   }
 
   void fallbackReportGpuizationFailure(BlockStmt* blk) {
@@ -541,11 +547,27 @@ public:
   const std::vector<CallExpr*>& pidGets() const { return pidGets_; }
 
   inline void reportNotGpuizable(BaseAST* ast, const char* msg) {
-debugSummary(ast); printf("%s\n", msg); gdbShouldBreakHere(); //wass
+#if 1 //wass
+if (assertionReporter_.compileTimeGpuAssertion_) {
+  printf("\n");
+  debugSummary(ast);
+  printf("%s\n\n", msg);
+  gdbShouldBreakHere(); //wass
+}
+#endif
     assertionReporter_.reportNotGpuizable(loop_, ast, msg);
   }
 
   inline void reportNotGpuizableFnCall(CallExpr* call, FnSymbol* fn, const char* msg) {
+#if 1 //wass
+if (assertionReporter_.compileTimeGpuAssertion_) {
+  printf("\n");
+  debugSummary(call);
+  debugSummary(fn);
+  printf("%s\n\n", msg);
+  gdbShouldBreakHere(); //wass
+}
+#endif
     assertionReporter_.pushCall(call);
     assertionReporter_.reportNotGpuizable(loop_, fn, msg);
     assertionReporter_.popCall();
@@ -798,6 +820,7 @@ FnSymbol* GpuizableLoop::createErroringStubForGpu(FnSymbol* fn) {
 }
 
 bool GpuizableLoop::callsInBodyAreGpuizable() {
+printf("\n"); //wass
   std::set<FnSymbol*> okFns;
   std::set<FnSymbol*> visitedFns;
   return callsInBodyAreGpuizableHelp(this->loop_, okFns, visitedFns);
