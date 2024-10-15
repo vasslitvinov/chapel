@@ -42,7 +42,7 @@
 
 static Timer gpuTransformTimer;
 
-static bool debugPrintGPUChecks = true; //wass
+static bool debugPrintGPUChecks = false;
 static bool allowFnCallsFromGPU = true;
 static int indentGPUChecksLevel = 0;
 
@@ -477,13 +477,13 @@ private:
   }
 
   void pushCall(CallExpr* enter) {
-printf("%*s{ %s: pushCall %d\n", indentGPUChecksLevel-2, "", debugLoc(enter), enter->id); //wass
+if (debugPrintGPUChecks) printf("%*s{ %s: pushCall %d\n", indentGPUChecksLevel-2, "", debugLoc(enter), enter->id); //wass
     callStack_.push_back(enter);
   }
 
   void popCall() {
     callStack_.pop_back();
-printf("%*s}\n", indentGPUChecksLevel-2, ""); //wass
+if (debugPrintGPUChecks) printf("%*s}\n", indentGPUChecksLevel-2, ""); //wass
   }
 
   void fallbackReportGpuizationFailure(BlockStmt* blk) {
@@ -548,7 +548,7 @@ public:
 
   inline void reportNotGpuizable(BaseAST* ast, const char* msg) {
 #if 1 //wass
-if (assertionReporter_.compileTimeGpuAssertion_) {
+if (debugPrintGPUChecks && assertionReporter_.compileTimeGpuAssertion_) {
   printf("\n");
   debugSummary(ast);
   printf("%s\n\n", msg);
@@ -560,7 +560,7 @@ if (assertionReporter_.compileTimeGpuAssertion_) {
 
   inline void reportNotGpuizableFnCall(CallExpr* call, FnSymbol* fn, const char* msg) {
 #if 1 //wass
-if (assertionReporter_.compileTimeGpuAssertion_) {
+if (debugPrintGPUChecks && assertionReporter_.compileTimeGpuAssertion_) {
   printf("\n");
   debugSummary(call);
   debugSummary(fn);
@@ -835,7 +835,7 @@ FnSymbol* GpuizableLoop::createErroringStubForGpu(FnSymbol* fn) {
 }
 
 bool GpuizableLoop::callsInBodyAreGpuizable() {
-printf("\n"); //wass
+if (debugPrintGPUChecks) printf("\n"); //wass
   std::set<FnSymbol*> okFns;
   std::set<FnSymbol*> visitedFns;
   return callsInBodyAreGpuizableHelp(this->loop_, okFns, visitedFns);
