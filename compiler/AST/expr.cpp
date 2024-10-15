@@ -194,8 +194,9 @@ bool Expr::isStmtExpr() const {
   return retval;
 }
 
-Expr* Expr::getStmtExpr() {
-  for (Expr* expr = this; expr; expr = expr->parentExpr) {
+//wass
+static Expr* prevGetStmtExpr(Expr* argThis) {
+  for (Expr* expr = argThis; expr; expr = expr->parentExpr) {
     if (expr->isStmt() == true) {
       return expr;
 
@@ -208,8 +209,8 @@ Expr* Expr::getStmtExpr() {
 
     // NOAKES 2014/11/30 A ForLoop is currently a BlockStmt
     // but needs special handling
-    } else if (ForLoop* parent = toForLoop(parentExpr)) {
-      if (parent->indexGet() != this && parent->iteratorGet() != this)
+    } else if (ForLoop* parent = toForLoop(expr->parentExpr)) {
+      if (parent->indexGet() != argThis && parent->iteratorGet() != argThis)
         return expr;
 
     } else if (isBlockStmt(expr->parentExpr)) {
@@ -218,6 +219,18 @@ Expr* Expr::getStmtExpr() {
   }
 
   return NULL;
+}
+
+Expr* Expr::getStmtExpr() {
+  for (Expr* expr = this; expr; expr = expr->parentExpr)
+    if (expr->isStmtExpr())
+{
+INT_ASSERT(expr == prevGetStmtExpr(this)); //wass
+      return expr;
+}
+
+INT_ASSERT(prevGetStmtExpr(this) == nullptr);
+  return nullptr;
 }
 
 Expr* Expr::getNextExpr(Expr* expr) {
