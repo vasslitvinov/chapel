@@ -798,6 +798,25 @@ bool GpuizableLoop::symsInBodyAreGpuizable() {
   return true;
 }
 
+// Given a 'cpuCall', replace it with this conditional:
+//  if gCpuVsGpuToken then cpuCall; else call gpuFn();
+static void setupCpuVsGpuCalls(CallExpr* cpuCall, FnSymbol* gpuFn) {
+  SET_LINENO(cpuCall);
+  if (! cpuCall->isStmtExpr()) {
+    printf("*** WASS: NOT IMPLEMENTED *** %d  %s\n",
+           cpuCall->id, debugLoc(cpuCall));
+    gdbShouldBreakHere(); //wass
+  }
+  CallExpr* gpuCall = cpuCall->copy();
+  gpuCall->setResolvedFunction(gpuFn);
+  BlockStmt* thenBlock = new BlockStmt();
+  CondStmt* cond = new CondStmt(new SymExpr(gCpuVsGpuToken),
+                                thenBlock, gpuCall);
+  cpuCall->replace(cond);
+  thenBlock->insertAtTail(cpuCall);
+  list_view(cond); //wass
+}
+
 FnSymbol* GpuizableLoop::createErroringStubForGpu(FnSymbol* fn) {
   SET_LINENO(fn);
 
@@ -808,12 +827,8 @@ FnSymbol* GpuizableLoop::createErroringStubForGpu(FnSymbol* fn) {
 
   // modify its body
   BlockStmt* gpuCopyBody = new BlockStmt();
-  VarSymbol* dummyRet = new VarSymbol("dummyRet", fn->retType);
-
   gpuCopyBody->insertAtTail(new CallExpr(PRIM_INT_ERROR));
-  gpuCopyBody->insertAtTail(new DefExpr(dummyRet));
-  gpuCopyBody->insertAtTail(new CallExpr(PRIM_RETURN, dummyRet));
-
+  gpuCopyBody->insertAtTail(new CallExpr(PRIM_RETURN, gVoid));
   gpuCopy->body->replace(gpuCopyBody);
 
   return gpuCopy;
@@ -876,6 +891,9 @@ bool GpuizableLoop::callsInBodyAreGpuizableHelp(BlockStmt* blk,
       // GPU-driven communication.
       if (fn->hasFlag(FLAG_NOT_CALLED_FROM_GPU)) {
         FnSymbol* gpuCopy = createErroringStubForGpu(fn);
+        // Set up the AST so that the call invokes different functions
+        // when executing on CPU vs. GPU
+        setupCpuVsGpuCalls(call, gpuCopy);
         call->setResolvedFunction(gpuCopy);
 
         // now, this call is safe
