@@ -148,8 +148,11 @@ static VarSymbol* generateAssignmentToPrimitive(FnSymbol* fn,
   return var;
 }
 
-
 static bool isDefinedInTheLoop(Symbol* sym, CForLoop* loop) {
+  // shortcut for global variables
+  if (isModuleSymbol(sym->defPoint->parentSymbol))
+    return false;
+
   LoopStmt* curLoop = LoopStmt::findEnclosingLoop(sym->defPoint);
   while (curLoop) {
     if (curLoop == loop) {
@@ -1818,11 +1821,11 @@ void GpuKernel::populateBody() {
 
       for_vector(SymExpr, symExpr, symExprsInBody) {
         Symbol* sym = symExpr->symbol();
+if (sym == gCpuVsGpuToken) gdbShouldBreakHere(); //wass
 
-        if (handledSymbols.count(sym) == 1) {
+        auto handledQ = handledSymbols.insert(sym);
+        if (! handledQ.second) // sym was already in the set
           continue;
-        }
-        handledSymbols.insert(sym);
 
         if (isDefinedInTheLoop(sym, loopForBody)) {
           // looks like this symbol was declared within the loop body,
@@ -1845,6 +1848,10 @@ void GpuKernel::populateBody() {
         }
         else if (sym->name == astr("chpl_privateObjects")) {
           // we are covering this elsewhere
+        }
+        else if (sym == gCpuVsGpuToken) {
+          // codegen will never reference gCpuVsGpuToken
+          // we could generalize this check to 'sym->hasFlag(FLAG_NO_CODEGEN)'
         }
         else {
           if (CallExpr* parent = toCallExpr(symExpr->parentExpr)) {
@@ -2190,6 +2197,21 @@ void GpuKernel::generateKernelLaunch() {
   launchBlock_->insertAtTail(new CallExpr(PRIM_GPU_DEINIT_KERNEL_CFG, cfg));
 }
 
+// Check that all references to gCpuVsGpuToken occur only within conditionals.
+// We could do it in the front end for earlier detection, however doing it here
+// allows us to catch compiler-introduced bugs as well.
+static void checkUsesOf_cpuVsGpuToken() {
+  for_SymbolSymExprs(se, gCpuVsGpuToken) {
+    bool useOK = false;
+    if (CondStmt* cond = toCondStmt(se->parentExpr))
+      if (se == cond->condExpr)
+        useOK = true;
+    if (! useOK)
+      USR_FATAL_CONT(se, "%s is used outside of an if-condition",
+                     gCpuVsGpuToken->name);
+  }
+}
+
 static CallExpr* getGpuEligibleMarker(CForLoop* loop) {
   if (loop->body.length > 0) {
     if (auto callExpr = toCallExpr(loop->body.get(1))) {
@@ -2252,6 +2274,8 @@ static void doGpuTransforms() {
   if(fGpuSpecialization) {
     CreateGpuFunctionSpecializations().doit();
   }
+
+  checkUsesOf_cpuVsGpuToken();
 
   // Outline all eligible loops; cleanup CPU bound loops
   for_alive_in_Vec(FnSymbol*, fn, gFnSymbols) {

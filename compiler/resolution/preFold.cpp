@@ -2598,6 +2598,43 @@ static Expr* unrollHetTupleLoop(CallExpr* call, Expr* tupExpr, Type* iterType) {
 }
 
 
+static bool tempIsUsedOnlyInMoveAndCond(Symbol* temp,
+                                        CallExpr* move, CondStmt* cond) {
+  for_SymbolSymExprs(se, temp)
+    if (se != move->get(1) && se != cond->condExpr)
+      return false;
+  return true;
+}
+
+// Replace
+//   def temp
+//   move temp <- 'call' _cond_test(arg removed into 'retval')
+//   if temp then ....
+// with
+//   if 'arg' then ....
+static void maybeInlineArgIntoCond(CallExpr*& call, Expr*& retval) {
+//const char* debugLoc(BaseAST* ast); //wass
+//printf("COND: attempting for %s  %d %s\n", retval->symbol()->name,
+//       call->id, debugLoc(call)); //wass
+  if (CallExpr* move = toCallExpr(call->parentExpr))
+   if (CondStmt* cond = toCondStmt(move->next))
+    if (move->isPrimitive(PRIM_MOVE))
+     if (Symbol* temp = toSymExpr(move->get(1))->symbol())
+      if (call == move->get(2))
+       if (tempIsUsedOnlyInMoveAndCond(temp, move, cond))
+        {
+//printf("  successful\n");
+          temp->defPoint->remove();
+          cond->condExpr->replace(retval);
+          // set up for 'call->replace(retval)' in caller
+          // to replace 'move' with a no-op
+          call = move;
+          retval = new CallExpr(PRIM_NOOP);
+        }
+//  printf(" failed\n");
+//  return arg;
+}
+
 static bool isMethodCall(CallExpr* call) {
   // The first argument could be DefExpr for a query expr, see
   //   test/arrays/formals/queryArrOfArr2.chpl
@@ -2953,6 +2990,8 @@ static Expr* preFoldNamed(CallExpr* call) {
         if (argType == dtBool) {
           // use the argument directly
           retval = argSE->remove();
+if (call->parentSymbol->id == breakOnRemoveID) gdbShouldBreakHere(); //wass
+          maybeInlineArgIntoCond(call, retval); // modifies call, retval
 
         } else if (argType == dtBool->refType) {
           // dereference it so later passes get a value
