@@ -817,6 +817,7 @@ static void setupCpuVsGpuCalls(CallExpr* cpuCall, FnSymbol* gpuFn) {
                                 thenBlock, gpuCall);
   cpuCall->replace(cond);
   thenBlock->insertAtTail(cpuCall);
+  printf("setupCpuVsGpuCalls  cond %d  %s\n", cond->id, debugLoc(cond));
   list_view(cond); //wass
 }
 
@@ -897,7 +898,6 @@ bool GpuizableLoop::callsInBodyAreGpuizableHelp(BlockStmt* blk,
         // Set up the AST so that the call invokes different functions
         // when executing on CPU vs. GPU
         setupCpuVsGpuCalls(call, gpuCopy);
-        call->setResolvedFunction(gpuCopy);
 
         // now, this call is safe
         continue;
