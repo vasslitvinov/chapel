@@ -2635,8 +2635,6 @@ static void inlineArgIntoCond(CallExpr*& call, Expr*& retval) {
           call = move;
           retval = new CallExpr(PRIM_NOOP);
         }
-//  printf(" failed\n");
-//  return arg;
 }
 
 static bool isMethodCall(CallExpr* call) {

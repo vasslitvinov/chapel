@@ -360,7 +360,7 @@ void CreateGpuFunctionSpecializations::doit() {
 }
 
 class GpuAssertionReporter {
-private:
+ private:
   CallExpr* compileTimeGpuAssertion_;
   std::vector<CallExpr*> callStack_;
 
@@ -904,8 +904,8 @@ bool GpuizableLoop::callsInBodyAreGpuizableHelp(BlockStmt* blk,
         assertionReporter_.popCall();
         indentGPUChecksLevel -= 2;
         if (ok) {
-          // If this is a recursive call to 'fn', 'ok' will be true and
-          // insertion will occur though we are not done analyzing 'fn'.
+          // If this is a recursive call to 'fn', 'ok' will be true and we will
+          // okFns.insert(fn) even though we are not done analyzing 'fn'.
           // This avoids re-analyzing any subsequent calls to 'fn'.
           // We will still see bad calls in 'fn', if any, while working
           // through the first encountered call to 'fn'.
