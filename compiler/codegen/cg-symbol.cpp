@@ -60,7 +60,6 @@
 #include "resolution.h"
 #include "wellknown.h"
 #include "WhileDoStmt.h"
-#include "view.h" //wass
 
 #include "global-ast-vecs.h"
 
@@ -2508,10 +2507,7 @@ void FnSymbol::codegenPrototype() {
        hasFlag(FLAG_GPU_CODEGEN) == false)
       return;
     if (hasFlag(FLAG_NOT_CALLED_FROM_GPU))
-{ //wass
-printf("GPU codegenPrototype %s[%d]  %s\n", name, id, debugLoc(this));
       return;
-}
   }
 
   if( info->cfile ) {

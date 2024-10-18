@@ -2621,9 +2621,6 @@ static bool tempIsUsedOnlyInMoveAndCond(Symbol* temp,
 // with --no-local and test/classes/nilability/if-object-2.chpl.
 //
 static void inlineArgIntoCond(CallExpr*& call, Expr*& retval) {
-const char* debugLoc(BaseAST* ast); //wass
-//printf("COND: attempting for %s  %d %s\n", retval->symbol()->name,
-//       call->id, debugLoc(call)); //wass
   if (CallExpr* move = toCallExpr(call->parentExpr))
    if (CondStmt* cond = toCondStmt(move->next))
     if (move->isPrimitive(PRIM_MOVE))
@@ -2631,8 +2628,6 @@ const char* debugLoc(BaseAST* ast); //wass
       if (call == move->get(2))
        if (tempIsUsedOnlyInMoveAndCond(temp, move, cond))
         {
-printf("inlineArgIntoCond successful  cond %d  %s\n", //wass
-       cond->id, debugLoc(cond));
           temp->defPoint->remove();
           cond->condExpr->replace(retval);
           // set up for 'call->replace(retval)' in caller

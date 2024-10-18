@@ -360,14 +360,8 @@ void CreateGpuFunctionSpecializations::doit() {
 }
 
 class GpuAssertionReporter {
-#if 1 //wass
-public:
-  CallExpr* compileTimeGpuAssertion_;
-private:
-#else
 private:
   CallExpr* compileTimeGpuAssertion_;
-#endif
   std::vector<CallExpr*> callStack_;
 
   // Internal mutable state for printing the trace.
@@ -480,13 +474,11 @@ private:
   }
 
   void pushCall(CallExpr* enter) {
-if (debugPrintGPUChecks) printf("%*s{ %s: pushCall %d\n", indentGPUChecksLevel-2, "", debugLoc(enter), enter->id); //wass
     callStack_.push_back(enter);
   }
 
   void popCall() {
     callStack_.pop_back();
-if (debugPrintGPUChecks) printf("%*s}\n", indentGPUChecksLevel-2, ""); //wass
   }
 
   void fallbackReportGpuizationFailure(BlockStmt* blk) {
@@ -550,27 +542,10 @@ public:
   const std::vector<CallExpr*>& pidGets() const { return pidGets_; }
 
   inline void reportNotGpuizable(BaseAST* ast, const char* msg) {
-#if 1 //wass
-if (debugPrintGPUChecks && assertionReporter_.compileTimeGpuAssertion_) {
-  printf("\n");
-  debugSummary(ast);
-  printf("%s\n\n", msg);
-  gdbShouldBreakHere(); //wass
-}
-#endif
     assertionReporter_.reportNotGpuizable(loop_, ast, msg);
   }
 
   inline void reportNotGpuizableFnCall(CallExpr* call, FnSymbol* fn, const char* msg) {
-#if 1 //wass
-if (debugPrintGPUChecks && assertionReporter_.compileTimeGpuAssertion_) {
-  printf("\n");
-  debugSummary(call);
-  debugSummary(fn);
-  printf("%s\n\n", msg);
-  gdbShouldBreakHere(); //wass
-}
-#endif
     assertionReporter_.pushCall(call);
     assertionReporter_.reportNotGpuizable(loop_, fn, msg);
     assertionReporter_.popCall();
@@ -804,6 +779,7 @@ bool GpuizableLoop::symsInBodyAreGpuizable() {
 // Given a 'cpuCall', replace it with this conditional:
 //  if gCpuVsGpuToken then cpuCall; else call gpuFn();
 static void setupCpuVsGpuCalls(CallExpr* cpuCall, FnSymbol* gpuFn) {
+  // handling non-statement-level calls is t.b.d.
   if (! cpuCall->isStmtExpr())
     USR_FATAL(cpuCall, "such calls to %s are currently not implemented",
               gpuFn->name);
@@ -816,8 +792,6 @@ static void setupCpuVsGpuCalls(CallExpr* cpuCall, FnSymbol* gpuFn) {
                                 thenBlock, gpuCall);
   cpuCall->replace(cond);
   thenBlock->insertAtTail(cpuCall);
-  printf("setupCpuVsGpuCalls  cond %d  %s\n", cond->id, debugLoc(cond));//wass
-  //list_view(cond); //wass
 }
 
 FnSymbol* GpuizableLoop::createErroringStubForGpu(FnSymbol* fn) {
@@ -835,12 +809,10 @@ FnSymbol* GpuizableLoop::createErroringStubForGpu(FnSymbol* fn) {
   gpuCopyBody->insertAtTail(new CallExpr(PRIM_RETURN, gVoid));
   gpuCopy->body->replace(gpuCopyBody);
 
-printf("createErroringStubForGpu %d -> %d\n", fn->id, gpuCopy->id); //wass
   return gpuCopy;
 }
 
 bool GpuizableLoop::callsInBodyAreGpuizable() {
-if (debugPrintGPUChecks) printf("\n"); //wass
   std::set<FnSymbol*> okFns;
   std::set<FnSymbol*> visitedFns;
   return callsInBodyAreGpuizableHelp(this->loop_, okFns, visitedFns);
@@ -1822,11 +1794,9 @@ void GpuKernel::populateBody() {
 
       for_vector(SymExpr, symExpr, symExprsInBody) {
         Symbol* sym = symExpr->symbol();
-if (sym == gCpuVsGpuToken) gdbShouldBreakHere(); //wass
 
-        auto handledQ = handledSymbols.insert(sym);
-        if (! handledQ.second) // sym was already in the set
-          continue;
+        if (!  handledSymbols.insert(sym).second)
+          continue; // sym was already in the set
 
         if (isDefinedInTheLoop(sym, loopForBody)) {
           // looks like this symbol was declared within the loop body,
