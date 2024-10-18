@@ -1179,7 +1179,7 @@ void initPrimitiveTypes() {
   dtAnyRecord = createInternalType("record", "_anyRecord");
   dtAnyRecord->symbol->addFlag(FLAG_GENERIC);
 
-  gCpuVsGpuToken = createSymbol(dtBool, "_cpuVsGpuToken");
+  gCpuVsGpuToken = createSymbol(dtBool, "chpl_cpuVsGpuToken");
   gCpuVsGpuToken->addFlag(FLAG_NO_CODEGEN);
 
   gIteratorBreakToken = createSymbol(dtBool, "_iteratorBreakToken");

@@ -1,5 +1,5 @@
 // This test checks the basic functionality of
-// '_cpuVsGpuToken' and pragma "not called from gpu"
+// 'chpl_cpuVsGpuToken' and pragma "not called from gpu"
 // which are not user-facing.
 
 // The .good files also lock the current error behavior when i==err1 or err2.
@@ -33,7 +33,7 @@ proc either() {
   writeln("{ start either()");
 
   forall i in space {
-    if _cpuVsGpuToken {
+    if chpl_cpuVsGpuToken {
       chpl_gpu_printf0("either() on cpu\n");
       nonLocalAccess(); // on cpu - should be OK
     } else {
