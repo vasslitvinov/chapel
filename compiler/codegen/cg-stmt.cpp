@@ -204,7 +204,7 @@ CondStmt::codegen() {
 
   if (BlockStmt* chosenBlock = chooseCpuVsGpuBranch(this)) {
 const char* debugLoc(BaseAST* ast); //wass
-printf("chosenBlock: %s  %d  %s\n", chosenBlock==thenStmt ? "then":"else", id, debugLoc(this)); //wass
+printf("chosenBlock: %s  for cond %d  %s\n", chosenBlock==thenStmt ? "then":"else", id, debugLoc(this)); //wass
     for_alist(node, chosenBlock->body)
       node->codegen();
     return ret;

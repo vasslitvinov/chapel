@@ -2275,8 +2275,6 @@ static void doGpuTransforms() {
     CreateGpuFunctionSpecializations().doit();
   }
 
-  checkUsesOf_cpuVsGpuToken();
-
   // Outline all eligible loops; cleanup CPU bound loops
   for_alive_in_Vec(FnSymbol*, fn, gFnSymbols) {
     bool canAssumeFnWillRunOnCpu = fGpuSpecialization &&
@@ -2296,6 +2294,8 @@ static void doGpuTransforms() {
       cleanupForeachLoopsGuaranteedToRunOnCpu(fn);
     }
   }
+
+  checkUsesOf_cpuVsGpuToken();
 }
 
 static void logGpuizableLoops() {

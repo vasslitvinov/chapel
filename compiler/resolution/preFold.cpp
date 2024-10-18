@@ -2598,6 +2598,7 @@ static Expr* unrollHetTupleLoop(CallExpr* call, Expr* tupExpr, Type* iterType) {
 }
 
 
+// helper for inlineArgIntoCond()
 static bool tempIsUsedOnlyInMoveAndCond(Symbol* temp,
                                         CallExpr* move, CondStmt* cond) {
   for_SymbolSymExprs(se, temp)
@@ -2606,14 +2607,21 @@ static bool tempIsUsedOnlyInMoveAndCond(Symbol* temp,
   return true;
 }
 
-// Replace
+//
+// This helps replace:
 //   def temp
-//   move temp <- 'call' _cond_test(arg removed into 'retval')
+//   move temp <- _cond_test(argSym)
 //   if temp then ....
 // with
-//   if 'arg' then ....
-static void maybeInlineArgIntoCond(CallExpr*& call, Expr*& retval) {
-//const char* debugLoc(BaseAST* ast); //wass
+//   if argSym then ....
+// in the context of its caller.
+//
+// Why not use this on all eligible boolean 'argSym'? That would break code
+// that expects the 'move', ex. test/functions/vass/ref-intent-bug-2big.chpl
+// with --no-local and test/classes/nilability/if-object-2.chpl.
+//
+static void inlineArgIntoCond(CallExpr*& call, Expr*& retval) {
+const char* debugLoc(BaseAST* ast); //wass
 //printf("COND: attempting for %s  %d %s\n", retval->symbol()->name,
 //       call->id, debugLoc(call)); //wass
   if (CallExpr* move = toCallExpr(call->parentExpr))
@@ -2623,7 +2631,8 @@ static void maybeInlineArgIntoCond(CallExpr*& call, Expr*& retval) {
       if (call == move->get(2))
        if (tempIsUsedOnlyInMoveAndCond(temp, move, cond))
         {
-//printf("  successful\n");
+printf("inlineArgIntoCond successful  cond %d  %s\n", //wass
+       cond->id, debugLoc(cond));
           temp->defPoint->remove();
           cond->condExpr->replace(retval);
           // set up for 'call->replace(retval)' in caller
@@ -2990,8 +2999,8 @@ static Expr* preFoldNamed(CallExpr* call) {
         if (argType == dtBool) {
           // use the argument directly
           retval = argSE->remove();
-if (call->parentSymbol->id == breakOnRemoveID) gdbShouldBreakHere(); //wass
-          maybeInlineArgIntoCond(call, retval); // modifies call, retval
+          if (argSym == gCpuVsGpuToken)
+            inlineArgIntoCond(call, retval); // modifies call, retval
 
         } else if (argType == dtBool->refType) {
           // dereference it so later passes get a value
