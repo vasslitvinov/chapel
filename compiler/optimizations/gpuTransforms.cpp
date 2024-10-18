@@ -804,12 +804,11 @@ bool GpuizableLoop::symsInBodyAreGpuizable() {
 // Given a 'cpuCall', replace it with this conditional:
 //  if gCpuVsGpuToken then cpuCall; else call gpuFn();
 static void setupCpuVsGpuCalls(CallExpr* cpuCall, FnSymbol* gpuFn) {
+  if (! cpuCall->isStmtExpr())
+    USR_FATAL(cpuCall, "such calls to %s are currently not implemented",
+              gpuFn->name);
+
   SET_LINENO(cpuCall);
-  if (! cpuCall->isStmtExpr()) {
-    printf("*** WASS: NOT IMPLEMENTED *** %d  %s\n",
-           cpuCall->id, debugLoc(cpuCall));
-    gdbShouldBreakHere(); //wass
-  }
   CallExpr* gpuCall = cpuCall->copy();
   gpuCall->setResolvedFunction(gpuFn);
   BlockStmt* thenBlock = new BlockStmt();
@@ -817,8 +816,8 @@ static void setupCpuVsGpuCalls(CallExpr* cpuCall, FnSymbol* gpuFn) {
                                 thenBlock, gpuCall);
   cpuCall->replace(cond);
   thenBlock->insertAtTail(cpuCall);
-  printf("setupCpuVsGpuCalls  cond %d  %s\n", cond->id, debugLoc(cond));
-  list_view(cond); //wass
+  printf("setupCpuVsGpuCalls  cond %d  %s\n", cond->id, debugLoc(cond));//wass
+  //list_view(cond); //wass
 }
 
 FnSymbol* GpuizableLoop::createErroringStubForGpu(FnSymbol* fn) {
@@ -827,6 +826,7 @@ FnSymbol* GpuizableLoop::createErroringStubForGpu(FnSymbol* fn) {
   // set up the new function
   FnSymbol* gpuCopy = fn->copy();
   gpuCopy->addFlag(FLAG_GPU_CODEGEN);
+  gpuCopy->removeFlag(FLAG_NOT_CALLED_FROM_GPU);
   fn->defPoint->insertBefore(new DefExpr(gpuCopy));
 
   // modify its body
@@ -835,6 +835,7 @@ FnSymbol* GpuizableLoop::createErroringStubForGpu(FnSymbol* fn) {
   gpuCopyBody->insertAtTail(new CallExpr(PRIM_RETURN, gVoid));
   gpuCopy->body->replace(gpuCopyBody);
 
+printf("createErroringStubForGpu %d -> %d\n", fn->id, gpuCopy->id); //wass
   return gpuCopy;
 }
 
