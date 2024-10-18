@@ -242,10 +242,6 @@ static void runPass(PhaseTracker& tracker, size_t passIndex) {
 
   if (fPrintStatistics[0] != '\0' && passIndex > 0)
     printStatistics("clean");
-  if (::getenv("CHPL_VASS_gdb")) {
-    // announce the pass, with some info
-    printf("%9d  %s\n", lastNodeIDUsed(), info->name);
-  }
 
   (*(info->passFunction))();
 
