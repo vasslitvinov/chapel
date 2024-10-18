@@ -4,7 +4,7 @@
 'on' on gpu
 'on' on gpu
 'on' on gpu
-nonLocalAccess()
+notRunOnGPUs()
 } finish 'on'
 { start either()
 either() on gpu
@@ -15,14 +15,9 @@ either() on gpu
 compiler generated error
 } finish either()
 { start either()
-either() on cpu
-nonLocalAccess()
-either() on cpu
-nonLocalAccess()
-either() on cpu
-nonLocalAccess()
-either() on cpu
-nonLocalAccess()
-either() on cpu
-nonLocalAccess()
+notRunOnGPUs()
+notRunOnGPUs()
+notRunOnGPUs()
+notRunOnGPUs()
+notRunOnGPUs()
 } finish either()

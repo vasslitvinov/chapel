@@ -15,10 +15,10 @@ on here.gpus[0] {
   @assertOnGpu
   forall i in space {
     chpl_gpu_printf0("'on' on gpu\n");
-    if i == err1 then nonLocalAccess(); // this compiles, error if invoked
+    if i == err1 then notRunOnGPUs(); // error if invoked
   }
 
-  nonLocalAccess();
+  notRunOnGPUs();
 
   writeln("} finish 'on'");
 }
@@ -34,11 +34,10 @@ proc either() {
 
   forall i in space {
     if chpl_cpuVsGpuToken {
-      chpl_gpu_printf0("either() on cpu\n");
-      nonLocalAccess(); // on cpu - should be OK
+      notRunOnGPUs(); // on cpu - should be OK
     } else {
       chpl_gpu_printf0("either() on gpu\n");
-      if i == err2 then nonLocalAccess(); // this compiles, error if invoked
+      if i == err2 then notRunOnGPUs(); // error if invoked
     }
   }
 
@@ -46,9 +45,9 @@ proc either() {
 }
 
 pragma "not called from gpu"
-proc nonLocalAccess() {
+proc notRunOnGPUs() {
   // note that printf would not compile during the GPU phase of codegen
-  printf("nonLocalAccess()\n");
+  printf("notRunOnGPUs()\n");
 }
 
 extern proc printf(args...);
