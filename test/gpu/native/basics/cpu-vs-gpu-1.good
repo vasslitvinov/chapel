@@ -1,0 +1,27 @@
+{ start 'on'
+'on' on gpu
+'on' on gpu
+'on' on gpu
+'on' on gpu
+'on' on gpu
+nonLocalAccess()
+} finish 'on'
+{ start either()
+either() on gpu
+either() on gpu
+either() on gpu
+either() on gpu
+either() on gpu
+} finish either()
+{ start either()
+either() on cpu
+nonLocalAccess()
+either() on cpu
+nonLocalAccess()
+either() on cpu
+nonLocalAccess()
+either() on cpu
+nonLocalAccess()
+either() on cpu
+nonLocalAccess()
+} finish either()
