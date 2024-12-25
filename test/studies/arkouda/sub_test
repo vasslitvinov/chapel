@@ -119,7 +119,7 @@ if [ ${CHPL_TEST_ARKOUDA_STOP_AFTER_BUILD} = "false" ]; then
         benchmark_opts="--save-data --dat-dir $ARKOUDA_TEST_PERF_DIR"
     fi
 
-    benchmark_opts="${benchmark_opts} --isolated"  #vass add '--isolated'
+    benchmark_opts="${benchmark_opts} --isolated isodummy"  #vass add '--isolated'
     benchmark_opts="${benchmark_opts} --annotations $CHPL_HOME/test/ANNOTATIONS.yaml"
     if [[ -n $CHPL_TEST_PERF_DESCRIPTION ]]; then
         if [ "${CHPL_TEST_GEN_ARKOUDA_GRAPHS}" = "true" ] ; then
@@ -143,6 +143,9 @@ if [ ${CHPL_TEST_ARKOUDA_STOP_AFTER_BUILD} = "false" ]; then
     fi
 
     test_start "benchmarks"
+    # vass add some printouts
+    pwd
+    echo benchmark_opts = ${benchmark_opts} .
     if ./benchmarks/run_benchmarks.py ${benchmark_opts} ; then
       log_success "benchmark output"
     else
