@@ -165,12 +165,13 @@ fi
 # vass also run v2
 test_start "benchmark_v2"
 
+python3 -m pip install pytest-benchmark --user
 make benchmark
 
 # vass save away
 dest="/hpcdc/project/chapel/public_html/arkouda_bench_v2/`date '+%Y_%m_%d_%H_%M_%S'`"
 set -x
-ls -alF 
+ls -alF benchmark_v2
 rsync -av benchmark_v2/ $dest/
 chmod -R a+rX $dest
 set +x
