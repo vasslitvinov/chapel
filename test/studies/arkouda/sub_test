@@ -145,7 +145,7 @@ if [ ${CHPL_TEST_ARKOUDA_STOP_AFTER_BUILD} = "false" ]; then
     test_start "benchmarks"
     # vass add some printouts
     pwd
-    echo benchmark_opts = ${benchmark_opts} .
+    echo vass: benchmark_opts = ${benchmark_opts} .
     if ./benchmarks/run_benchmarks.py ${benchmark_opts} ; then
       log_success "benchmark output"
     else
@@ -161,5 +161,19 @@ else
   log_success "build output"
   test_end
 fi
+
+# vass also run v2
+test_start "benchmark_v2"
+
+make benchmark
+
+# vass save away
+dest="/hpcdc/project/chapel/public_html/arkouda_bench_v2/`date '+%Y_%m_%d_%H_%M_%S'`"
+set -x
+ls -alF 
+rsync -av benchmark_v2/ $dest/
+chmod -R a+rX $dest
+set +x
+test_end
 
 subtest_end
