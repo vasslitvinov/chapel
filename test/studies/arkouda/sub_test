@@ -166,6 +166,7 @@ fi
 test_start "benchmark_v2"
 
 python3 -m pip install pytest-benchmark --user
+export ARKOUDA_RUNNING_MODE=CLASS_SERVER  # see startup_teardown()
 make benchmark
 
 # vass save away
