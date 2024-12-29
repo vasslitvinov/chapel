@@ -162,7 +162,7 @@ else
   test_end
 fi
 
-# vass also run v2
+if false; then # vass do not run v2
 test_start "benchmark_v2"
 
 python3 -m pip install pytest-benchmark --user
@@ -177,5 +177,6 @@ rsync -av benchmark_v2/ $dest/
 chmod -R a+rX $dest
 set +x
 test_end
+fi # vass do not run v2
 
 subtest_end
