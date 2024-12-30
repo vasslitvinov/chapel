@@ -162,18 +162,6 @@ else
   test_end
 fi
 
-test_start "chmod"
-
-pushd ../../../../../../../..
-pwd
-popd
-
-set -x
-chmod a+rX .. ../.. ../../.. ../../../..  ../../../../.. ../../../../../.. ../../../../../../.. ../../../../../../../.. ../../../../../../../../..
-set +x
-
-test_end
-
 if false; then # vass do not run v2
 test_start "benchmark_v2"
 
