@@ -165,46 +165,40 @@ date
 
 python3 -m pip install pytest-benchmark --user
 
-# manual server setup since ARKOUDA_RUNNING_MODE=GLOBAL_SERVER or CLASS_SERVER
-# are not working for us
+#export ARKOUDA_RUNNING_MODE=CLASS_SERVER  #see startup_teardown()
+# ARKOUDA_RUNNING_MODE=GLOBAL_SERVER or CLASS_SERVER are not working for us
+# so instead use manual server setup
+
+# call start_arkouda_server() then set ARKOUDA_SERVER_*
+export CHPL_LAUNCHER_WALLTIME=05:00:00
+if ! eval `python3 -c "
+from server_util.test.server_test_util import start_arkouda_server
+si = start_arkouda_server(${ARKOUDA_NUMLOCALES:-16})
+print(f'export ARKOUDA_SERVER_HOST={si.host};')
+print(f'export ARKOUDA_SERVER_PORT={si.port};')
+'''workaround'''
+import atexit
+from server_util.test.server_test_util import kill_server
+atexit.unregister(kill_server)
+import sys
+print(f'Started server at {si.host}:{si.port}', file=sys.stderr)
+"` ; then
+  log_fatal_error "starting arkouda server"
+fi
+
 export ARKOUDA_RUNNING_MODE=CLIENT  # see startup_teardown()
-ARKOUDA_CLIENT_MODE=API $ARKOUDA_HOME/arkouda_server -nl 16 < /dev/null > arkouda.server-log 2>&1 &
-arkouda_pid=$!
-
-# wait until the connection info is in the logfile
-while true; do
-  if grep -q 'server listening on' arkouda.server-log; then
-    # found it
-    break
-  fi
-  if ! test -d /proc/$arkouda_pid; then
-    echo -------------------------------------------------------
-    cat arkouda.server-log
-    echo -------------------------------------------------------
-    echo
-    log_error "running benchmarks"
-    test_end
-    subtest_end
-    exit 2
-  fi
-  sleep 1
-done
-
-# *   server listening on tcp://nid00011:5555  *
-connectLine=(`grep 'server listening on' arkouda.server-log | sed 's@^.*://\(.*\):\([^ ]*\) .*$@\1 \2@'`)
-echo "connectLine = ${connectLine[@]}"
-
-#export ARKOUDA_RUNNING_MODE=CLASS_SERVER  #see startup_teardown(), not working
-export ARKOUDA_RUNNING_MODE=CLIENT  # see startup_teardown()
-export ARKOUDA_SERVER_HOST=${connectLine[0]}
-export ARKOUDA_SERVER_PORT=${connectLine[1]}
+export ARKOUDA_CLIENT_MODE=API # avoid banners
 
 make benchmark
 
-# vass save away
+# manually shut down the server
+echo Shutting down server at $ARKOUDA_SERVER_HOST:$ARKOUDA_SERVER_PORT
+python3 server_util/test/shutdown.py $ARKOUDA_SERVER_HOST $ARKOUDA_SERVER_PORT
+
+# save away the data
 dest="/hpcdc/project/chapel/public_html/arkouda_bench_v2/`date '+%Y_%m_%d_%H_%M_%S'`"
 set -x
-ls -alF benchmark_v2
+#ls -alF benchmark_v2
 rsync -av benchmark_v2/ $dest/
 chmod -R a+rX $dest
 set +x
