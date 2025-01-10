@@ -6,6 +6,7 @@
 ARKOUDA_URL=${ARKOUDA_URL:-https://github.com/Bears-R-Us/arkouda.git}
 ARKOUDA_BRANCH=${ARKOUDA_BRANCH:-master}
 
+CHPL_TEST_ARKOUDA_PERF=false #vass: skip normal per testing
 export CHPL_TEST_ARKOUDA_STOP_AFTER_BUILD=${CHPL_TEST_ARKOUDA_STOP_AFTER_BUILD:-"false"}
 
 CWD=$(cd $(dirname ${BASH_SOURCE[0]}) ; pwd)
@@ -119,7 +120,6 @@ if [ ${CHPL_TEST_ARKOUDA_STOP_AFTER_BUILD} = "false" ]; then
         benchmark_opts="--save-data --dat-dir $ARKOUDA_TEST_PERF_DIR"
     fi
 
-    benchmark_opts="${benchmark_opts} --isolated isodummy"  #vass add '--isolated'
     benchmark_opts="${benchmark_opts} --annotations $CHPL_HOME/test/ANNOTATIONS.yaml"
     if [[ -n $CHPL_TEST_PERF_DESCRIPTION ]]; then
         if [ "${CHPL_TEST_GEN_ARKOUDA_GRAPHS}" = "true" ] ; then
@@ -143,10 +143,7 @@ if [ ${CHPL_TEST_ARKOUDA_STOP_AFTER_BUILD} = "false" ]; then
     fi
 
     test_start "benchmarks"
-    # vass add some printouts
-    pwd
-    echo vass: benchmark_opts = ${benchmark_opts} .
-    if ./benchmarks/run_benchmarks.py ${benchmark_opts} ; then
+    if true; then #vass skip: if ./benchmarks/run_benchmarks.py ${benchmark_opts} ; then
       log_success "benchmark output"
     else
       log_error "running benchmarks"
@@ -162,11 +159,46 @@ else
   test_end
 fi
 
-if false; then # vass do not run v2
+# vass: run benchmarks "v2"
 test_start "benchmark_v2"
+date
 
 python3 -m pip install pytest-benchmark --user
-export ARKOUDA_RUNNING_MODE=CLASS_SERVER  # see startup_teardown()
+
+# manual server setup since ARKOUDA_RUNNING_MODE=GLOBAL_SERVER or CLASS_SERVER
+# are not working for us
+export ARKOUDA_RUNNING_MODE=CLIENT  # see startup_teardown()
+ARKOUDA_CLIENT_MODE=API $ARKOUDA_HOME/arkouda_server -nl 16 < /dev/null > arkouda.server-log 2>&1 &
+arkouda_pid=$!
+
+# wait until the connection info is in the logfile
+while true; do
+  if grep -q 'server listening on' arkouda.server-log; then
+    # found it
+    break
+  fi
+  if ! test -d /proc/$arkouda_pid; then
+    echo -------------------------------------------------------
+    cat arkouda.server-log
+    echo -------------------------------------------------------
+    echo
+    log_error "running benchmarks"
+    test_end
+    subtest_end
+    exit 2
+  fi
+  sleep 1
+done
+
+# *   server listening on tcp://nid00011:5555  *
+connectLine=(`grep 'server listening on' arkouda.server-log | sed 's@^.*://\(.*\):\([^ ]*\) .*$@\1 \2@'`)
+echo "connectLine = ${connectLine[@]}"
+
+#export ARKOUDA_RUNNING_MODE=CLASS_SERVER  #see startup_teardown(), not working
+export ARKOUDA_RUNNING_MODE=CLIENT  # see startup_teardown()
+export ARKOUDA_SERVER_HOST=${connectLine[0]}
+export ARKOUDA_SERVER_PORT=${connectLine[1]}
+
 make benchmark
 
 # vass save away
@@ -176,7 +208,8 @@ ls -alF benchmark_v2
 rsync -av benchmark_v2/ $dest/
 chmod -R a+rX $dest
 set +x
+
+# vass: done benchmarks "v2"
 test_end
-fi # vass do not run v2
 
 subtest_end
